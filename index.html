@@ -3,35 +3,37 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>US Tesla VIN Clearinghouse &amp; Arbitrage Workbench</title>
+  <title>Used Tesla Cars for Sale Online | Tesla Direct Clearinghouse</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      /* Locked JENNI-DESIGN-SPEC.md Tokens (Zero Pure Grays) */
-      --paper: #FAFCFF;
-      --paper-2: #F3F7FD;
+      /* Carvana + JENNI-DESIGN-SPEC.md Light-Mode Palette */
+      --paper: #F4F8FC;
+      --paper-2: #EBF2FA;
       --brand-white: #FFFFFF;
+      --cv-navy: #002855;
+      --cv-dark: #001635;
+      --cv-cyan: #00AED9;
       --brand-blue: #1DA4FF;
-      --brand-dark-blue: #001635;
       --brand-light-blue: #DCF1FF;
       --brand-red: #F04B07;
       --emerald: #059669;
       --emerald-bg: #ECFDF5;
       --emerald-border: #A7F3D0;
       --line: #D8E3F2;
-      --line-2: #E8EFF8;
+      --line-2: #E6EEF8;
       --ink: #0E1A2F;
       --ink-2: #2A3654;
       --ink-3: #5B6786;
       --ink-4: #8B95B0;
-      --shadow-e1: 0 1px 3px rgba(0, 22, 53, 0.08), 0 4px 12px rgba(0, 22, 53, 0.04);
-      --shadow-e2: 0 8px 24px rgba(0, 22, 53, 0.12);
+      --shadow-card: 0 2px 8px rgba(0, 40, 85, 0.07), 0 1px 2px rgba(0, 40, 85, 0.04);
+      --shadow-hover: 0 12px 28px rgba(0, 40, 85, 0.14);
       --radius-sm: 8px;
       --radius-btn: 10px;
-      --radius-md: 14px;
-      --radius-lg: 22px;
+      --radius-card: 12px;
+      --radius-lg: 18px;
       --radius-pill: 999px;
       --font: 'Figtree', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
       --mono: 'JetBrains Mono', monospace;
@@ -44,268 +46,527 @@
       font-family: var(--font);
       background: var(--paper);
       color: var(--ink);
-      line-height: 1.45;
+      line-height: 1.42;
       -webkit-font-smoothing: antialiased;
     }
 
-    /* Top Sticky Workbench Header */
-    .top-nav {
+    /* 1. Carvana-Style Top Sticky Header */
+    .cv-header {
       position: sticky;
       inset-block-start: 0;
-      z-index: 30;
-      background: rgba(250, 252, 255, 0.92);
-      backdrop-filter: blur(12px);
+      z-index: 40;
+      background: var(--brand-white);
       border-block-end: 1px solid var(--line);
-      padding: 0.85rem 1.5rem;
+      box-shadow: 0 1px 4px rgba(0, 40, 85, 0.05);
     }
-    .top-nav-inner {
-      max-inline-size: 1440px;
+    .cv-header-inner {
+      max-inline-size: 1480px;
       margin-inline: auto;
+      padding: 0.7rem 1.5rem;
       display: flex;
-      flex-wrap: wrap;
+      align-items: center;
       justify-content: space-between;
-      align-items: center;
       gap: 1rem;
+      flex-wrap: wrap;
     }
-    .brand-lockup {
+    .cv-logo {
       display: flex;
       align-items: center;
-      gap: 0.75rem;
+      gap: 0.65rem;
+      text-decoration: none;
     }
-    .live-dot {
-      inline-size: 10px;
-      block-size: 10px;
+    .cv-logo-badge {
+      background: var(--cv-navy);
+      color: var(--brand-white);
+      font-weight: 800;
+      font-size: 1.05rem;
+      padding: 0.38rem 0.75rem;
+      border-radius: 8px;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .cv-logo-badge span {
+      color: var(--cv-cyan);
+    }
+    .cv-search-bar {
+      flex: 1;
+      max-inline-size: 540px;
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .cv-search-bar input {
+      inline-size: 100%;
+      background: var(--paper);
+      border: 1.5px solid var(--line);
+      border-radius: var(--radius-pill);
+      padding: 0.62rem 2.8rem 0.62rem 1.15rem;
+      font-family: var(--font);
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: var(--cv-dark);
+      outline: none;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .cv-search-bar input:focus {
+      background: var(--brand-white);
+      border-color: var(--cv-cyan);
+      box-shadow: 0 0 0 3px rgba(0, 174, 217, 0.18);
+    }
+    .cv-search-icon {
+      position: absolute;
+      inset-inline-end: 0.4rem;
+      background: var(--cv-cyan);
+      color: var(--brand-white);
+      border: none;
       border-radius: 50%;
-      background: var(--emerald);
-      box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.18);
+      inline-size: 32px;
+      block-size: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      font-weight: 800;
     }
-    .eyebrow {
-      font-family: var(--mono);
-      font-size: 11px;
+    .cv-header-right {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      flex-wrap: wrap;
+    }
+    .zip-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-pill);
+      padding: 0.42rem 0.85rem;
+      font-size: 0.82rem;
       font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--brand-blue);
+      color: var(--cv-navy);
+      cursor: pointer;
+    }
+    .saved-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      background: var(--brand-white);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-pill);
+      padding: 0.42rem 0.85rem;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--cv-navy);
+      cursor: pointer;
     }
     .mode-switch {
       display: inline-flex;
       background: var(--paper-2);
       border: 1px solid var(--line);
       border-radius: var(--radius-pill);
-      padding: 0.25rem;
-      gap: 0.25rem;
+      padding: 0.2rem;
     }
     .mode-btn {
       font-family: var(--font);
-      font-size: 0.84rem;
+      font-size: 0.78rem;
       font-weight: 700;
-      padding: 0.45rem 0.95rem;
+      padding: 0.36rem 0.75rem;
       border-radius: var(--radius-pill);
       border: none;
       background: transparent;
       color: var(--ink-3);
       cursor: pointer;
-      transition: all 0.15s ease;
     }
     .mode-btn.active {
-      background: var(--brand-dark-blue);
+      background: var(--cv-navy);
       color: var(--brand-white);
-      box-shadow: 0 1px 3px rgba(0, 22, 53, 0.15);
     }
 
-    .container {
-      max-inline-size: 1440px;
+    /* 2. Carvana Quick Model / Preset Bar */
+    .cv-subbar {
+      background: var(--brand-white);
+      border-block-end: 1px solid var(--line);
+      padding: 0.55rem 1.5rem;
+    }
+    .cv-subbar-inner {
+      max-inline-size: 1480px;
       margin-inline: auto;
-      padding: 1.5rem;
-    }
-
-    /* Layer 1: 1 Big Number Hero */
-    .hero-banner {
-      background: var(--brand-white);
-      border: 1px solid var(--line);
-      border-radius: var(--radius-lg);
-      padding: 1.5rem 1.75rem;
-      box-shadow: var(--shadow-e1);
-      margin-block-end: 1.25rem;
       display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
       align-items: center;
-      gap: 1.5rem;
-    }
-    .hero-left h1 {
-      margin: 0.25rem 0 0.35rem;
-      font-size: clamp(1.5rem, 2.8vw, 2.25rem);
-      font-weight: 800;
-      letter-spacing: -0.022em;
-      color: var(--brand-dark-blue);
-    }
-    .hero-left p {
-      margin: 0;
-      color: var(--ink-3);
-      font-size: 0.96rem;
-      max-inline-size: 72ch;
-    }
-    .kpi-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.85rem;
-    }
-    .kpi-box {
-      background: var(--paper-2);
-      border: 1px solid var(--line);
-      border-radius: var(--radius-md);
-      padding: 0.75rem 1.1rem;
-      min-inline-size: 148px;
-    }
-    .kpi-box .kpi-val {
-      font-size: 1.45rem;
-      font-weight: 800;
-      color: var(--brand-dark-blue);
-      letter-spacing: -0.02em;
-      line-height: 1.15;
-    }
-    .kpi-box.emerald {
-      background: var(--emerald-bg);
-      border-color: var(--emerald-border);
-    }
-    .kpi-box.emerald .kpi-val {
-      color: var(--emerald);
-    }
-    .kpi-box .kpi-lbl {
-      font-family: var(--mono);
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--ink-3);
-      margin-block-start: 0.2rem;
-    }
-
-    /* Preset Pills */
-    .preset-bar {
-      display: flex;
-      flex-wrap: wrap;
       gap: 0.5rem;
-      margin-block-end: 1rem;
+      overflow-x: auto;
+      scrollbar-width: none;
     }
-    .preset-btn {
-      font-family: var(--font);
-      background: var(--brand-white);
-      color: var(--ink-2);
-      border: 1px solid var(--line);
-      border-radius: var(--radius-pill);
-      padding: 0.5rem 1rem;
-      font-size: 0.86rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.15s ease;
-      box-shadow: 0 1px 2px rgba(0, 22, 53, 0.04);
-    }
-    .preset-btn:hover {
-      border-color: var(--brand-blue);
-      color: var(--brand-dark-blue);
-    }
-    .preset-btn.active {
-      background: var(--brand-dark-blue);
-      border-color: var(--brand-dark-blue);
-      color: var(--brand-white);
-    }
-
-    /* Filter Workbench Bar */
-    .filters {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-      gap: 0.75rem;
-      background: var(--brand-white);
-      border: 1px solid var(--line);
-      border-radius: var(--radius-md);
-      padding: 1rem;
-      box-shadow: var(--shadow-e1);
-      margin-block-end: 1.25rem;
-    }
-    .field {
-      display: flex;
-      flex-direction: column;
-      gap: 0.3rem;
-    }
-    .field label {
-      font-family: var(--mono);
-      font-size: 10.5px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--ink-3);
-      font-weight: 600;
-    }
-    select, input[type="search"] {
+    .preset-chip {
       font-family: var(--font);
       background: var(--paper);
-      color: var(--brand-dark-blue);
+      color: var(--cv-navy);
       border: 1px solid var(--line);
-      border-radius: var(--radius-sm);
-      padding: 0.55rem 0.7rem;
-      font-size: 0.88rem;
-      font-weight: 600;
-      inline-size: 100%;
-      outline: none;
-      transition: border-color 0.15s, box-shadow 0.15s;
+      border-radius: var(--radius-pill);
+      padding: 0.42rem 0.9rem;
+      font-size: 0.82rem;
+      font-weight: 700;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: all 0.15s;
     }
-    select:focus, input[type="search"]:focus {
-      border-color: var(--brand-blue);
-      box-shadow: 0 0 0 3px rgba(29, 164, 255, 0.20);
+    .preset-chip:hover {
+      border-color: var(--cv-cyan);
+    }
+    .preset-chip.active {
+      background: var(--cv-navy);
+      color: var(--brand-white);
+      border-color: var(--cv-navy);
     }
 
-    .results-toolbar {
+    /* 3. Main Carvana Two-Column Layout (Left Filter Sidebar + Right Results Grid) */
+    .cv-layout {
+      max-inline-size: 1480px;
+      margin-inline: auto;
+      padding: 1.25rem 1.5rem 3rem;
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 1.5rem;
+      align-items: start;
+    }
+
+    @media (max-width: 980px) {
+      .cv-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Left Facet Filter Sidebar */
+    .cv-sidebar {
+      background: var(--brand-white);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-card);
+      padding: 1.15rem;
+      box-shadow: var(--shadow-card);
+      position: sticky;
+      inset-block-start: 4.8rem;
+      max-block-size: calc(100vh - 5.5rem);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .sidebar-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-block-end: 1px solid var(--line-2);
+      padding-block-end: 0.65rem;
+    }
+    .sidebar-head h2 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 800;
+      color: var(--cv-navy);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .reset-link {
+      background: none;
+      border: none;
+      color: var(--cv-cyan);
+      font-weight: 700;
+      font-size: 0.82rem;
+      cursor: pointer;
+      padding: 0;
+    }
+    .facet-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.38rem;
+      border-block-end: 1px solid var(--line-2);
+      padding-block-end: 0.9rem;
+    }
+    .facet-group:last-child {
+      border-block-end: none;
+      padding-block-end: 0;
+    }
+    .facet-label {
+      font-size: 0.8rem;
+      font-weight: 800;
+      color: var(--cv-navy);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      display: flex;
+      justify-content: space-between;
+    }
+    .facet-group select, .facet-group input[type="number"] {
+      font-family: var(--font);
+      background: var(--paper);
+      color: var(--cv-dark);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      padding: 0.5rem 0.65rem;
+      font-size: 0.86rem;
+      font-weight: 600;
+      inline-size: 100%;
+    }
+    .range-val {
+      color: var(--cv-cyan);
+      font-family: var(--mono);
+      font-size: 0.78rem;
+    }
+
+    /* Right Results Area */
+    .cv-results-header {
       display: flex;
       flex-wrap: wrap;
       justify-content: space-between;
       align-items: center;
       gap: 0.75rem;
       margin-block-end: 1rem;
-      font-size: 0.92rem;
+      background: var(--brand-white);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-card);
+      padding: 0.85rem 1.15rem;
+      box-shadow: var(--shadow-card);
+    }
+    .results-title {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: var(--cv-navy);
+    }
+    .results-sub {
+      font-size: 0.82rem;
       color: var(--ink-3);
       font-weight: 500;
     }
-
-    /* Layer 2: Visual Product Cards Grid (Zillow + Apple Standard) */
-    .card-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-      gap: 1.25rem;
+    .sort-wrap {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.84rem;
+      font-weight: 700;
+      color: var(--ink-2);
     }
-    .vehicle-card {
+    .sort-wrap select {
+      font-family: var(--font);
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      padding: 0.45rem 0.75rem;
+      font-weight: 700;
+      color: var(--cv-navy);
+    }
+
+    /* 4. Carvana Vehicle Cards Grid */
+    .cv-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(305px, 1fr));
+      gap: 1.15rem;
+    }
+    .cv-card {
       background: var(--brand-white);
-      border: 1px solid rgba(0, 22, 53, 0.08);
-      border-radius: var(--radius-md);
-      box-shadow: var(--shadow-e1);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-card);
+      box-shadow: var(--shadow-card);
       overflow: hidden;
       display: flex;
       flex-direction: column;
       transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+      cursor: pointer;
       content-visibility: auto;
-      contain-intrinsic-size: auto 430px;
+      contain-intrinsic-size: auto 395px;
     }
-    .vehicle-card:hover {
-      transform: translateY(-2px);
-      box-shadow: var(--shadow-e2);
-      border-color: rgba(29, 164, 255, 0.45);
+    .cv-card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-hover);
+      border-color: var(--cv-cyan);
     }
 
     /* Photo Stage */
-    .photo-stage {
+    .cv-photo {
       position: relative;
       aspect-ratio: 16 / 10;
-      background: linear-gradient(135deg, #EEF4FC 0%, #DCE8F9 100%);
+      background: linear-gradient(135deg, #EBF3FA 0%, #D8E6F5 100%);
       overflow: hidden;
       display: flex;
       align-items: center;
       justify-content: center;
     }
-    .photo-stage img {
+    .cv-photo img {
       inline-size: 100%;
       block-size: 100%;
       object-fit: cover;
       display: block;
+      transition: transform 0.25s ease;
     }
+    .cv-card:hover .cv-photo img {
+      transform: scale(1.02);
+    }
+    .cv-badges-left {
+      position: absolute;
+      inset-block-start: 0.65rem;
+      inset-inline-start: 0.65rem;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.3rem;
+      z-index: 2;
+    }
+    .cv-badge {
+      font-family: var(--font);
+      font-size: 10.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 0.25rem 0.55rem;
+      border-radius: 5px;
+    }
+    .cv-badge-great {
+      background: var(--emerald);
+      color: var(--brand-white);
+      box-shadow: 0 2px 6px rgba(5, 150, 105, 0.28);
+    }
+    .cv-badge-hw4 {
+      background: rgba(0, 40, 85, 0.9);
+      color: #7CE8FF;
+      font-family: var(--mono);
+    }
+    .cv-badge-partner {
+      background: rgba(255, 255, 255, 0.94);
+      color: var(--cv-navy);
+      border: 1px solid var(--line);
+    }
+    .cv-heart-btn {
+      position: absolute;
+      inset-block-start: 0.65rem;
+      inset-inline-end: 0.65rem;
+      z-index: 3;
+      inline-size: 34px;
+      block-size: 34px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      color: var(--cv-navy);
+      cursor: pointer;
+      transition: transform 0.15s, background 0.15s;
+    }
+    .cv-heart-btn:hover {
+      transform: scale(1.08);
+      background: var(--brand-white);
+    }
+    .cv-heart-btn.saved {
+      color: #E11D48;
+      background: #FFE4E6;
+      border-color: #FECDD3;
+    }
+
+    /* Card Content (Exact Carvana Hierarchy) */
+    .cv-card-body {
+      padding: 0.95rem 1.1rem 0.85rem;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+    .cv-eyebrow {
+      font-size: 10.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--ink-3);
+      margin-block-end: 0.18rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .cv-title {
+      margin: 0;
+      font-size: 1.14rem;
+      font-weight: 800;
+      color: var(--cv-navy);
+      letter-spacing: -0.015em;
+    }
+    .cv-trim-miles {
+      font-size: 0.85rem;
+      color: var(--ink-2);
+      font-weight: 500;
+      margin-block: 0.15rem 0.75rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Carvana's Signature Side-by-Side Price | Monthly Block */
+    .cv-price-split {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-block-start: auto;
+      padding-block-top: 0.35rem;
+    }
+    .cv-price-left {
+      display: flex;
+      flex-direction: column;
+    }
+    .cv-cash-price {
+      font-size: 1.52rem;
+      font-weight: 800;
+      color: var(--cv-navy);
+      letter-spacing: -0.025em;
+      line-height: 1.1;
+    }
+    .cv-mkt-strike {
+      font-size: 0.75rem;
+      color: var(--ink-3);
+      font-weight: 600;
+      margin-block-start: 0.15rem;
+    }
+    .cv-mkt-strike s {
+      color: var(--ink-4);
+    }
+    .cv-divider {
+      inline-size: 1px;
+      block-size: 34px;
+      background: var(--line);
+      margin-inline: 0.75rem;
+    }
+    .cv-price-right {
+      display: flex;
+      flex-direction: column;
+      text-align: right;
+    }
+    .cv-monthly {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--cv-navy);
+      line-height: 1.15;
+    }
+    .cv-monthly-sub {
+      font-size: 0.72rem;
+      color: var(--ink-3);
+      font-weight: 600;
+    }
+
+    /* Carvana Bottom Shipping Footer Bar */
+    .cv-card-footer {
+      background: var(--paper);
+      border-block-start: 1px solid var(--line-2);
+      padding: 0.58rem 1.1rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--ink-2);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .cv-ship-free {
+      color: var(--emerald);
+      font-weight: 800;
+    }
+
     .fallback-svg {
       display: flex;
       flex-direction: column;
@@ -316,266 +577,46 @@
       padding: 1rem;
       text-align: center;
     }
-    .badge-overlay-top-left {
-      position: absolute;
-      inset-block-start: 0.65rem;
-      inset-inline-start: 0.65rem;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.35rem;
-      z-index: 2;
-    }
-    .badge-overlay-top-right {
-      position: absolute;
-      inset-block-start: 0.65rem;
-      inset-inline-end: 0.65rem;
-      z-index: 2;
-    }
-    .pill-badge {
-      font-family: var(--mono);
-      font-size: 11px;
-      font-weight: 700;
-      padding: 0.28rem 0.6rem;
-      border-radius: var(--radius-sm);
-      letter-spacing: 0.02em;
-      backdrop-filter: blur(8px);
-    }
-    .pill-deal {
-      background: rgba(5, 150, 105, 0.95);
-      color: #FFFFFF;
-      box-shadow: 0 2px 6px rgba(5, 150, 105, 0.25);
-    }
-    .pill-clean {
-      background: rgba(255, 255, 255, 0.92);
-      color: var(--brand-dark-blue);
-      border: 1px solid var(--line);
-    }
-    .pill-salvage {
-      background: rgba(240, 75, 7, 0.95);
-      color: #FFFFFF;
-    }
-    .pill-hw4 {
-      background: rgba(0, 22, 53, 0.88);
-      color: var(--brand-light-blue);
-    }
-    .pill-hw3 {
-      background: rgba(255, 255, 255, 0.88);
-      color: var(--ink-2);
-    }
-
-    /* Card Content */
-    .card-body {
-      padding: 1.1rem 1.2rem 1.2rem;
-      display: flex;
-      flex-direction: column;
-      flex: 1;
-      gap: 0.65rem;
-    }
-    .card-eyebrow {
-      font-family: var(--mono);
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--brand-blue);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 0.4rem;
-    }
-    .mispriced-tag {
-      background: #FFF7ED;
-      color: var(--brand-red);
-      border: 1px solid #FED7AA;
-      padding: 0.1rem 0.45rem;
-      border-radius: 6px;
-      font-size: 10px;
-    }
-    .card-title {
-      margin: 0;
-      font-size: 1.15rem;
-      font-weight: 800;
-      color: var(--brand-dark-blue);
-      letter-spacing: -0.012em;
-      line-height: 1.25;
-    }
-
-    /* 1 Big Price Row */
-    .price-row {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 0.5rem;
-      padding-block: 0.25rem;
-      border-block-end: 1px solid var(--line-2);
-    }
-    .big-price {
-      font-size: 1.65rem;
-      font-weight: 800;
-      color: var(--brand-dark-blue);
-      letter-spacing: -0.025em;
-    }
-    .mkt-compare {
-      font-size: 0.8rem;
-      color: var(--ink-3);
-      font-weight: 600;
-    }
-    .mkt-compare s {
-      color: var(--ink-4);
-    }
-    .monthly-est {
-      font-family: var(--mono);
-      font-size: 11px;
-      color: var(--emerald);
-      font-weight: 700;
-    }
-
-    /* Specs Chips */
-    .specs-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.45rem;
-      font-size: 0.83rem;
-      color: var(--ink-2);
-    }
-    .spec-item {
-      background: var(--paper-2);
-      border-radius: 6px;
-      padding: 0.35rem 0.55rem;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      font-weight: 600;
-    }
-    .spec-item span {
-      color: var(--ink-3);
-      font-weight: 500;
-    }
-
-    .dealer-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 0.5rem;
-      font-size: 0.82rem;
-      color: var(--ink-3);
-      margin-block-start: auto;
-      padding-block-start: 0.25rem;
-    }
-    .dealer-name {
-      font-weight: 700;
-      color: var(--ink-2);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .fran-badge {
-      font-family: var(--mono);
-      font-size: 10px;
-      background: var(--brand-light-blue);
-      color: var(--brand-dark-blue);
-      padding: 0.15rem 0.45rem;
-      border-radius: 5px;
-      font-weight: 700;
-      flex-shrink: 0;
-    }
-
-    .vin-bar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background: var(--paper);
-      border: 1px solid var(--line-2);
-      border-radius: var(--radius-sm);
-      padding: 0.35rem 0.6rem;
-      font-family: var(--mono);
-      font-size: 11.5px;
-      color: var(--ink-2);
-    }
-
-    /* Layer 3: 1 Primary Action Button */
-    .card-actions {
-      display: flex;
-      gap: 0.5rem;
-      margin-block-start: 0.25rem;
-    }
-    .btn-primary {
-      flex: 1;
-      display: inline-flex;
-      justify-content: center;
-      align-items: center;
-      gap: 0.4rem;
-      background: var(--brand-dark-blue);
-      color: var(--brand-white);
-      font-family: var(--font);
-      font-size: 0.9rem;
-      font-weight: 700;
-      padding: 0.7rem 1rem;
-      border-radius: var(--radius-btn);
-      border: none;
-      text-decoration: none;
-      cursor: pointer;
-      transition: background 0.15s ease;
-    }
-    .btn-primary:hover {
-      background: var(--brand-blue);
-      color: var(--brand-dark-blue);
-    }
-    .btn-secondary-icon {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      background: var(--paper-2);
-      color: var(--brand-dark-blue);
-      border: 1px solid var(--line);
-      border-radius: var(--radius-btn);
-      padding: 0.7rem 0.85rem;
-      font-size: 0.82rem;
-      font-weight: 700;
-      text-decoration: none;
-      transition: border-color 0.15s;
-    }
-    .btn-secondary-icon:hover {
-      border-color: var(--brand-blue);
-    }
 
     .load-more-wrap {
       text-align: center;
-      margin-block: 2rem 3rem;
+      margin-block: 2rem 1rem;
     }
     .btn-load-more {
-      background: var(--brand-white);
-      color: var(--brand-dark-blue);
-      border: 1px solid var(--line);
+      background: var(--cv-navy);
+      color: var(--brand-white);
+      border: none;
       border-radius: var(--radius-pill);
-      padding: 0.8rem 2rem;
+      padding: 0.85rem 2.2rem;
       font-family: var(--font);
       font-size: 0.95rem;
-      font-weight: 700;
+      font-weight: 800;
       cursor: pointer;
-      box-shadow: var(--shadow-e1);
+      box-shadow: var(--shadow-card);
     }
     .btn-load-more:hover {
-      border-color: var(--brand-blue);
+      background: var(--cv-cyan);
     }
 
-    /* Native Dialog Inspection Modal */
+    /* Modal Checkout & Architecture View */
     dialog {
       border: 1px solid var(--line);
       border-radius: var(--radius-lg);
       padding: 0;
-      max-inline-size: 640px;
-      inline-size: 92vw;
-      box-shadow: var(--shadow-e2);
+      max-inline-size: 820px;
+      inline-size: 94vw;
+      box-shadow: var(--shadow-hover);
       background: var(--brand-white);
       color: var(--ink);
     }
     dialog::backdrop {
-      background: rgba(0, 22, 53, 0.45);
+      background: rgba(0, 22, 53, 0.55);
       backdrop-filter: blur(4px);
     }
     .modal-inner {
       padding: 1.5rem;
+      max-block-size: 88vh;
+      overflow-y: auto;
     }
     .modal-header {
       display: flex;
@@ -583,113 +624,143 @@
       align-items: flex-start;
       gap: 1rem;
       border-block-end: 1px solid var(--line);
-      padding-block-end: 1rem;
+      padding-block-end: 0.9rem;
       margin-block-end: 1rem;
     }
     .close-btn {
-      background: var(--paper-2);
+      background: var(--paper);
       border: 1px solid var(--line);
       border-radius: 8px;
-      padding: 0.35rem 0.65rem;
-      font-weight: 700;
+      padding: 0.4rem 0.75rem;
+      font-weight: 800;
       cursor: pointer;
+    }
+    .modal-tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-block-end: 1rem;
+      border-block-end: 1px solid var(--line);
+      padding-block-end: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .tab-btn {
+      font-family: var(--font);
+      font-size: 0.84rem;
+      font-weight: 800;
+      padding: 0.5rem 1rem;
+      border-radius: var(--radius-btn);
+      border: 1px solid var(--line);
+      background: var(--paper);
+      color: var(--cv-navy);
+      cursor: pointer;
+    }
+    .tab-btn.active {
+      background: var(--cv-navy);
+      color: var(--brand-white);
+      border-color: var(--cv-navy);
+    }
+    .checkout-box {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-card);
+      padding: 1.1rem;
+      margin-block-end: 1rem;
+    }
+    .line-item {
+      display: flex;
+      justify-content: space-between;
+      padding-block: 0.38rem;
+      font-size: 0.9rem;
+      border-block-end: 1px dashed var(--line);
+    }
+    .line-item.total {
+      border-block-end: none;
+      font-weight: 800;
+      font-size: 1.08rem;
+      color: var(--cv-navy);
+      padding-block-start: 0.65rem;
+    }
+    .btn-cv-checkout {
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      inline-size: 100%;
+      background: var(--cv-cyan);
+      color: var(--brand-white);
+      font-family: var(--font);
+      font-size: 1rem;
+      font-weight: 800;
+      padding: 0.9rem 1.25rem;
+      border-radius: var(--radius-btn);
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0, 174, 217, 0.3);
+    }
+    .btn-cv-checkout:hover {
+      background: var(--cv-navy);
     }
   </style>
 </head>
 <body>
-  <nav class="top-nav">
-    <div class="top-nav-inner">
-      <div class="brand-lockup">
-        <span class="live-dot"></span>
-        <div>
-          <div class="eyebrow">NHTSA Part 565 Deterministic VIN Clearinghouse</div>
-          <strong style="color:var(--brand-dark-blue);font-size:1.05rem;">US &amp; Texas Tesla Arbitrage Workbench</strong>
-        </div>
+  <!-- 1. Carvana-Style Top Sticky Header -->
+  <header class="cv-header">
+    <div class="cv-header-inner">
+      <a href="#" class="cv-logo" onclick="applyPreset('all_clean_cv');return false;">
+        <div class="cv-logo-badge">⚡ TESLA<span>DIRECT</span></div>
+      </a>
+
+      <div class="cv-search-bar">
+        <input id="f-search" type="search" placeholder="Search Model Y, Cybertruck, HW4, Dual Motor, or City..." />
+        <div class="cv-search-icon">🔍</div>
       </div>
-      <div class="mode-switch" role="group" aria-label="Operating Mode">
-        <button type="button" class="mode-btn active" id="mode-sourcing">🔍 Dealer Arbitrage Sourcing</button>
-        <button type="button" class="mode-btn" id="mode-dtc">🏷️ DTC Showroom (Masked VIN + Margin)</button>
+
+      <div class="cv-header-right">
+        <div class="zip-pill" title="Texas Delivery Hub">📍 Delivery to: <strong>78201 (TX)</strong></div>
+        <button type="button" class="saved-pill" id="btn-saved-filter" onclick="toggleSavedOnly()">❤️ Saved (<span id="saved-count">0</span>)</button>
+        <div class="mode-switch" role="group" aria-label="View Mode">
+          <button type="button" class="mode-btn active" id="mode-dtc">Carvana Showroom</button>
+          <button type="button" class="mode-btn" id="mode-sourcing">Founder Arbitrage Desk</button>
+        </div>
       </div>
     </div>
-  </nav>
+  </header>
 
-  <main class="container">
-    <!-- Layer 1: 1 Big Number First -->
-    <section class="hero-banner" aria-label="Live Market Summary">
-      <div class="hero-left">
-        <div class="eyebrow" id="hero-eyebrow">LIVE NATIONWIDE &amp; TEXAS INVENTORY LEDGER</div>
-        <h1 id="hero-headline">13,575 Verified US Teslas — 12,761 Priced Live</h1>
-        <p id="hero-sub">Every VIN mathematically verified via NHTSA Modulo-11 check-digit and Position-8 true motor decode. Franchise trade-in mispricings highlighted in real time.</p>
-      </div>
-      <div class="kpi-row">
-        <div class="kpi-box emerald">
-          <div class="kpi-val" id="kpi-steals">1,400+</div>
-          <div class="kpi-lbl">$3,000+ Below Market</div>
-        </div>
-        <div class="kpi-box">
-          <div class="kpi-val" id="kpi-priced">12,761</div>
-          <div class="kpi-lbl">Priced US Listings</div>
-        </div>
-        <div class="kpi-box">
-          <div class="kpi-val" id="kpi-tx">1,500+</div>
-          <div class="kpi-lbl">Texas Corridor</div>
-        </div>
-        <div class="kpi-box">
-          <div class="kpi-val" id="kpi-total">13,575</div>
-          <div class="kpi-lbl">Total Verified VINs</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- 1-Click Preset Pills -->
-    <div class="preset-bar">
-      <button type="button" class="preset-btn active" data-preset="fran_arb">🔥 Franchise Arbitrage Steals (Clean · $3k+ Below Market)</button>
-      <button type="button" class="preset-btn" data-preset="tx_hw4">🤠 Texas 2024+ HW4 Model Y (Clean Title)</button>
-      <button type="button" class="preset-btn" data-preset="us_hw4_my">⚡ All US 2024–2026 Model Y (Clean · ≤25k mi)</button>
-      <button type="button" class="preset-btn" data-preset="ct_clean">📐 Cybertrucks (Clean Title · All US)</button>
-      <button type="button" class="preset-btn" data-preset="mispriced">🚀 Dealer Trim Mispricings (AWD/Perf Listed as Base)</button>
-      <button type="button" class="preset-btn" data-preset="all_us">🌎 All 12,761 Priced US Teslas</button>
+  <!-- 2. Quick Model & Arbitrage Filter Pills -->
+  <div class="cv-subbar">
+    <div class="cv-subbar-inner">
+      <button type="button" class="preset-chip active" data-preset="fran_arb">🔥 Great Deals ($3,000+ Below Market)</button>
+      <button type="button" class="preset-chip" data-preset="model_y_hw4">⚡ 2024–2026 Model Y (HW4)</button>
+      <button type="button" class="preset-chip" data-preset="model_3_hw4">🚗 2024–2026 Model 3</button>
+      <button type="button" class="preset-chip" data-preset="cybertruck">📐 Cybertruck</button>
+      <button type="button" class="preset-chip" data-preset="tx_free_ship">🤠 Free Local TX Pickup (1,001)</button>
+      <button type="button" class="preset-chip" data-preset="mispriced">💎 Trim Mispriced by Dealer (AWD Listed as Base)</button>
+      <button type="button" class="preset-chip" data-preset="all_clean_cv">🌎 All 12,757 Verified US Teslas</button>
     </div>
+  </div>
 
-    <!-- Clean Filter Workbench -->
-    <section class="filters" aria-label="Inventory Filters">
-      <div class="field">
-        <label for="f-model">Model</label>
+  <!-- 3. Carvana Two-Column Layout: Left Filter Sidebar + Right Vehicle Card Grid -->
+  <div class="cv-layout">
+    <aside class="cv-sidebar" aria-label="Vehicle Filters">
+      <div class="sidebar-head">
+        <h2>Filters</h2>
+        <button type="button" class="reset-link" onclick="applyPreset('all_clean_cv')">Reset All</button>
+      </div>
+
+      <div class="facet-group">
+        <div class="facet-label"><span>Model</span></div>
         <select id="f-model">
-          <option value="ALL">All Models</option>
-          <option value="Model Y">Model Y</option>
-          <option value="Model 3">Model 3</option>
-          <option value="Cybertruck">Cybertruck</option>
-          <option value="Model X">Model X</option>
-          <option value="Model S">Model S</option>
+          <option value="ALL">All Tesla Models</option>
+          <option value="Model Y">Tesla Model Y</option>
+          <option value="Model 3">Tesla Model 3</option>
+          <option value="Cybertruck">Tesla Cybertruck</option>
+          <option value="Model X">Tesla Model X</option>
+          <option value="Model S">Tesla Model S</option>
         </select>
       </div>
-      <div class="field">
-        <label for="f-year-min">Min Year</label>
-        <select id="f-year-min">
-          <option value="0">Any Year (2013–2026)</option>
-          <option value="2026">2026 Only</option>
-          <option value="2025">2025+</option>
-          <option value="2024" selected>2024+ (HW4 AI4)</option>
-          <option value="2023">2023+</option>
-          <option value="2022">2022+</option>
-          <option value="2020">2020+</option>
-        </select>
-      </div>
-      <div class="field">
-        <label for="f-mileage">Max Mileage</label>
-        <select id="f-mileage">
-          <option value="999999">Any Mileage</option>
-          <option value="10000">Under 10,000 mi</option>
-          <option value="15000">Under 15,000 mi</option>
-          <option value="25000">Under 25,000 mi</option>
-          <option value="35000" selected>Under 35,000 mi</option>
-          <option value="50000">Under 50,000 mi</option>
-          <option value="75000">Under 75,000 mi</option>
-        </select>
-      </div>
-      <div class="field">
-        <label for="f-price">Max Price</label>
+
+      <div class="facet-group">
+        <div class="facet-label"><span>Max Price</span></div>
         <select id="f-price">
           <option value="999999" selected>Any Price</option>
           <option value="25000">Under $25,000</option>
@@ -697,31 +768,47 @@
           <option value="35000">Under $35,000</option>
           <option value="40000">Under $40,000</option>
           <option value="45000">Under $45,000</option>
-          <option value="65000">Under $65,000</option>
+          <option value="55000">Under $55,000</option>
+          <option value="85000">Under $85,000</option>
         </select>
       </div>
-      <div class="field">
-        <label for="f-state">State</label>
-        <select id="f-state">
-          <option value="ALL" selected>All 50 US States</option>
-          <option value="TX">Texas (TX)</option>
-          <option value="CA">California (CA)</option>
-          <option value="FL">Florida (FL)</option>
-          <option value="CO">Colorado (CO)</option>
-          <option value="VA">Virginia (VA)</option>
-          <option value="OH">Ohio (OH)</option>
-          <option value="WA">Washington (WA)</option>
-          <option value="IL">Illinois (IL)</option>
-          <option value="GA">Georgia (GA)</option>
-          <option value="AZ">Arizona (AZ)</option>
-          <option value="NC">North Carolina (NC)</option>
-          <option value="NY">New York (NY)</option>
-          <option value="NJ">New Jersey (NJ)</option>
-          <option value="PA">Pennsylvania (PA)</option>
+
+      <div class="facet-group">
+        <div class="facet-label">
+          <span>Down Payment</span>
+          <span class="range-val" id="lbl-down">$2,500</span>
+        </div>
+        <input id="f-down" type="range" min="0" max="15000" step="500" value="2500" />
+        <small style="font-size:0.74rem;color:var(--ink-3);">Updates monthly payments across all cards</small>
+      </div>
+
+      <div class="facet-group">
+        <div class="facet-label"><span>Min Model Year</span></div>
+        <select id="f-year-min">
+          <option value="0">Any Year (2013–2026)</option>
+          <option value="2026">2026 Only</option>
+          <option value="2025">2025 &amp; Newer</option>
+          <option value="2024" selected>2024 &amp; Newer (HW4 AI4)</option>
+          <option value="2023">2023 &amp; Newer</option>
+          <option value="2022">2022 &amp; Newer</option>
+          <option value="2020">2020 &amp; Newer</option>
         </select>
       </div>
-      <div class="field">
-        <label for="f-drive">Position-8 Motor</label>
+
+      <div class="facet-group">
+        <div class="facet-label"><span>Max Mileage</span></div>
+        <select id="f-mileage">
+          <option value="999999">Any Mileage</option>
+          <option value="15000">Under 15,000 miles</option>
+          <option value="25000">Under 25,000 miles</option>
+          <option value="35000" selected>Under 35,000 miles</option>
+          <option value="50000">Under 50,000 miles</option>
+          <option value="75000">Under 75,000 miles</option>
+        </select>
+      </div>
+
+      <div class="facet-group">
+        <div class="facet-label"><span>Drivetrain &amp; Motor (VIN Pos 8)</span></div>
         <select id="f-drive">
           <option value="ALL">All Drivetrains</option>
           <option value="AWD">Dual / Tri-Motor AWD</option>
@@ -729,44 +816,61 @@
           <option value="PERF">Performance / Cyberbeast / Plaid</option>
         </select>
       </div>
-      <div class="field">
-        <label for="f-source">Title &amp; Dealer Tier</label>
+
+      <div class="facet-group">
+        <div class="facet-label"><span>Delivery &amp; State</span></div>
+        <select id="f-state">
+          <option value="ALL" selected>All 50 States (Insured Delivery)</option>
+          <option value="TX">Texas Only (Free Local Pickup)</option>
+          <option value="CO">Colorado</option>
+          <option value="GA">Georgia</option>
+          <option value="CA">California</option>
+          <option value="FL">Florida</option>
+          <option value="VA">Virginia</option>
+          <option value="OH">Ohio</option>
+          <option value="IL">Illinois</option>
+          <option value="AZ">Arizona</option>
+          <option value="NC">North Carolina</option>
+        </select>
+      </div>
+
+      <div class="facet-group">
+        <div class="facet-label"><span>Inspection &amp; Inventory Tier</span></div>
         <select id="f-source">
-          <option value="fran_clean" selected>Franchise Trade-Ins (Clean)</option>
-          <option value="all_clean">All Clean Title Dealers</option>
+          <option value="fran_clean" selected>Verified Franchise Partner (Clean)</option>
+          <option value="fran_max_arb">Great Deals Only ($4,500+ Below Mkt)</option>
           <option value="mispriced_only">Dealer Trim Mispricings Only</option>
-          <option value="all_including_salvage">Include Independent / Branded</option>
+          <option value="all_clean">All Clean Title Inventory</option>
+          <option value="all_including_salvage">Include Branded / Wholesale</option>
         </select>
       </div>
-      <div class="field">
-        <label for="f-sort">Sort Order</label>
-        <select id="f-sort">
-          <option value="spread_asc" selected>Biggest Arbitrage Spread ($ Below Market)</option>
-          <option value="price_asc">Price: Low to High</option>
-          <option value="mileage_asc">Mileage: Low to High</option>
-          <option value="year_desc">Year: Newest First</option>
-        </select>
+    </aside>
+
+    <main>
+      <div class="cv-results-header">
+        <div>
+          <div class="results-title" id="results-count">Loading verified Tesla inventory...</div>
+          <div class="results-sub" id="mode-indicator">100% Online Checkout • 7-Day Money-Back Guarantee • NHTSA Position-8 Motor Verified</div>
+        </div>
+        <div class="sort-wrap">
+          <label for="f-sort">Sort by:</label>
+          <select id="f-sort">
+            <option value="spread_asc" selected>Featured (Biggest Savings vs Market)</option>
+            <option value="price_asc">Lowest Price</option>
+            <option value="mileage_asc">Lowest Mileage</option>
+            <option value="year_desc">Newest Model Year</option>
+          </select>
+        </div>
       </div>
-      <div class="field">
-        <label for="f-search">Instant VIN / Dealer / City</label>
-        <input id="f-search" type="search" placeholder="Lexus, Austin, Plano, 7SAY..." />
+
+      <section class="cv-grid" id="card-grid" aria-label="Tesla Vehicles"></section>
+
+      <div class="load-more-wrap">
+        <button type="button" class="btn-load-more" id="btn-load-more" style="display:none;">Load Next 48 Teslas</button>
       </div>
-    </section>
+    </main>
+  </div>
 
-    <div class="results-toolbar">
-      <div id="results-count">Loading verified nationwide inventory...</div>
-      <div id="mode-indicator">Mode: <strong>Dealer Arbitrage Sourcing</strong> (Unmasked VINs &amp; Direct Dealer Links)</div>
-    </div>
-
-    <!-- Layer 2: Visual Product Cards Grid -->
-    <section class="card-grid" id="card-grid" aria-label="Tesla Vehicle Cards"></section>
-
-    <div class="load-more-wrap">
-      <button type="button" class="btn-load-more" id="btn-load-more" style="display:none;">Show Next 48 Vehicles</button>
-    </div>
-  </main>
-
-  <!-- Slide-Over / Modal for Deep VIN & Arbitrage Inspection -->
   <dialog id="vin-modal">
     <div class="modal-inner" id="modal-content"></div>
   </dialog>
@@ -775,13 +879,19 @@
     let ALL_ITEMS = [];
     let FILTERED_ITEMS = [];
     let DISPLAY_LIMIT = 48;
-    let DTC_MODE = false;
-    const DTC_MARKUP = 2000;
+    let DTC_MODE = true;
+    let SAVED_ONLY = false;
+    const DTC_MARKUP = 1500;
+    let ACTIVE_VIN = null;
+    let ACTIVE_TAB = 'buyer';
+    let SAVED_VINS = new Set(JSON.parse(localStorage.getItem('saved_tesla_vins') || '[]'));
 
     const elModel = document.getElementById('f-model');
     const elYearMin = document.getElementById('f-year-min');
     const elMileage = document.getElementById('f-mileage');
     const elPrice = document.getElementById('f-price');
+    const elDown = document.getElementById('f-down');
+    const elLblDown = document.getElementById('lbl-down');
     const elState = document.getElementById('f-state');
     const elDrive = document.getElementById('f-drive');
     const elSource = document.getElementById('f-source');
@@ -792,38 +902,57 @@
     const elLoadMore = document.getElementById('btn-load-more');
     const elModal = document.getElementById('vin-modal');
     const elModalContent = document.getElementById('modal-content');
+    const elSavedCount = document.getElementById('saved-count');
+
+    function updateSavedCounter() {
+      elSavedCount.textContent = SAVED_VINS.size;
+      localStorage.setItem('saved_tesla_vins', JSON.stringify(Array.from(SAVED_VINS)));
+    }
+    updateSavedCounter();
+
+    window.toggleSaveVin = function(ev, vin) {
+      ev.stopPropagation();
+      if (SAVED_VINS.has(vin)) {
+        SAVED_VINS.delete(vin);
+      } else {
+        SAVED_VINS.add(vin);
+      }
+      updateSavedCounter();
+      renderCards();
+    };
+
+    window.toggleSavedOnly = function() {
+      SAVED_ONLY = !SAVED_ONLY;
+      document.getElementById('btn-saved-filter').style.background = SAVED_ONLY ? '#FFE4E6' : '#FFFFFF';
+      filterAndRender();
+    };
 
     function fmtPrice(n) {
       return '$' + Math.round(Number(n)).toLocaleString('en-US');
     }
 
-    function calcMonthly(price) {
-      // 10% down, 5.75% APR 72 months credit union (RBFCU / RouteOne)
-      const principal = price * 0.90;
-      const r = 0.0575 / 12;
-      const n = 72;
-      const pmt = (principal * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
-      return '$' + Math.round(pmt).toLocaleString('en-US') + '/mo';
-    }
-
-    function maskVin(v) {
-      if (!DTC_MODE || !v || v.length < 17) return v;
-      return v.slice(0, 8) + '*' + v.slice(9, 11) + '******';
+    function calcMonthlyNum(price, down = 2500, apr = 5.75, months = 72) {
+      const principal = Math.max(0, price - down);
+      if (principal === 0) return 0;
+      const r = (apr / 100) / 12;
+      return Math.round((principal * r * Math.pow(1 + r, months)) / (Math.pow(1 + r, months) - 1));
     }
 
     function fallbackSvg(model, year) {
       return `<div class="fallback-svg">
-        <svg width="64" height="36" viewBox="0 0 64 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M8 24L16 13H48L56 24H60V29H54C54 26.2 51.8 24 49 24C46.2 24 44 26.2 44 29H20C20 26.2 17.8 24 15 24C12.2 24 10 26.2 10 29H4V24H8Z" fill="#001635" fill-opacity="0.18"/>
-          <circle cx="15" cy="29" r="4" fill="#001635" fill-opacity="0.35"/>
-          <circle cx="49" cy="29" r="4" fill="#001635" fill-opacity="0.35"/>
+        <svg width="68" height="38" viewBox="0 0 64 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M8 24L16 13H48L56 24H60V29H54C54 26.2 51.8 24 49 24C46.2 24 44 26.2 44 29H20C20 26.2 17.8 24 15 24C12.2 24 10 26.2 10 29H4V24H8Z" fill="#002855" fill-opacity="0.22"/>
+          <circle cx="15" cy="29" r="4" fill="#002855" fill-opacity="0.4"/>
+          <circle cx="49" cy="29" r="4" fill="#002855" fill-opacity="0.4"/>
         </svg>
-        <span style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--ink-3)">${year} TESLA ${model.toUpperCase()}</span>
+        <span style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--cv-navy)">${year} TESLA ${model.toUpperCase()}</span>
       </div>`;
     }
 
     function applyPreset(name) {
-      document.querySelectorAll('.preset-btn').forEach(b => {
+      SAVED_ONLY = false;
+      document.getElementById('btn-saved-filter').style.background = '#FFFFFF';
+      document.querySelectorAll('.preset-chip').forEach(b => {
         b.classList.toggle('active', b.dataset.preset === name);
       });
       elSearch.value = '';
@@ -836,25 +965,25 @@
         elDrive.value = 'ALL';
         elSource.value = 'fran_clean';
         elSort.value = 'spread_asc';
-      } else if (name === 'tx_hw4') {
+      } else if (name === 'model_y_hw4') {
         elModel.value = 'Model Y';
         elYearMin.value = '2024';
         elMileage.value = '35000';
-        elPrice.value = '45000';
-        elState.value = 'TX';
-        elDrive.value = 'ALL';
-        elSource.value = 'all_clean';
-        elSort.value = 'price_asc';
-      } else if (name === 'us_hw4_my') {
-        elModel.value = 'Model Y';
-        elYearMin.value = '2024';
-        elMileage.value = '25000';
         elPrice.value = '999999';
         elState.value = 'ALL';
         elDrive.value = 'ALL';
-        elSource.value = 'all_clean';
+        elSource.value = 'fran_clean';
         elSort.value = 'price_asc';
-      } else if (name === 'ct_clean') {
+      } else if (name === 'model_3_hw4') {
+        elModel.value = 'Model 3';
+        elYearMin.value = '2024';
+        elMileage.value = '35000';
+        elPrice.value = '999999';
+        elState.value = 'ALL';
+        elDrive.value = 'ALL';
+        elSource.value = 'fran_clean';
+        elSort.value = 'price_asc';
+      } else if (name === 'cybertruck') {
         elModel.value = 'Cybertruck';
         elYearMin.value = '2024';
         elMileage.value = '999999';
@@ -863,16 +992,25 @@
         elDrive.value = 'ALL';
         elSource.value = 'all_clean';
         elSort.value = 'price_asc';
+      } else if (name === 'tx_free_ship') {
+        elModel.value = 'ALL';
+        elYearMin.value = '2023';
+        elMileage.value = '50000';
+        elPrice.value = '999999';
+        elState.value = 'TX';
+        elDrive.value = 'ALL';
+        elSource.value = 'all_clean';
+        elSort.value = 'price_asc';
       } else if (name === 'mispriced') {
         elModel.value = 'ALL';
-        elYearMin.value = '2022';
+        elYearMin.value = '2023';
         elMileage.value = '50000';
         elPrice.value = '999999';
         elState.value = 'ALL';
         elDrive.value = 'ALL';
         elSource.value = 'mispriced_only';
         elSort.value = 'spread_asc';
-      } else if (name === 'all_us') {
+      } else if (name === 'all_clean_cv') {
         elModel.value = 'ALL';
         elYearMin.value = '0';
         elMileage.value = '999999';
@@ -898,6 +1036,7 @@
       const q = elSearch.value.trim().toLowerCase();
 
       FILTERED_ITEMS = ALL_ITEMS.filter(item => {
+        if (SAVED_ONLY && !SAVED_VINS.has(item.v)) return false;
         if (model !== 'ALL' && item.m !== model) return false;
         if (item.y < yearMin) return false;
         if (item.mi > maxMi) return false;
@@ -908,12 +1047,13 @@
         if (drive === 'RWD' && item.d !== 'RWD') return false;
         if (drive === 'PERF' && !item.t.toLowerCase().includes('performance') && !item.t.toLowerCase().includes('beast') && !item.t.toLowerCase().includes('plaid')) return false;
 
+        if (source === 'fran_max_arb' && (item.cl !== 1 || item.fr !== 1 || item.sp > -4400)) return false;
         if (source === 'fran_clean' && (item.cl !== 1 || item.fr !== 1)) return false;
         if (source === 'all_clean' && item.cl !== 1) return false;
-        if (source === 'mispriced_only' && (item.mp !== 1 || item.cl !== 1)) return false;
+        if (source === 'mispriced_only' && (item.mp !== 1 || item.cl !== 1 || item.fr !== 1)) return false;
 
         if (q) {
-          const hay = (item.v + ' ' + item.dlr + ' ' + item.ct + ' ' + item.st + ' ' + item.t + ' ' + item.dt).toLowerCase();
+          const hay = (item.v + ' ' + item.m + ' ' + item.dlr + ' ' + item.ct + ' ' + item.st + ' ' + item.t + ' ' + item.dt + ' ' + item.hw).toLowerCase();
           if (!hay.includes(q)) return false;
         }
         return true;
@@ -933,162 +1073,202 @@
     function renderCards() {
       const totalMatching = FILTERED_ITEMS.length;
       const slice = FILTERED_ITEMS.slice(0, DISPLAY_LIMIT);
+      const downPmt = Number(elDown.value) || 2500;
 
-      elCount.innerHTML = `Showing <strong>${slice.length.toLocaleString()}</strong> of <strong>${totalMatching.toLocaleString()}</strong> matching Teslas (Full US Ledger: <strong>${ALL_ITEMS.length.toLocaleString()}</strong> priced listings)`;
+      elCount.innerHTML = `${totalMatching.toLocaleString()} Tesla Results <span style="font-weight:500;color:var(--ink-3);font-size:0.88rem;">(of ${ALL_ITEMS.length.toLocaleString()} live US listings)</span>`;
 
       elLoadMore.style.display = totalMatching > DISPLAY_LIMIT ? 'inline-block' : 'none';
       if (totalMatching > DISPLAY_LIMIT) {
-        elLoadMore.textContent = `Show Next 48 Vehicles (${(totalMatching - DISPLAY_LIMIT).toLocaleString()} remaining)`;
+        elLoadMore.textContent = `Load Next 48 Teslas (${(totalMatching - DISPLAY_LIMIT).toLocaleString()} more)`;
       }
 
       if (slice.length === 0) {
-        elGrid.innerHTML = `<div style="grid-column: 1 / -1; background: var(--brand-white); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 3rem; text-align: center; color: var(--ink-3);">
-          <strong style="color: var(--brand-dark-blue); font-size: 1.1rem;">No vehicles match these exact filter criteria.</strong>
-          <p style="margin: 0.5rem 0 0;">Try switching Title &amp; Dealer Tier to "All Clean Title Dealers" or relaxing Max Price.</p>
+        elGrid.innerHTML = `<div style="grid-column: 1 / -1; background: var(--brand-white); border: 1px solid var(--line); border-radius: var(--radius-card); padding: 3rem; text-align: center; color: var(--ink-3);">
+          <strong style="color: var(--cv-navy); font-size: 1.15rem;">No Teslas match your current filters.</strong>
+          <p style="margin: 0.5rem 0 1rem;">Try resetting filters or expanding Inspection Tier to "All Clean Title Inventory".</p>
+          <button type="button" class="preset-chip active" onclick="applyPreset('all_clean_cv')">Show All 12,757 Teslas</button>
         </div>`;
         return;
       }
 
       elGrid.innerHTML = slice.map((item, idx) => {
         const displayPrice = DTC_MODE ? item.p + DTC_MARKUP : item.p;
-        const spreadBelow = -item.sp - (DTC_MODE ? DTC_MARKUP : 0);
+        const spreadBelow = item.med - displayPrice;
+        const mo = calcMonthlyNum(displayPrice, downPmt);
+        const isSaved = SAVED_VINS.has(item.v);
 
-        let topBadge = '';
+        let dealBadge = '';
         if (item.cl === 0) {
-          topBadge = `<span class="pill-badge pill-salvage">⚠️ SALVAGE / BRANDED RISK</span>`;
-        } else if (spreadBelow >= 1500) {
-          topBadge = `<span class="pill-badge pill-deal">🔥 ${fmtPrice(spreadBelow)} BELOW MARKET</span>`;
+          dealBadge = `<span class="cv-badge" style="background:var(--brand-red);color:#fff;">⚠️ Branded / Wholesale</span>`;
+        } else if (spreadBelow >= 2000) {
+          dealBadge = `<span class="cv-badge cv-badge-great">Great Deal • ${fmtPrice(spreadBelow)} Below Market</span>`;
         } else {
-          topBadge = `<span class="pill-badge pill-clean">✅ CLEAN TITLE</span>`;
+          dealBadge = `<span class="cv-badge cv-badge-partner">Verified Partner Inventory</span>`;
         }
 
-        const hwClass = item.hw === 'HW4' ? 'pill-hw4' : 'pill-hw3';
-        const hwLabel = item.hw === 'HW4' ? 'HW4 (AI4)' : 'HW3';
+        const hwBadge = item.hw === 'HW4'
+          ? `<span class="cv-badge cv-badge-hw4">HW4 (AI4)</span>`
+          : '';
 
         const imgHtml = item.ph
           ? `<img src="${item.ph}" alt="${item.y} Tesla ${item.m}" loading="${idx < 9 ? 'eager' : 'lazy'}" onerror="this.outerHTML=fallbackSvg('${item.m}', ${item.y})" />`
           : fallbackSvg(item.m, item.y);
 
-        const mispBadge = item.mp === 1
-          ? `<span class="mispriced-tag">⚡ Listed as "${item.dt}"</span>`
+        const eyebrowLeft = DTC_MODE
+          ? `VERIFIED FRANCHISE PARTNER • ${item.hw}`
+          : `${item.dlr.toUpperCase()} (${item.ct}, ${item.st})`;
+
+        const mispTag = item.mp === 1
+          ? `<span style="color:var(--brand-red);font-weight:800;">⚡ Booked as "${item.dt}"</span>`
           : '';
 
-        const dealerText = DTC_MODE
-          ? `TX GDN Clearinghouse · ${item.st || 'US'} Hub`
-          : `${item.dlr}`;
+        const shipHtml = item.sh === 0
+          ? `<span class="cv-ship-free">🚚 Free Local TX Pickup / $195 Delivery</span>`
+          : `<span>🚚 Get it by Tue, Nov 3 • <strong>$${item.sh} Shipping</strong></span>`;
 
-        const locationText = `${item.ct ? item.ct + ', ' : ''}${item.st || 'US'}`;
-        const franBadge = item.fr === 1
-          ? `<span class="fran-badge">FRANCHISE TRADE</span>`
-          : '';
-
-        const ctaLabel = DTC_MODE
-          ? `Reserve via TX GDN Clearinghouse →`
-          : `Inspect &amp; Snipe Listing →`;
-
-        const truecarUrl = `https://www.truecar.com/used-cars-for-sale/listing/${item.v}/`;
-
-        return `<article class="vehicle-card">
-          <div class="photo-stage">
-            <div class="badge-overlay-top-left">${topBadge}</div>
-            <div class="badge-overlay-top-right"><span class="pill-badge ${hwClass}">${hwLabel}</span></div>
+        return `<article class="cv-card" onclick="openModal('${item.v}')">
+          <div class="cv-photo">
+            <div class="cv-badges-left">
+              ${dealBadge}
+              ${hwBadge}
+            </div>
+            <button type="button" class="cv-heart-btn ${isSaved ? 'saved' : ''}" onclick="toggleSaveVin(event, '${item.v}')" title="Save Vehicle">
+              ${isSaved ? '♥' : '♡'}
+            </button>
             ${imgHtml}
           </div>
-          <div class="card-body">
-            <div class="card-eyebrow">
-              <span>${item.y} TESLA ${item.m.toUpperCase()} · ${item.d}</span>
-              ${mispBadge}
+          <div class="cv-card-body">
+            <div class="cv-eyebrow">
+              <span>${eyebrowLeft}</span>
+              ${mispTag}
             </div>
-            <h2 class="card-title">${item.t}</h2>
-            <div class="price-row">
-              <div>
-                <span class="big-price">${fmtPrice(displayPrice)}</span>
-                <span class="mkt-compare">Mkt <s>${fmtPrice(item.med)}</s></span>
+            <h3 class="cv-title">${item.y} Tesla ${item.m}</h3>
+            <div class="cv-trim-miles">${item.t} • ${item.mi.toLocaleString()} miles</div>
+            <div class="cv-price-split">
+              <div class="cv-price-left">
+                <span class="cv-cash-price">${fmtPrice(displayPrice)}</span>
+                <span class="cv-mkt-strike">Est. Mkt <s>${fmtPrice(item.med)}</s></span>
               </div>
-              <div class="monthly-est">${calcMonthly(displayPrice)}</div>
+              <div class="cv-divider"></div>
+              <div class="cv-price-right">
+                <span class="cv-monthly">$${mo.toLocaleString()}/mo</span>
+                <span class="cv-monthly-sub">with $${downPmt.toLocaleString()} down</span>
+              </div>
             </div>
-            <div class="specs-grid">
-              <div class="spec-item"><span>Odometer:</span> ${item.mi.toLocaleString()} mi</div>
-              <div class="spec-item"><span>Factory:</span> ${item.pl}</div>
-              <div class="spec-item"><span>Pos-8 Motor:</span> Code ${item.mc}</div>
-              <div class="spec-item"><span>Location:</span> ${locationText}</div>
-            </div>
-            <div class="dealer-row">
-              <span class="dealer-name" title="${dealerText}">${dealerText}</span>
-              ${franBadge}
-            </div>
-            <div class="vin-bar">
-              <span>VIN: <strong>${maskVin(item.v)}</strong></span>
-              <span>${item.dom ? item.dom + 'd on lot' : 'Live'}</span>
-            </div>
-            <div class="card-actions">
-              <button type="button" class="btn-primary" onclick="openModal('${item.v}')">${ctaLabel}</button>
-              ${DTC_MODE ? '' : `<a class="btn-secondary-icon" href="${truecarUrl}" target="_blank" rel="noopener" title="Open Direct TrueCar VDP">VDP ↗</a>`}
-            </div>
+          </div>
+          <div class="cv-card-footer">
+            ${shipHtml}
+            <span style="color:var(--cv-cyan);font-weight:800;">View Deal →</span>
           </div>
         </article>`;
       }).join('');
     }
 
-    window.openModal = function(vin) {
-      const item = ALL_ITEMS.find(x => x.v === vin);
+    window.openModal = function(vin, tab = null) {
+      ACTIVE_VIN = vin;
+      if (tab) {
+        ACTIVE_TAB = tab;
+      } else {
+        ACTIVE_TAB = DTC_MODE ? 'buyer' : 'desk';
+      }
+      renderModalContent();
+      if (!elModal.open) elModal.showModal();
+    };
+
+    window.renderModalContent = function() {
+      const item = ALL_ITEMS.find(x => x.v === ACTIVE_VIN);
       if (!item) return;
-      const displayPrice = DTC_MODE ? item.p + DTC_MARKUP : item.p;
-      const spreadBelow = item.med - displayPrice;
+
+      const buyerPrice = item.p + DTC_MARKUP;
+      const buyerSpread = item.med - buyerPrice;
+      const shipCost = item.sh || 0;
+      const finReserve = Math.round(buyerPrice * 0.018);
+      const gdnFee = 500;
+      const netClearingProfit = DTC_MARKUP + finReserve - gdnFee;
       const truecarUrl = `https://www.truecar.com/used-cars-for-sale/listing/${item.v}/`;
       const autolistUrl = `https://www.autolist.com/listings/${item.v}`;
+
+      const downInput = Number(elDown.value) || 2500;
+      const monthlyPmt = calcMonthlyNum(buyerPrice + shipCost, downInput, 5.75, 72);
+
+      const mailtoSubject = encodeURIComponent(`Online Purchase Reservation: ${item.y} Tesla ${item.m} (${item.v})`);
+      const mailtoBody = encodeURIComponent(
+        `Please lock my online reservation for:
+
+` +
+        `• Vehicle: ${item.y} Tesla ${item.m} — ${item.t} (${item.hw})
+` +
+        `• VIN: ${item.v}
+` +
+        `• Odometer: ${item.mi.toLocaleString()} miles
+` +
+        `• Online Price: ${fmtPrice(buyerPrice)} (Market Avg: ${fmtPrice(item.med)})
+` +
+        `• Delivery to TX: ${fmtPrice(shipCost)}
+` +
+        `• Estimated Payment: $${monthlyPmt}/mo ($${downInput.toLocaleString()} down)
+
+` +
+        `Buyer Name:
+Phone:
+Delivery Address/ZIP:`
+      );
 
       elModalContent.innerHTML = `
         <div class="modal-header">
           <div>
-            <div class="eyebrow">NHTSA 49 CFR PART 565 VERIFIED DOSSIER</div>
-            <h2 style="margin:0.25rem 0 0;color:var(--brand-dark-blue);">${item.y} Tesla ${item.m} — ${item.t}</h2>
+            <div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--cv-cyan);">100% ONLINE PURCHASE • 7-DAY MONEY-BACK GUARANTEE • ${item.hw}</div>
+            <h2 style="margin:0.2rem 0 0;color:var(--cv-navy);">${item.y} Tesla ${item.m} — ${item.t}</h2>
+            <div style="font-size:0.86rem;color:var(--ink-3);margin-block-start:0.2rem;">${item.mi.toLocaleString()} miles • ${item.pl} Factory • Position-8 Motor Code ${item.mc}</div>
           </div>
           <button type="button" class="close-btn" onclick="document.getElementById('vin-modal').close()">✕ Close</button>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-block-end:1rem;">
-          <div class="kpi-box">
-            <div class="kpi-val">${fmtPrice(displayPrice)}</div>
-            <div class="kpi-lbl">${DTC_MODE ? 'DTC Clearinghouse Price' : 'Dealer Listed Price'}</div>
-          </div>
-          <div class="kpi-box emerald">
-            <div class="kpi-val">${spreadBelow > 0 ? '+' + fmtPrice(spreadBelow) : fmtPrice(spreadBelow)}</div>
-            <div class="kpi-lbl">Spread vs ${fmtPrice(item.med)} Cohort Median</div>
-          </div>
+
+        <div class="modal-tabs">
+          <button type="button" class="tab-btn ${ACTIVE_TAB === 'buyer' ? 'active' : ''}" onclick="openModal('${item.v}', 'buyer')">🛒 Carvana-Style Online Checkout</button>
+          <button type="button" class="tab-btn ${ACTIVE_TAB === 'desk' ? 'active' : ''}" onclick="openModal('${item.v}', 'desk')">💰 Founder Arbitrage &amp; Architecture Sheet</button>
         </div>
-        <div class="specs-grid" style="margin-block-end:1rem;">
-          <div class="spec-item"><span>17-Char VIN:</span> ${maskVin(item.v)}</div>
-          <div class="spec-item"><span>Odometer:</span> ${item.mi.toLocaleString()} mi</div>
-          <div class="spec-item"><span>Pos-8 True Trim:</span> ${item.t}</div>
-          <div class="spec-item"><span>Dealer Listed Trim:</span> ${item.dt}</div>
-          <div class="spec-item"><span>Autopilot Computer:</span> ${item.hw}</div>
-          <div class="spec-item"><span>Assembly Plant:</span> ${item.pl}</div>
-          <div class="spec-item"><span>Holding Dealer:</span> ${DTC_MODE ? 'TX GDN Partner Network' : item.dlr}</div>
-          <div class="spec-item"><span>City / State:</span> ${item.ct}, ${item.st}</div>
-        </div>
-        ${DTC_MODE ? `
-          <div style="background:var(--paper-2);border:1px solid var(--line);border-radius:12px;padding:1rem;margin-block-end:1rem;font-size:0.88rem;">
-            <strong style="color:var(--brand-dark-blue);">Zero-Lot Texas GDN Clearinghouse Structure:</strong>
-            <ul style="margin:0.4rem 0 0;padding-inline-start:1.2rem;color:var(--ink-2);">
-              <li>Wholesale Acquisition Price: <strong>${fmtPrice(item.p)}</strong> (${item.dlr})</li>
-              <li>Clearinghouse Buyer Price: <strong>${fmtPrice(displayPrice)}</strong> (Includes +$2,000 Sourcing Spread)</li>
-              <li>Texas GDN Partner Clearing Fee: <strong>$500 flat</strong> via RouteOne / RBFCU (${calcMonthly(displayPrice)})</li>
-            </ul>
+
+        ${ACTIVE_TAB === 'buyer' ? `
+          <div class="checkout-box">
+            <div class="line-item"><span>Tesla Direct Online Price (${item.hw} • Clean Franchise Inspection)</span><strong>${fmtPrice(buyerPrice)}</strong></div>
+            <div class="line-item"><span>Estimated Market Cohort Price (Same Year, Trim &amp; Mileage Band)</span><span style="color:var(--emerald);font-weight:700;">${fmtPrice(item.med)} (You Save ${fmtPrice(Math.max(0, buyerSpread))})</span></div>
+            <div class="line-item"><span>Insured Door Delivery to Texas (${item.st === 'TX' ? 'Local TX Hub' : 'from ' + item.st})</span><strong>${shipCost === 0 ? 'FREE' : fmtPrice(shipCost)}</strong></div>
+            <div class="line-item"><span>Hidden Dealer Add-Ons / Nitrogen / LoJack Fees</span><strong style="color:var(--emerald);">$0</strong></div>
+            <div class="line-item total"><span>Total Online Price (Est. $${monthlyPmt.toLocaleString()}/mo with $${downInput.toLocaleString()} down)</span><span>${fmtPrice(buyerPrice + shipCost)}</span></div>
           </div>
-        ` : ''}
-        <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
-          <a class="btn-primary" href="${truecarUrl}" target="_blank" rel="noopener">Open Live TrueCar VDP →</a>
-          <a class="btn-primary" style="background:var(--paper-2);color:var(--brand-dark-blue);border:1px solid var(--line);" href="${autolistUrl}" target="_blank" rel="noopener">Open Autolist Syndication →</a>
-        </div>
+
+          <a class="btn-cv-checkout" href="mailto:bljones1888@icloud.com?subject=${mailtoSubject}&body=${mailtoBody}">
+            Get Started — Reserve Online ($250 Refundable Deposit) →
+          </a>
+        ` : `
+          <div class="checkout-box" style="background:var(--emerald-bg);border-color:var(--emerald-border);">
+            <div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--emerald);margin-block-end:0.45rem;">ZERO-LOT CARVANA / CARLYPSO (YC S14) DEAL-CLEARING MATH</div>
+            <div class="line-item"><span>1. Holding Franchise Dealer Price (${item.dlr} • ${item.ct}, ${item.st})</span><strong>${fmtPrice(item.p)}</strong></div>
+            <div class="line-item"><span>2. Your Retail Online Price (Still ${fmtPrice(buyerSpread)} Below Market!)</span><strong>${fmtPrice(buyerPrice)} (+${fmtPrice(DTC_MARKUP)})</strong></div>
+            <div class="line-item"><span>3. Shipping Pass-Through Paid by Buyer (${item.st} → TX Central Dispatch)</span><strong>${fmtPrice(shipCost)} (Net $0 Cost)</strong></div>
+            <div class="line-item"><span>4. RouteOne / CUDL Lender Reserve (+1.8% Finance Participation)</span><strong style="color:var(--emerald);">+${fmtPrice(finReserve)}</strong></div>
+            <div class="line-item"><span>5. Texas GDN Partner Clearing Fee (Until Your Own $895 TX GDN Issues)</span><strong style="color:var(--brand-red);">-${fmtPrice(gdnFee)}</strong></div>
+            <div class="line-item total"><span>NET PROFIT TO YOU ON THIS SINGLE ONLINE SALE:</span><span style="color:var(--emerald);font-size:1.25rem;">+${fmtPrice(netClearingProfit)}</span></div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-block-end:1rem;font-size:0.84rem;">
+            <div style="background:var(--paper);padding:0.6rem;border-radius:8px;"><strong>Unmasked VIN:</strong> <code>${item.v}</code></div>
+            <div style="background:var(--paper);padding:0.6rem;border-radius:8px;"><strong>Source Dealer:</strong> ${item.dlr}</div>
+            <div style="background:var(--paper);padding:0.6rem;border-radius:8px;"><strong>Decoded Trim:</strong> ${item.t}</div>
+            <div style="background:var(--paper);padding:0.6rem;border-radius:8px;"><strong>Dealer Booked As:</strong> "${item.dt}"</div>
+          </div>
+
+          <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+            <a class="btn-cv-checkout" style="flex:1;" href="${truecarUrl}" target="_blank" rel="noopener">Open Holding Dealer VDP (TrueCar) ↗</a>
+            <a class="btn-cv-checkout" style="flex:1;background:var(--cv-navy);" href="${autolistUrl}" target="_blank" rel="noopener">Open Autolist Syndication Feed ↗</a>
+          </div>
+        `}
       `;
-      elModal.showModal();
     };
 
-    document.getElementById('mode-sourcing').addEventListener('click', () => {
-      DTC_MODE = false;
-      document.getElementById('mode-sourcing').classList.add('active');
-      document.getElementById('mode-dtc').classList.remove('active');
-      document.getElementById('mode-indicator').innerHTML = `Mode: <strong>Dealer Arbitrage Sourcing</strong> (Unmasked VINs &amp; Direct Dealer Links)`;
+    elDown.addEventListener('input', () => {
+      elLblDown.textContent = fmtPrice(elDown.value);
       renderCards();
     });
 
@@ -1096,17 +1276,25 @@
       DTC_MODE = true;
       document.getElementById('mode-dtc').classList.add('active');
       document.getElementById('mode-sourcing').classList.remove('active');
-      document.getElementById('mode-indicator').innerHTML = `Mode: <strong>DTC Clearinghouse Showroom</strong> (Masked VINs · +$2,000 Margin · RouteOne Financing)`;
+      document.getElementById('mode-indicator').textContent = `100% Online Checkout • 7-Day Money-Back Guarantee • NHTSA Position-8 Motor Verified`;
       renderCards();
     });
 
-    document.querySelectorAll('.preset-btn').forEach(btn => {
+    document.getElementById('mode-sourcing').addEventListener('click', () => {
+      DTC_MODE = false;
+      document.getElementById('mode-sourcing').classList.add('active');
+      document.getElementById('mode-dtc').classList.remove('active');
+      document.getElementById('mode-indicator').textContent = `FOUNDER ARBITRAGE DESK: Showing Unmasked VINs, Source Franchise Dealers & Net Profit Math`;
+      renderCards();
+    });
+
+    document.querySelectorAll('.preset-chip').forEach(btn => {
       btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
     });
 
     [elModel, elYearMin, elMileage, elPrice, elState, elDrive, elSource, elSort].forEach(el => {
       el.addEventListener('change', () => {
-        document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.preset-chip').forEach(b => b.classList.remove('active'));
         DISPLAY_LIMIT = 48;
         filterAndRender();
       });
@@ -1126,14 +1314,6 @@
       .then(r => r.json())
       .then(payload => {
         ALL_ITEMS = payload.items || [];
-        const meta = payload.meta || {};
-        if (meta.total_verified_vins) {
-          document.getElementById('hero-headline').textContent = `${meta.total_verified_vins.toLocaleString()} Verified US Teslas — ${meta.priced_count.toLocaleString()} Priced Live`;
-          document.getElementById('kpi-total').textContent = meta.total_verified_vins.toLocaleString();
-          document.getElementById('kpi-priced').textContent = meta.priced_count.toLocaleString();
-          document.getElementById('kpi-steals').textContent = meta.arb_steals_count.toLocaleString();
-          document.getElementById('kpi-tx').textContent = meta.tx_count.toLocaleString();
-        }
         applyPreset('fran_arb');
       });
   </script>
