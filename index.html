@@ -3,52 +3,185 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Verified US & Texas Tesla Inventory Explorer</title>
+  <title>US Tesla VIN Clearinghouse &amp; Arbitrage Workbench</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0b0f17;
-      --panel: #131b2e;
-      --panel-alt: #19233c;
-      --border: #263457;
-      --text: #f1f5f9;
-      --muted: #94a3b8;
-      --accent: #38bdf8;
-      --green: #22c55e;
-      --amber: #f59e0b;
+      /* Locked JENNI-DESIGN-SPEC.md Tokens (Zero Pure Grays) */
+      --paper: #FAFCFF;
+      --paper-2: #F3F7FD;
+      --brand-white: #FFFFFF;
+      --brand-blue: #1DA4FF;
+      --brand-dark-blue: #001635;
+      --brand-light-blue: #DCF1FF;
+      --brand-red: #F04B07;
+      --emerald: #059669;
+      --emerald-bg: #ECFDF5;
+      --emerald-border: #A7F3D0;
+      --line: #D8E3F2;
+      --line-2: #E8EFF8;
+      --ink: #0E1A2F;
+      --ink-2: #2A3654;
+      --ink-3: #5B6786;
+      --ink-4: #8B95B0;
+      --shadow-e1: 0 1px 3px rgba(0, 22, 53, 0.08), 0 4px 12px rgba(0, 22, 53, 0.04);
+      --shadow-e2: 0 8px 24px rgba(0, 22, 53, 0.12);
+      --radius-sm: 8px;
+      --radius-btn: 10px;
+      --radius-md: 14px;
+      --radius-lg: 22px;
+      --radius-pill: 999px;
+      --font: 'Figtree', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      --mono: 'JetBrains Mono', monospace;
     }
+
     * { box-sizing: border-box; }
+
     body {
       margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: var(--bg);
-      color: var(--text);
+      font-family: var(--font);
+      background: var(--paper);
+      color: var(--ink);
       line-height: 1.45;
-      padding: 1.25rem;
+      -webkit-font-smoothing: antialiased;
     }
-    .container {
-      max-inline-size: 1380px;
+
+    /* Top Sticky Workbench Header */
+    .top-nav {
+      position: sticky;
+      inset-block-start: 0;
+      z-index: 30;
+      background: rgba(250, 252, 255, 0.92);
+      backdrop-filter: blur(12px);
+      border-block-end: 1px solid var(--line);
+      padding: 0.85rem 1.5rem;
+    }
+    .top-nav-inner {
+      max-inline-size: 1440px;
       margin-inline: auto;
-    }
-    header {
       display: flex;
       flex-wrap: wrap;
       justify-content: space-between;
       align-items: center;
       gap: 1rem;
-      margin-block-end: 1rem;
-      padding-block-end: 1rem;
-      border-block-end: 1px solid var(--border);
     }
-    h1 {
+    .brand-lockup {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .live-dot {
+      inline-size: 10px;
+      block-size: 10px;
+      border-radius: 50%;
+      background: var(--emerald);
+      box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.18);
+    }
+    .eyebrow {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--brand-blue);
+    }
+    .mode-switch {
+      display: inline-flex;
+      background: var(--paper-2);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-pill);
+      padding: 0.25rem;
+      gap: 0.25rem;
+    }
+    .mode-btn {
+      font-family: var(--font);
+      font-size: 0.84rem;
+      font-weight: 700;
+      padding: 0.45rem 0.95rem;
+      border-radius: var(--radius-pill);
+      border: none;
+      background: transparent;
+      color: var(--ink-3);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .mode-btn.active {
+      background: var(--brand-dark-blue);
+      color: var(--brand-white);
+      box-shadow: 0 1px 3px rgba(0, 22, 53, 0.15);
+    }
+
+    .container {
+      max-inline-size: 1440px;
+      margin-inline: auto;
+      padding: 1.5rem;
+    }
+
+    /* Layer 1: 1 Big Number Hero */
+    .hero-banner {
+      background: var(--brand-white);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem 1.75rem;
+      box-shadow: var(--shadow-e1);
+      margin-block-end: 1.25rem;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1.5rem;
+    }
+    .hero-left h1 {
+      margin: 0.25rem 0 0.35rem;
+      font-size: clamp(1.5rem, 2.8vw, 2.25rem);
+      font-weight: 800;
+      letter-spacing: -0.022em;
+      color: var(--brand-dark-blue);
+    }
+    .hero-left p {
       margin: 0;
-      font-size: clamp(1.25rem, 2.5vw, 1.75rem);
+      color: var(--ink-3);
+      font-size: 0.96rem;
+      max-inline-size: 72ch;
+    }
+    .kpi-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.85rem;
+    }
+    .kpi-box {
+      background: var(--paper-2);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      padding: 0.75rem 1.1rem;
+      min-inline-size: 148px;
+    }
+    .kpi-box .kpi-val {
+      font-size: 1.45rem;
+      font-weight: 800;
+      color: var(--brand-dark-blue);
       letter-spacing: -0.02em;
+      line-height: 1.15;
     }
-    .subtitle {
-      margin: 0.25rem 0 0;
-      color: var(--muted);
-      font-size: 0.9rem;
+    .kpi-box.emerald {
+      background: var(--emerald-bg);
+      border-color: var(--emerald-border);
     }
+    .kpi-box.emerald .kpi-val {
+      color: var(--emerald);
+    }
+    .kpi-box .kpi-lbl {
+      font-family: var(--mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--ink-3);
+      margin-block-start: 0.2rem;
+    }
+
+    /* Preset Pills */
     .preset-bar {
       display: flex;
       flex-wrap: wrap;
@@ -56,30 +189,39 @@
       margin-block-end: 1rem;
     }
     .preset-btn {
-      background: var(--panel);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      padding: 0.45rem 0.9rem;
-      font-size: 0.84rem;
+      font-family: var(--font);
+      background: var(--brand-white);
+      color: var(--ink-2);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-pill);
+      padding: 0.5rem 1rem;
+      font-size: 0.86rem;
       font-weight: 600;
       cursor: pointer;
-      transition: background 0.15s, border-color 0.15s;
+      transition: all 0.15s ease;
+      box-shadow: 0 1px 2px rgba(0, 22, 53, 0.04);
     }
-    .preset-btn:hover, .preset-btn.active {
-      background: #1e3a8a;
-      border-color: var(--accent);
-      color: #fff;
+    .preset-btn:hover {
+      border-color: var(--brand-blue);
+      color: var(--brand-dark-blue);
     }
+    .preset-btn.active {
+      background: var(--brand-dark-blue);
+      border-color: var(--brand-dark-blue);
+      color: var(--brand-white);
+    }
+
+    /* Filter Workbench Bar */
     .filters {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
       gap: 0.75rem;
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 12px;
+      background: var(--brand-white);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
       padding: 1rem;
-      margin-block-end: 1rem;
+      box-shadow: var(--shadow-e1);
+      margin-block-end: 1.25rem;
     }
     .field {
       display: flex;
@@ -87,204 +229,451 @@
       gap: 0.3rem;
     }
     .field label {
-      font-size: 0.75rem;
+      font-family: var(--mono);
+      font-size: 10.5px;
       text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: var(--muted);
+      letter-spacing: 0.05em;
+      color: var(--ink-3);
       font-weight: 600;
     }
     select, input[type="search"] {
-      background: var(--bg);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 0.5rem 0.65rem;
+      font-family: var(--font);
+      background: var(--paper);
+      color: var(--brand-dark-blue);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      padding: 0.55rem 0.7rem;
       font-size: 0.88rem;
+      font-weight: 600;
       inline-size: 100%;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
     }
-    .stats-bar {
+    select:focus, input[type="search"]:focus {
+      border-color: var(--brand-blue);
+      box-shadow: 0 0 0 3px rgba(29, 164, 255, 0.20);
+    }
+
+    .results-toolbar {
       display: flex;
       flex-wrap: wrap;
       justify-content: space-between;
       align-items: center;
       gap: 0.75rem;
-      margin-block-end: 0.75rem;
-      font-size: 0.9rem;
-      color: var(--muted);
+      margin-block-end: 1rem;
+      font-size: 0.92rem;
+      color: var(--ink-3);
+      font-weight: 500;
     }
-    .badge {
-      display: inline-block;
-      padding: 0.18rem 0.5rem;
-      border-radius: 6px;
-      font-size: 0.75rem;
-      font-weight: 700;
-    }
-    .badge-clean { background: rgba(34, 197, 94, 0.16); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.35); }
-    .badge-salvage { background: rgba(245, 158, 11, 0.16); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.35); }
-    .badge-hw4 { background: rgba(56, 189, 248, 0.16); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35); }
 
-    /* Responsive Table per modern-web-guidance (responsive-table) */
-    .table-wrapper {
-      overflow: auto;
-      max-inline-size: 100%;
-      max-block-size: min(760px, 80vh);
-      container-type: inline-size;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: var(--panel);
+    /* Layer 2: Visual Product Cards Grid (Zillow + Apple Standard) */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 1.25rem;
     }
-    table {
-      inline-size: 100%;
-      border-collapse: separate;
-      border-spacing: 0;
-      text-align: start;
-      font-size: 0.88rem;
-    }
-    caption {
-      position: absolute;
-      inline-size: 1px;
-      block-size: 1px;
+    .vehicle-card {
+      background: var(--brand-white);
+      border: 1px solid rgba(0, 22, 53, 0.08);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-e1);
       overflow: hidden;
-      clip: rect(0 0 0 0);
-    }
-    thead {
-      position: sticky;
-      inset-block-start: 0;
-      z-index: 2;
-      background: var(--panel-alt);
-    }
-    th, td {
-      padding: 0.7rem 0.85rem;
-      border-block-end: 1px solid var(--border);
-      white-space: nowrap;
-    }
-    thead th {
-      font-size: 0.76rem;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: var(--muted);
-      cursor: pointer;
-      user-select: none;
-    }
-    thead th:hover { color: #fff; }
-    tbody th {
-      position: sticky;
-      inset-inline-start: 0;
-      z-index: 1;
-      background: var(--panel);
-      font-weight: 700;
-      color: #fff;
-    }
-    tbody tr:hover td, tbody tr:hover th {
-      background: #1e293b;
-    }
-    /* Deferred off-screen row rendering per modern-web-guidance (defer-rendering-heavy-content) */
-    .deferred-row {
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
       content-visibility: auto;
-      contain-intrinsic-size: auto none auto 54px;
+      contain-intrinsic-size: auto 430px;
     }
-    .price-cell {
-      font-weight: 800;
-      font-size: 0.98rem;
-      color: #4ade80;
+    .vehicle-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-e2);
+      border-color: rgba(29, 164, 255, 0.45);
     }
-    .spread-neg { color: #4ade80; font-weight: 600; }
-    .spread-pos { color: var(--muted); }
-    .btn-link {
-      display: inline-block;
-      background: #0284c7;
-      color: #fff;
-      text-decoration: none;
-      padding: 0.35rem 0.65rem;
-      border-radius: 6px;
-      font-size: 0.78rem;
-      font-weight: 600;
-      margin-inline-end: 0.35rem;
-    }
-    .btn-link.secondary {
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--accent);
-    }
-    .btn-link:hover { opacity: 0.9; }
 
-    @container (width < 720px) {
-      table, thead, tbody, tr, th, td {
-        display: block;
-        white-space: normal;
-      }
-      thead {
-        display: none;
-      }
-      tr {
-        margin: 0.75rem;
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        overflow: hidden;
-      }
-      tbody th {
-        position: sticky;
-        inset-block-start: 0;
-        z-index: 2;
-        background: var(--panel-alt);
-      }
-      table {
-        --label-2: "Price";
-        --label-3: "Mileage";
-        --label-4: "Drivetrain & Spec";
-        --label-5: "Hardware / Title";
-        --label-6: "Dealer & Location";
-        --label-7: "VIN";
-        --label-8: "Links";
-      }
-      td:nth-child(2)::before { content: var(--label-2) ": "; font-weight: 600; color: var(--muted); }
-      td:nth-child(3)::before { content: var(--label-3) ": "; font-weight: 600; color: var(--muted); }
-      td:nth-child(4)::before { content: var(--label-4) ": "; font-weight: 600; color: var(--muted); }
-      td:nth-child(5)::before { content: var(--label-5) ": "; font-weight: 600; color: var(--muted); }
-      td:nth-child(6)::before { content: var(--label-6) ": "; font-weight: 600; color: var(--muted); }
-      td:nth-child(7)::before { content: var(--label-7) ": "; font-weight: 600; color: var(--muted); }
-      td:nth-child(8)::before { content: var(--label-8) ": "; font-weight: 600; color: var(--muted); }
+    /* Photo Stage */
+    .photo-stage {
+      position: relative;
+      aspect-ratio: 16 / 10;
+      background: linear-gradient(135deg, #EEF4FC 0%, #DCE8F9 100%);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .photo-stage img {
+      inline-size: 100%;
+      block-size: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .fallback-svg {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--ink-3);
+      gap: 0.35rem;
+      padding: 1rem;
+      text-align: center;
+    }
+    .badge-overlay-top-left {
+      position: absolute;
+      inset-block-start: 0.65rem;
+      inset-inline-start: 0.65rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      z-index: 2;
+    }
+    .badge-overlay-top-right {
+      position: absolute;
+      inset-block-start: 0.65rem;
+      inset-inline-end: 0.65rem;
+      z-index: 2;
+    }
+    .pill-badge {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 0.28rem 0.6rem;
+      border-radius: var(--radius-sm);
+      letter-spacing: 0.02em;
+      backdrop-filter: blur(8px);
+    }
+    .pill-deal {
+      background: rgba(5, 150, 105, 0.95);
+      color: #FFFFFF;
+      box-shadow: 0 2px 6px rgba(5, 150, 105, 0.25);
+    }
+    .pill-clean {
+      background: rgba(255, 255, 255, 0.92);
+      color: var(--brand-dark-blue);
+      border: 1px solid var(--line);
+    }
+    .pill-salvage {
+      background: rgba(240, 75, 7, 0.95);
+      color: #FFFFFF;
+    }
+    .pill-hw4 {
+      background: rgba(0, 22, 53, 0.88);
+      color: var(--brand-light-blue);
+    }
+    .pill-hw3 {
+      background: rgba(255, 255, 255, 0.88);
+      color: var(--ink-2);
+    }
+
+    /* Card Content */
+    .card-body {
+      padding: 1.1rem 1.2rem 1.2rem;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      gap: 0.65rem;
+    }
+    .card-eyebrow {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--brand-blue);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .mispriced-tag {
+      background: #FFF7ED;
+      color: var(--brand-red);
+      border: 1px solid #FED7AA;
+      padding: 0.1rem 0.45rem;
+      border-radius: 6px;
+      font-size: 10px;
+    }
+    .card-title {
+      margin: 0;
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--brand-dark-blue);
+      letter-spacing: -0.012em;
+      line-height: 1.25;
+    }
+
+    /* 1 Big Price Row */
+    .price-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.5rem;
+      padding-block: 0.25rem;
+      border-block-end: 1px solid var(--line-2);
+    }
+    .big-price {
+      font-size: 1.65rem;
+      font-weight: 800;
+      color: var(--brand-dark-blue);
+      letter-spacing: -0.025em;
+    }
+    .mkt-compare {
+      font-size: 0.8rem;
+      color: var(--ink-3);
+      font-weight: 600;
+    }
+    .mkt-compare s {
+      color: var(--ink-4);
+    }
+    .monthly-est {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--emerald);
+      font-weight: 700;
+    }
+
+    /* Specs Chips */
+    .specs-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.45rem;
+      font-size: 0.83rem;
+      color: var(--ink-2);
+    }
+    .spec-item {
+      background: var(--paper-2);
+      border-radius: 6px;
+      padding: 0.35rem 0.55rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-weight: 600;
+    }
+    .spec-item span {
+      color: var(--ink-3);
+      font-weight: 500;
+    }
+
+    .dealer-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.82rem;
+      color: var(--ink-3);
+      margin-block-start: auto;
+      padding-block-start: 0.25rem;
+    }
+    .dealer-name {
+      font-weight: 700;
+      color: var(--ink-2);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .fran-badge {
+      font-family: var(--mono);
+      font-size: 10px;
+      background: var(--brand-light-blue);
+      color: var(--brand-dark-blue);
+      padding: 0.15rem 0.45rem;
+      border-radius: 5px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .vin-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--paper);
+      border: 1px solid var(--line-2);
+      border-radius: var(--radius-sm);
+      padding: 0.35rem 0.6rem;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      color: var(--ink-2);
+    }
+
+    /* Layer 3: 1 Primary Action Button */
+    .card-actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-block-start: 0.25rem;
+    }
+    .btn-primary {
+      flex: 1;
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      gap: 0.4rem;
+      background: var(--brand-dark-blue);
+      color: var(--brand-white);
+      font-family: var(--font);
+      font-size: 0.9rem;
+      font-weight: 700;
+      padding: 0.7rem 1rem;
+      border-radius: var(--radius-btn);
+      border: none;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .btn-primary:hover {
+      background: var(--brand-blue);
+      color: var(--brand-dark-blue);
+    }
+    .btn-secondary-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--paper-2);
+      color: var(--brand-dark-blue);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-btn);
+      padding: 0.7rem 0.85rem;
+      font-size: 0.82rem;
+      font-weight: 700;
+      text-decoration: none;
+      transition: border-color 0.15s;
+    }
+    .btn-secondary-icon:hover {
+      border-color: var(--brand-blue);
+    }
+
+    .load-more-wrap {
+      text-align: center;
+      margin-block: 2rem 3rem;
+    }
+    .btn-load-more {
+      background: var(--brand-white);
+      color: var(--brand-dark-blue);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-pill);
+      padding: 0.8rem 2rem;
+      font-family: var(--font);
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: var(--shadow-e1);
+    }
+    .btn-load-more:hover {
+      border-color: var(--brand-blue);
+    }
+
+    /* Native Dialog Inspection Modal */
+    dialog {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      padding: 0;
+      max-inline-size: 640px;
+      inline-size: 92vw;
+      box-shadow: var(--shadow-e2);
+      background: var(--brand-white);
+      color: var(--ink);
+    }
+    dialog::backdrop {
+      background: rgba(0, 22, 53, 0.45);
+      backdrop-filter: blur(4px);
+    }
+    .modal-inner {
+      padding: 1.5rem;
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
+      border-block-end: 1px solid var(--line);
+      padding-block-end: 1rem;
+      margin-block-end: 1rem;
+    }
+    .close-btn {
+      background: var(--paper-2);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0.35rem 0.65rem;
+      font-weight: 700;
+      cursor: pointer;
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <header>
-      <div>
-        <h1>⚡ Verified US & Texas Tesla Inventory Explorer</h1>
-        <p class="subtitle">3,243 NHTSA Modulo-11 Verified VINs · True Position-8 Motor Decode · Salvage/Branded Filter</p>
+  <nav class="top-nav">
+    <div class="top-nav-inner">
+      <div class="brand-lockup">
+        <span class="live-dot"></span>
+        <div>
+          <div class="eyebrow">NHTSA Part 565 Deterministic VIN Clearinghouse</div>
+          <strong style="color:var(--brand-dark-blue);font-size:1.05rem;">US &amp; Texas Tesla Arbitrage Workbench</strong>
+        </div>
       </div>
-    </header>
+      <div class="mode-switch" role="group" aria-label="Operating Mode">
+        <button type="button" class="mode-btn active" id="mode-sourcing">🔍 Dealer Arbitrage Sourcing</button>
+        <button type="button" class="mode-btn" id="mode-dtc">🏷️ DTC Showroom (Masked VIN + Margin)</button>
+      </div>
+    </div>
+  </nav>
 
+  <main class="container">
+    <!-- Layer 1: 1 Big Number First -->
+    <section class="hero-banner" aria-label="Live Market Summary">
+      <div class="hero-left">
+        <div class="eyebrow" id="hero-eyebrow">LIVE NATIONWIDE &amp; TEXAS INVENTORY LEDGER</div>
+        <h1 id="hero-headline">13,575 Verified US Teslas — 12,761 Priced Live</h1>
+        <p id="hero-sub">Every VIN mathematically verified via NHTSA Modulo-11 check-digit and Position-8 true motor decode. Franchise trade-in mispricings highlighted in real time.</p>
+      </div>
+      <div class="kpi-row">
+        <div class="kpi-box emerald">
+          <div class="kpi-val" id="kpi-steals">1,400+</div>
+          <div class="kpi-lbl">$3,000+ Below Market</div>
+        </div>
+        <div class="kpi-box">
+          <div class="kpi-val" id="kpi-priced">12,761</div>
+          <div class="kpi-lbl">Priced US Listings</div>
+        </div>
+        <div class="kpi-box">
+          <div class="kpi-val" id="kpi-tx">1,500+</div>
+          <div class="kpi-lbl">Texas Corridor</div>
+        </div>
+        <div class="kpi-box">
+          <div class="kpi-val" id="kpi-total">13,575</div>
+          <div class="kpi-lbl">Total Verified VINs</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 1-Click Preset Pills -->
     <div class="preset-bar">
-      <button type="button" class="preset-btn active" data-preset="tx_my_2024">🔥 Texas 2024+ Model Y (Clean · ≤25k mi)</button>
-      <button type="button" class="preset-btn" data-preset="us_my_35k">⚡ US 2024 Model Y (Clean · ≤20k mi · ≤$36k)</button>
-      <button type="button" class="preset-btn" data-preset="tx_all">🤠 All Texas Teslas (Clean Title)</button>
-      <button type="button" class="preset-btn" data-preset="ct_clean">📐 Cybertrucks (Clean · ≤15k mi)</button>
-      <button type="button" class="preset-btn" data-preset="all">🌎 All 3,243 US Teslas</button>
+      <button type="button" class="preset-btn active" data-preset="fran_arb">🔥 Franchise Arbitrage Steals (Clean · $3k+ Below Market)</button>
+      <button type="button" class="preset-btn" data-preset="tx_hw4">🤠 Texas 2024+ HW4 Model Y (Clean Title)</button>
+      <button type="button" class="preset-btn" data-preset="us_hw4_my">⚡ All US 2024–2026 Model Y (Clean · ≤25k mi)</button>
+      <button type="button" class="preset-btn" data-preset="ct_clean">📐 Cybertrucks (Clean Title · All US)</button>
+      <button type="button" class="preset-btn" data-preset="mispriced">🚀 Dealer Trim Mispricings (AWD/Perf Listed as Base)</button>
+      <button type="button" class="preset-btn" data-preset="all_us">🌎 All 12,761 Priced US Teslas</button>
     </div>
 
+    <!-- Clean Filter Workbench -->
     <section class="filters" aria-label="Inventory Filters">
       <div class="field">
         <label for="f-model">Model</label>
         <select id="f-model">
           <option value="ALL">All Models</option>
-          <option value="Model Y" selected>Model Y</option>
-          <option value="Cybertruck">Cybertruck</option>
+          <option value="Model Y">Model Y</option>
           <option value="Model 3">Model 3</option>
-          <option value="Model S">Model S</option>
+          <option value="Cybertruck">Cybertruck</option>
           <option value="Model X">Model X</option>
+          <option value="Model S">Model S</option>
         </select>
       </div>
       <div class="field">
         <label for="f-year-min">Min Year</label>
         <select id="f-year-min">
-          <option value="0">Any Year</option>
-          <option value="2026">2026</option>
+          <option value="0">Any Year (2013–2026)</option>
+          <option value="2026">2026 Only</option>
           <option value="2025">2025+</option>
-          <option value="2024" selected>2024+ (HW4)</option>
+          <option value="2024" selected>2024+ (HW4 AI4)</option>
           <option value="2023">2023+</option>
           <option value="2022">2022+</option>
+          <option value="2020">2020+</option>
         </select>
       </div>
       <div class="field">
@@ -293,95 +682,101 @@
           <option value="999999">Any Mileage</option>
           <option value="10000">Under 10,000 mi</option>
           <option value="15000">Under 15,000 mi</option>
-          <option value="20000">Under 20,000 mi</option>
-          <option value="25000" selected>Under 25,000 mi</option>
-          <option value="35000">Under 35,000 mi</option>
+          <option value="25000">Under 25,000 mi</option>
+          <option value="35000" selected>Under 35,000 mi</option>
           <option value="50000">Under 50,000 mi</option>
+          <option value="75000">Under 75,000 mi</option>
         </select>
       </div>
       <div class="field">
         <label for="f-price">Max Price</label>
         <select id="f-price">
-          <option value="999999">Any Price</option>
+          <option value="999999" selected>Any Price</option>
+          <option value="25000">Under $25,000</option>
           <option value="30000">Under $30,000</option>
           <option value="35000">Under $35,000</option>
-          <option value="36000">Under $36,000</option>
           <option value="40000">Under $40,000</option>
-          <option value="45000" selected>Under $45,000</option>
+          <option value="45000">Under $45,000</option>
           <option value="65000">Under $65,000</option>
-          <option value="85000">Under $85,000</option>
         </select>
       </div>
       <div class="field">
         <label for="f-state">State</label>
         <select id="f-state">
-          <option value="ALL">All US States</option>
-          <option value="TX" selected>Texas (TX Only)</option>
+          <option value="ALL" selected>All 50 US States</option>
+          <option value="TX">Texas (TX)</option>
           <option value="CA">California (CA)</option>
           <option value="FL">Florida (FL)</option>
+          <option value="CO">Colorado (CO)</option>
           <option value="VA">Virginia (VA)</option>
-          <option value="MD">Maryland (MD)</option>
+          <option value="OH">Ohio (OH)</option>
+          <option value="WA">Washington (WA)</option>
           <option value="IL">Illinois (IL)</option>
+          <option value="GA">Georgia (GA)</option>
           <option value="AZ">Arizona (AZ)</option>
+          <option value="NC">North Carolina (NC)</option>
+          <option value="NY">New York (NY)</option>
+          <option value="NJ">New Jersey (NJ)</option>
+          <option value="PA">Pennsylvania (PA)</option>
         </select>
       </div>
       <div class="field">
-        <label for="f-drive">VIN-Decoded Motor</label>
+        <label for="f-drive">Position-8 Motor</label>
         <select id="f-drive">
           <option value="ALL">All Drivetrains</option>
-          <option value="AWD">Dual/Tri-Motor AWD Only</option>
-          <option value="RWD">Single-Motor RWD Only</option>
+          <option value="AWD">Dual / Tri-Motor AWD</option>
+          <option value="RWD">Single-Motor RWD</option>
+          <option value="PERF">Performance / Cyberbeast / Plaid</option>
         </select>
       </div>
       <div class="field">
-        <label for="f-clean">Title Filter</label>
-        <select id="f-clean">
-          <option value="1" selected>Clean Title Only (Purge Salvage)</option>
-          <option value="0">Include Salvage / Rebuilt</option>
+        <label for="f-source">Title &amp; Dealer Tier</label>
+        <select id="f-source">
+          <option value="fran_clean" selected>Franchise Trade-Ins (Clean)</option>
+          <option value="all_clean">All Clean Title Dealers</option>
+          <option value="mispriced_only">Dealer Trim Mispricings Only</option>
+          <option value="all_including_salvage">Include Independent / Branded</option>
         </select>
       </div>
       <div class="field">
-        <label for="f-sort">Sort By</label>
+        <label for="f-sort">Sort Order</label>
         <select id="f-sort">
-          <option value="price_asc" selected>Price: Low to High</option>
+          <option value="spread_asc" selected>Biggest Arbitrage Spread ($ Below Market)</option>
+          <option value="price_asc">Price: Low to High</option>
           <option value="mileage_asc">Mileage: Low to High</option>
           <option value="year_desc">Year: Newest First</option>
-          <option value="spread_asc">Best Deal vs. Cohort Median</option>
         </select>
       </div>
       <div class="field">
-        <label for="f-search">Search City / Dealer / VIN</label>
-        <input id="f-search" type="search" placeholder="e.g. Plano, Austin, Kian, 7SAY..." />
+        <label for="f-search">Instant VIN / Dealer / City</label>
+        <input id="f-search" type="search" placeholder="Lexus, Austin, Plano, 7SAY..." />
       </div>
     </section>
 
-    <div class="stats-bar">
-      <div id="results-count">Loading verified inventory...</div>
-      <div>Tip: Click any column header or use filters above to sort by Year, Mileage, or Price.</div>
+    <div class="results-toolbar">
+      <div id="results-count">Loading verified nationwide inventory...</div>
+      <div id="mode-indicator">Mode: <strong>Dealer Arbitrage Sourcing</strong> (Unmasked VINs &amp; Direct Dealer Links)</div>
     </div>
 
-    <div tabindex="0" role="region" aria-labelledby="tesla-table-caption" class="table-wrapper">
-      <table>
-        <caption id="tesla-table-caption">Verified US and Texas Tesla Inventory</caption>
-        <thead>
-          <tr>
-            <th data-sort="year_desc">Year &amp; Model</th>
-            <th data-sort="price_asc">Price</th>
-            <th data-sort="mileage_asc">Mileage</th>
-            <th>VIN-Decoded Spec</th>
-            <th>Hardware &amp; Title</th>
-            <th>Dealer &amp; Location</th>
-            <th>VIN</th>
-            <th>Direct Links</th>
-          </tr>
-        </thead>
-        <tbody id="inventory-body"></tbody>
-      </table>
+    <!-- Layer 2: Visual Product Cards Grid -->
+    <section class="card-grid" id="card-grid" aria-label="Tesla Vehicle Cards"></section>
+
+    <div class="load-more-wrap">
+      <button type="button" class="btn-load-more" id="btn-load-more" style="display:none;">Show Next 48 Vehicles</button>
     </div>
-  </div>
+  </main>
+
+  <!-- Slide-Over / Modal for Deep VIN & Arbitrage Inspection -->
+  <dialog id="vin-modal">
+    <div class="modal-inner" id="modal-content"></div>
+  </dialog>
 
   <script>
-    let ALL_DATA = [];
+    let ALL_ITEMS = [];
+    let FILTERED_ITEMS = [];
+    let DISPLAY_LIMIT = 48;
+    let DTC_MODE = false;
+    const DTC_MARKUP = 2000;
 
     const elModel = document.getElementById('f-model');
     const elYearMin = document.getElementById('f-year-min');
@@ -389,14 +784,42 @@
     const elPrice = document.getElementById('f-price');
     const elState = document.getElementById('f-state');
     const elDrive = document.getElementById('f-drive');
-    const elClean = document.getElementById('f-clean');
+    const elSource = document.getElementById('f-source');
     const elSort = document.getElementById('f-sort');
     const elSearch = document.getElementById('f-search');
-    const elBody = document.getElementById('inventory-body');
+    const elGrid = document.getElementById('card-grid');
     const elCount = document.getElementById('results-count');
+    const elLoadMore = document.getElementById('btn-load-more');
+    const elModal = document.getElementById('vin-modal');
+    const elModalContent = document.getElementById('modal-content');
 
-    function formatCurrency(n) {
-      return '$' + Number(n).toLocaleString('en-US');
+    function fmtPrice(n) {
+      return '$' + Math.round(Number(n)).toLocaleString('en-US');
+    }
+
+    function calcMonthly(price) {
+      // 10% down, 5.75% APR 72 months credit union (RBFCU / RouteOne)
+      const principal = price * 0.90;
+      const r = 0.0575 / 12;
+      const n = 72;
+      const pmt = (principal * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+      return '$' + Math.round(pmt).toLocaleString('en-US') + '/mo';
+    }
+
+    function maskVin(v) {
+      if (!DTC_MODE || !v || v.length < 17) return v;
+      return v.slice(0, 8) + '*' + v.slice(9, 11) + '******';
+    }
+
+    function fallbackSvg(model, year) {
+      return `<div class="fallback-svg">
+        <svg width="64" height="36" viewBox="0 0 64 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M8 24L16 13H48L56 24H60V29H54C54 26.2 51.8 24 49 24C46.2 24 44 26.2 44 29H20C20 26.2 17.8 24 15 24C12.2 24 10 26.2 10 29H4V24H8Z" fill="#001635" fill-opacity="0.18"/>
+          <circle cx="15" cy="29" r="4" fill="#001635" fill-opacity="0.35"/>
+          <circle cx="49" cy="29" r="4" fill="#001635" fill-opacity="0.35"/>
+        </svg>
+        <span style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--ink-3)">${year} TESLA ${model.toUpperCase()}</span>
+      </div>`;
     }
 
     function applyPreset(name) {
@@ -404,141 +827,314 @@
         b.classList.toggle('active', b.dataset.preset === name);
       });
       elSearch.value = '';
-      if (name === 'tx_my_2024') {
+      if (name === 'fran_arb') {
+        elModel.value = 'ALL';
+        elYearMin.value = '2024';
+        elMileage.value = '35000';
+        elPrice.value = '999999';
+        elState.value = 'ALL';
+        elDrive.value = 'ALL';
+        elSource.value = 'fran_clean';
+        elSort.value = 'spread_asc';
+      } else if (name === 'tx_hw4') {
         elModel.value = 'Model Y';
         elYearMin.value = '2024';
-        elMileage.value = '25000';
+        elMileage.value = '35000';
         elPrice.value = '45000';
         elState.value = 'TX';
         elDrive.value = 'ALL';
-        elClean.value = '1';
+        elSource.value = 'all_clean';
         elSort.value = 'price_asc';
-      } else if (name === 'us_my_35k') {
+      } else if (name === 'us_hw4_my') {
         elModel.value = 'Model Y';
         elYearMin.value = '2024';
-        elMileage.value = '20000';
-        elPrice.value = '36000';
+        elMileage.value = '25000';
+        elPrice.value = '999999';
         elState.value = 'ALL';
         elDrive.value = 'ALL';
-        elClean.value = '1';
-        elSort.value = 'price_asc';
-      } else if (name === 'tx_all') {
-        elModel.value = 'ALL';
-        elYearMin.value = '2023';
-        elMileage.value = '35000';
-        elPrice.value = '999999';
-        elState.value = 'TX';
-        elDrive.value = 'ALL';
-        elClean.value = '1';
+        elSource.value = 'all_clean';
         elSort.value = 'price_asc';
       } else if (name === 'ct_clean') {
         elModel.value = 'Cybertruck';
         elYearMin.value = '2024';
-        elMileage.value = '15000';
+        elMileage.value = '999999';
         elPrice.value = '999999';
         elState.value = 'ALL';
         elDrive.value = 'ALL';
-        elClean.value = '1';
+        elSource.value = 'all_clean';
         elSort.value = 'price_asc';
-      } else if (name === 'all') {
+      } else if (name === 'mispriced') {
+        elModel.value = 'ALL';
+        elYearMin.value = '2022';
+        elMileage.value = '50000';
+        elPrice.value = '999999';
+        elState.value = 'ALL';
+        elDrive.value = 'ALL';
+        elSource.value = 'mispriced_only';
+        elSort.value = 'spread_asc';
+      } else if (name === 'all_us') {
         elModel.value = 'ALL';
         elYearMin.value = '0';
         elMileage.value = '999999';
         elPrice.value = '999999';
         elState.value = 'ALL';
         elDrive.value = 'ALL';
-        elClean.value = '0';
+        elSource.value = 'all_including_salvage';
         elSort.value = 'price_asc';
       }
-      renderTable();
+      DISPLAY_LIMIT = 48;
+      filterAndRender();
     }
 
-    function renderTable() {
+    function filterAndRender() {
       const model = elModel.value;
       const yearMin = parseInt(elYearMin.value, 10) || 0;
       const maxMi = parseInt(elMileage.value, 10) || 999999;
       const maxPrice = parseInt(elPrice.value, 10) || 999999;
       const state = elState.value;
       const drive = elDrive.value;
-      const cleanOnly = elClean.value === '1';
+      const source = elSource.value;
       const sortBy = elSort.value;
       const q = elSearch.value.trim().toLowerCase();
 
-      const filtered = ALL_DATA.filter(item => {
+      FILTERED_ITEMS = ALL_ITEMS.filter(item => {
         if (model !== 'ALL' && item.m !== model) return false;
         if (item.y < yearMin) return false;
         if (item.mi > maxMi) return false;
-        if (item.p > maxPrice) return false;
+        const displayPrice = DTC_MODE ? item.p + DTC_MARKUP : item.p;
+        if (displayPrice > maxPrice) return false;
         if (state !== 'ALL' && item.st !== state) return false;
         if (drive === 'AWD' && !item.d.includes('AWD')) return false;
         if (drive === 'RWD' && item.d !== 'RWD') return false;
-        if (cleanOnly && item.clean !== 1) return false;
+        if (drive === 'PERF' && !item.t.toLowerCase().includes('performance') && !item.t.toLowerCase().includes('beast') && !item.t.toLowerCase().includes('plaid')) return false;
+
+        if (source === 'fran_clean' && (item.cl !== 1 || item.fr !== 1)) return false;
+        if (source === 'all_clean' && item.cl !== 1) return false;
+        if (source === 'mispriced_only' && (item.mp !== 1 || item.cl !== 1)) return false;
+
         if (q) {
-          const hay = (item.v + ' ' + item.dlr + ' ' + item.ct + ' ' + item.st + ' ' + item.t).toLowerCase();
+          const hay = (item.v + ' ' + item.dlr + ' ' + item.ct + ' ' + item.st + ' ' + item.t + ' ' + item.dt).toLowerCase();
           if (!hay.includes(q)) return false;
         }
         return true;
       });
 
-      filtered.sort((a, b) => {
+      FILTERED_ITEMS.sort((a, b) => {
+        if (sortBy === 'spread_asc') return a.sp - b.sp || a.p - b.p;
         if (sortBy === 'price_asc') return a.p - b.p || a.mi - b.mi;
         if (sortBy === 'mileage_asc') return a.mi - b.mi || a.p - b.p;
         if (sortBy === 'year_desc') return b.y - a.y || a.p - b.p;
-        if (sortBy === 'spread_asc') return a.sp - b.sp || a.p - b.p;
         return a.p - b.p;
       });
 
-      elCount.textContent = `Showing ${Math.min(filtered.length, 400).toLocaleString()} of ${filtered.length.toLocaleString()} matching Teslas (Total Database: ${ALL_DATA.length.toLocaleString()} verified VINs)`;
-
-      const slice = filtered.slice(0, 400);
-      const rowsHtml = slice.map((item, idx) => {
-        const rowClass = idx >= 25 ? ' class="deferred-row"' : '';
-        const titleBadge = item.clean === 1
-          ? '<span class="badge badge-clean">Clean Title</span>'
-          : '<span class="badge badge-salvage">Salvage/Branded</span>';
-        const hwBadge = item.hw.includes('HW4')
-          ? `<span class="badge badge-hw4">${item.hw}</span>`
-          : `<span class="badge" style="border:1px solid #334155;color:#94a3b8">${item.hw}</span>`;
-        return `<tr${rowClass}>
-          <th scope="row">${item.y} Tesla ${item.m}</th>
-          <td class="price-cell">${formatCurrency(item.p)}</td>
-          <td>${item.mi.toLocaleString()} mi</td>
-          <td><strong>${item.t}</strong></td>
-          <td>${hwBadge} ${titleBadge}</td>
-          <td>${item.dlr}<br><small style="color:#94a3b8">${item.ct}, ${item.st}</small></td>
-          <td><code style="font-size:0.8rem;color:#cbd5e1">${item.v}</code></td>
-          <td>
-            <a class="btn-link" href="${item.tu}" target="_blank" rel="noopener">TrueCar</a>
-            <a class="btn-link secondary" href="${item.au}" target="_blank" rel="noopener">Autolist</a>
-          </td>
-        </tr>`;
-      }).join('');
-
-      elBody.innerHTML = rowsHtml || '<tr><td colspan="8" style="text-align:center;padding:2rem;color:#94a3b8">No vehicles match these exact filters. Try relaxing Max Price or State.</td></tr>';
+      renderCards();
     }
+
+    function renderCards() {
+      const totalMatching = FILTERED_ITEMS.length;
+      const slice = FILTERED_ITEMS.slice(0, DISPLAY_LIMIT);
+
+      elCount.innerHTML = `Showing <strong>${slice.length.toLocaleString()}</strong> of <strong>${totalMatching.toLocaleString()}</strong> matching Teslas (Full US Ledger: <strong>${ALL_ITEMS.length.toLocaleString()}</strong> priced listings)`;
+
+      elLoadMore.style.display = totalMatching > DISPLAY_LIMIT ? 'inline-block' : 'none';
+      if (totalMatching > DISPLAY_LIMIT) {
+        elLoadMore.textContent = `Show Next 48 Vehicles (${(totalMatching - DISPLAY_LIMIT).toLocaleString()} remaining)`;
+      }
+
+      if (slice.length === 0) {
+        elGrid.innerHTML = `<div style="grid-column: 1 / -1; background: var(--brand-white); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 3rem; text-align: center; color: var(--ink-3);">
+          <strong style="color: var(--brand-dark-blue); font-size: 1.1rem;">No vehicles match these exact filter criteria.</strong>
+          <p style="margin: 0.5rem 0 0;">Try switching Title &amp; Dealer Tier to "All Clean Title Dealers" or relaxing Max Price.</p>
+        </div>`;
+        return;
+      }
+
+      elGrid.innerHTML = slice.map((item, idx) => {
+        const displayPrice = DTC_MODE ? item.p + DTC_MARKUP : item.p;
+        const spreadBelow = -item.sp - (DTC_MODE ? DTC_MARKUP : 0);
+
+        let topBadge = '';
+        if (item.cl === 0) {
+          topBadge = `<span class="pill-badge pill-salvage">⚠️ SALVAGE / BRANDED RISK</span>`;
+        } else if (spreadBelow >= 1500) {
+          topBadge = `<span class="pill-badge pill-deal">🔥 ${fmtPrice(spreadBelow)} BELOW MARKET</span>`;
+        } else {
+          topBadge = `<span class="pill-badge pill-clean">✅ CLEAN TITLE</span>`;
+        }
+
+        const hwClass = item.hw === 'HW4' ? 'pill-hw4' : 'pill-hw3';
+        const hwLabel = item.hw === 'HW4' ? 'HW4 (AI4)' : 'HW3';
+
+        const imgHtml = item.ph
+          ? `<img src="${item.ph}" alt="${item.y} Tesla ${item.m}" loading="${idx < 9 ? 'eager' : 'lazy'}" onerror="this.outerHTML=fallbackSvg('${item.m}', ${item.y})" />`
+          : fallbackSvg(item.m, item.y);
+
+        const mispBadge = item.mp === 1
+          ? `<span class="mispriced-tag">⚡ Listed as "${item.dt}"</span>`
+          : '';
+
+        const dealerText = DTC_MODE
+          ? `TX GDN Clearinghouse · ${item.st || 'US'} Hub`
+          : `${item.dlr}`;
+
+        const locationText = `${item.ct ? item.ct + ', ' : ''}${item.st || 'US'}`;
+        const franBadge = item.fr === 1
+          ? `<span class="fran-badge">FRANCHISE TRADE</span>`
+          : '';
+
+        const ctaLabel = DTC_MODE
+          ? `Reserve via TX GDN Clearinghouse →`
+          : `Inspect &amp; Snipe Listing →`;
+
+        const truecarUrl = `https://www.truecar.com/used-cars-for-sale/listing/${item.v}/`;
+
+        return `<article class="vehicle-card">
+          <div class="photo-stage">
+            <div class="badge-overlay-top-left">${topBadge}</div>
+            <div class="badge-overlay-top-right"><span class="pill-badge ${hwClass}">${hwLabel}</span></div>
+            ${imgHtml}
+          </div>
+          <div class="card-body">
+            <div class="card-eyebrow">
+              <span>${item.y} TESLA ${item.m.toUpperCase()} · ${item.d}</span>
+              ${mispBadge}
+            </div>
+            <h2 class="card-title">${item.t}</h2>
+            <div class="price-row">
+              <div>
+                <span class="big-price">${fmtPrice(displayPrice)}</span>
+                <span class="mkt-compare">Mkt <s>${fmtPrice(item.med)}</s></span>
+              </div>
+              <div class="monthly-est">${calcMonthly(displayPrice)}</div>
+            </div>
+            <div class="specs-grid">
+              <div class="spec-item"><span>Odometer:</span> ${item.mi.toLocaleString()} mi</div>
+              <div class="spec-item"><span>Factory:</span> ${item.pl}</div>
+              <div class="spec-item"><span>Pos-8 Motor:</span> Code ${item.mc}</div>
+              <div class="spec-item"><span>Location:</span> ${locationText}</div>
+            </div>
+            <div class="dealer-row">
+              <span class="dealer-name" title="${dealerText}">${dealerText}</span>
+              ${franBadge}
+            </div>
+            <div class="vin-bar">
+              <span>VIN: <strong>${maskVin(item.v)}</strong></span>
+              <span>${item.dom ? item.dom + 'd on lot' : 'Live'}</span>
+            </div>
+            <div class="card-actions">
+              <button type="button" class="btn-primary" onclick="openModal('${item.v}')">${ctaLabel}</button>
+              ${DTC_MODE ? '' : `<a class="btn-secondary-icon" href="${truecarUrl}" target="_blank" rel="noopener" title="Open Direct TrueCar VDP">VDP ↗</a>`}
+            </div>
+          </div>
+        </article>`;
+      }).join('');
+    }
+
+    window.openModal = function(vin) {
+      const item = ALL_ITEMS.find(x => x.v === vin);
+      if (!item) return;
+      const displayPrice = DTC_MODE ? item.p + DTC_MARKUP : item.p;
+      const spreadBelow = item.med - displayPrice;
+      const truecarUrl = `https://www.truecar.com/used-cars-for-sale/listing/${item.v}/`;
+      const autolistUrl = `https://www.autolist.com/listings/${item.v}`;
+
+      elModalContent.innerHTML = `
+        <div class="modal-header">
+          <div>
+            <div class="eyebrow">NHTSA 49 CFR PART 565 VERIFIED DOSSIER</div>
+            <h2 style="margin:0.25rem 0 0;color:var(--brand-dark-blue);">${item.y} Tesla ${item.m} — ${item.t}</h2>
+          </div>
+          <button type="button" class="close-btn" onclick="document.getElementById('vin-modal').close()">✕ Close</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-block-end:1rem;">
+          <div class="kpi-box">
+            <div class="kpi-val">${fmtPrice(displayPrice)}</div>
+            <div class="kpi-lbl">${DTC_MODE ? 'DTC Clearinghouse Price' : 'Dealer Listed Price'}</div>
+          </div>
+          <div class="kpi-box emerald">
+            <div class="kpi-val">${spreadBelow > 0 ? '+' + fmtPrice(spreadBelow) : fmtPrice(spreadBelow)}</div>
+            <div class="kpi-lbl">Spread vs ${fmtPrice(item.med)} Cohort Median</div>
+          </div>
+        </div>
+        <div class="specs-grid" style="margin-block-end:1rem;">
+          <div class="spec-item"><span>17-Char VIN:</span> ${maskVin(item.v)}</div>
+          <div class="spec-item"><span>Odometer:</span> ${item.mi.toLocaleString()} mi</div>
+          <div class="spec-item"><span>Pos-8 True Trim:</span> ${item.t}</div>
+          <div class="spec-item"><span>Dealer Listed Trim:</span> ${item.dt}</div>
+          <div class="spec-item"><span>Autopilot Computer:</span> ${item.hw}</div>
+          <div class="spec-item"><span>Assembly Plant:</span> ${item.pl}</div>
+          <div class="spec-item"><span>Holding Dealer:</span> ${DTC_MODE ? 'TX GDN Partner Network' : item.dlr}</div>
+          <div class="spec-item"><span>City / State:</span> ${item.ct}, ${item.st}</div>
+        </div>
+        ${DTC_MODE ? `
+          <div style="background:var(--paper-2);border:1px solid var(--line);border-radius:12px;padding:1rem;margin-block-end:1rem;font-size:0.88rem;">
+            <strong style="color:var(--brand-dark-blue);">Zero-Lot Texas GDN Clearinghouse Structure:</strong>
+            <ul style="margin:0.4rem 0 0;padding-inline-start:1.2rem;color:var(--ink-2);">
+              <li>Wholesale Acquisition Price: <strong>${fmtPrice(item.p)}</strong> (${item.dlr})</li>
+              <li>Clearinghouse Buyer Price: <strong>${fmtPrice(displayPrice)}</strong> (Includes +$2,000 Sourcing Spread)</li>
+              <li>Texas GDN Partner Clearing Fee: <strong>$500 flat</strong> via RouteOne / RBFCU (${calcMonthly(displayPrice)})</li>
+            </ul>
+          </div>
+        ` : ''}
+        <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+          <a class="btn-primary" href="${truecarUrl}" target="_blank" rel="noopener">Open Live TrueCar VDP →</a>
+          <a class="btn-primary" style="background:var(--paper-2);color:var(--brand-dark-blue);border:1px solid var(--line);" href="${autolistUrl}" target="_blank" rel="noopener">Open Autolist Syndication →</a>
+        </div>
+      `;
+      elModal.showModal();
+    };
+
+    document.getElementById('mode-sourcing').addEventListener('click', () => {
+      DTC_MODE = false;
+      document.getElementById('mode-sourcing').classList.add('active');
+      document.getElementById('mode-dtc').classList.remove('active');
+      document.getElementById('mode-indicator').innerHTML = `Mode: <strong>Dealer Arbitrage Sourcing</strong> (Unmasked VINs &amp; Direct Dealer Links)`;
+      renderCards();
+    });
+
+    document.getElementById('mode-dtc').addEventListener('click', () => {
+      DTC_MODE = true;
+      document.getElementById('mode-dtc').classList.add('active');
+      document.getElementById('mode-sourcing').classList.remove('active');
+      document.getElementById('mode-indicator').innerHTML = `Mode: <strong>DTC Clearinghouse Showroom</strong> (Masked VINs · +$2,000 Margin · RouteOne Financing)`;
+      renderCards();
+    });
 
     document.querySelectorAll('.preset-btn').forEach(btn => {
       btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
     });
-    [elModel, elYearMin, elMileage, elPrice, elState, elDrive, elClean, elSort].forEach(el => {
+
+    [elModel, elYearMin, elMileage, elPrice, elState, elDrive, elSource, elSort].forEach(el => {
       el.addEventListener('change', () => {
         document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
-        renderTable();
+        DISPLAY_LIMIT = 48;
+        filterAndRender();
       });
     });
-    elSearch.addEventListener('input', renderTable);
-    document.querySelectorAll('thead th[data-sort]').forEach(th => {
-      th.addEventListener('click', () => {
-        elSort.value = th.dataset.sort;
-        renderTable();
-      });
+
+    elSearch.addEventListener('input', () => {
+      DISPLAY_LIMIT = 48;
+      filterAndRender();
+    });
+
+    elLoadMore.addEventListener('click', () => {
+      DISPLAY_LIMIT += 48;
+      renderCards();
     });
 
     fetch('inventory.json')
       .then(r => r.json())
-      .then(data => {
-        ALL_DATA = data;
-        applyPreset('tx_my_2024');
+      .then(payload => {
+        ALL_ITEMS = payload.items || [];
+        const meta = payload.meta || {};
+        if (meta.total_verified_vins) {
+          document.getElementById('hero-headline').textContent = `${meta.total_verified_vins.toLocaleString()} Verified US Teslas — ${meta.priced_count.toLocaleString()} Priced Live`;
+          document.getElementById('kpi-total').textContent = meta.total_verified_vins.toLocaleString();
+          document.getElementById('kpi-priced').textContent = meta.priced_count.toLocaleString();
+          document.getElementById('kpi-steals').textContent = meta.arb_steals_count.toLocaleString();
+          document.getElementById('kpi-tx').textContent = meta.tx_count.toLocaleString();
+        }
+        applyPreset('fran_arb');
       });
   </script>
 </body>
