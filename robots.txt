@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://shinertx.github.io/tesla-inventory/sitemap.xml
