@@ -1,5 +1,5 @@
 """Explicit public projection. Supplier commercial data never belongs in customer JSON."""
-PUBLIC_FIELDS={'pricing_basis','photo_count','photos','vin','stock_number','model','year','trim','mileage','display_price','pricing_status',
+PUBLIC_FIELDS={'drivetrain','drivetrain_basis','trim_family','factory','factory_basis','location_center','pricing_basis','photo_count','photos','vin','stock_number','model','year','trim','mileage','display_price','pricing_status',
  'city','state','photo','fulfillment','source_observed_at','expires_at','availability','title_status',
  'hardware','inspection_status','reference_price','reference_sample'}
 PUBLIC_META={'media_version','built_at','count','mode','partner_onboarding_status','availability_note'}

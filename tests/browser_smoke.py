@@ -33,6 +33,7 @@ def main():
                 page.select_option('#model','Cybertruck');results['model_filter']=all('Cybertruck' in t for t in page.locator('.card h3').all_text_contents());assert results['model_filter']
                 page.locator('.save').first.click();assert page.locator('#saved-count').inner_text()=='1'
                 page.locator('.card-main').first.click();page.wait_for_selector('#vehicle-dialog[open]')
+                page.locator('.verification-details summary').click()
                 detail=page.locator('#vehicle-content').inner_text();assert '97.4%' not in detail and '8.2mm' not in detail and '150-POINT CERTIFIED' not in detail
                 results['honest_vehicle_details']='No inspection report on file' in detail;assert results['honest_vehicle_details']
                 page.locator('#vehicle-request').click();page.locator('[name=name]').fill('Browser Test Buyer');page.locator('[name=email]').fill('browser@example.test');page.locator('[name=state]').fill('TX');page.locator('[name=zip]').fill('78201');page.locator('[name=consent]').check();page.locator('#submit-request').click()
