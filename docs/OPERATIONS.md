@@ -180,3 +180,16 @@ Merge reviewed multi-photo output into `data/vehicle_photos.json`, rebuild, and 
 The October 30 backfill examined 15,088 imported records using the public Autolist v2 photo feed and saved VIN-bound source media, producing 10,688 multi-photo galleries (10,535 in the published 14,912-vehicle catalog), 3,570 single-photo records (3,550 published), and 830 missing-photo records (827 published). Remote Carvana and TrueCar detail requests returned 403, so complete fleet coverage remains blocked for the remaining single-photo and missing-photo listings.
 
 Named vehicles `5YJ3E1EA8SF921313` (30 photos), `7SAYGDED1RF039277` (45 photos), and `5YJ3E1EA8KF413066` (59 photos) all serve verified multi-photo galleries. Other single-photo records retain their known primary photo until supplier galleries become accessible.
+
+
+## Static storefront release
+
+GitHub Pages serves the main branch at https://shinertx.github.io/tesla-inventory/.
+
+`inventory.json` contains primary photos and photo counts. Versioned `media/00.json` through `media/7f.json` contain VIN-bound galleries. The browser fetches a shard when opening a vehicle. Full gallery arrays stay out of the initial catalog download.
+
+Run `python3 tests/static_browser_smoke.py` before publishing. It tests the real Pages subpath without an API or mocked images. The regular browser suite tests the backend flow separately.
+
+The static release supports discovery, filters, saved vehicles, comparison, and photos. Reservation APIs and payments remain unconnected on Pages. The UI shows reservations as coming soon when the API is unavailable.
+
+Rollback: revert the release merge and rebuild Pages. No production orders or payments are stored on Pages. Keep dealer, payment, and customer records on their persistent backend.

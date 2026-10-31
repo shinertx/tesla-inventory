@@ -9,7 +9,8 @@
   const money = cents => new Intl.NumberFormat('en-US', {style:'currency',currency:'USD',maximumFractionDigits:2}).format(cents/100);
   const dollars = amount => new Intl.NumberFormat('en-US', {style:'currency',currency:'USD',maximumFractionDigits:0}).format(amount);
   let items=[], byVIN=new Map(), filtered=[], limit=36, activeVIN=null, apiReady=false, config=null;
-  let saved=new Set(), zip='', requestKey=null, discovery='all';
+  let saved=new Set(), zip='', requestKey=null, discovery='all',mediaVersion='';
+  const galleryShards=new Map();
   let galleryPhotos=[],galleryIndex=0;let galleryRequest=0;const failedPhotos=new Set();
   try { saved=new Set(JSON.parse(localStorage.getItem('marketplace_saved') || '[]')); zip=localStorage.getItem('marketplace_zip') || ''; } catch {}
   if (!/^\d{5}$/.test(zip)) zip='';
@@ -52,7 +53,7 @@
   }
   function render(){
     $('result-count').textContent=`${filtered.length.toLocaleString()} Tesla listings`;
-    $('cards').innerHTML=filtered.slice(0,limit).map(x=>`<article class="card" data-vin="${x.vin}"><div class="photo-wrap">${image(x)}${x.photos?.length>1?`<span class="photo-count">▧ ${x.photos.length}</span>`:''}${saving(x)>=500?`<span class="find-badge">✦ Price find</span>`:''}<button class="save" data-save="${x.vin}" aria-label="${saved.has(x.vin)?'Remove saved':'Save'} ${esc(x.year+' '+x.model)}" aria-pressed="${saved.has(x.vin)}">${saved.has(x.vin)?'♥':'♡'}</button></div><a class="card-main" href="?vin=${x.vin}" data-open="${x.vin}"><h3>${x.year} Tesla ${esc(x.model)}</h3><div class="trim">${esc(x.trim)}<br>${x.mileage.toLocaleString()} miles</div><div class="price">${dollars(x.display_price)}</div><div class="price-label">Estimated vehicle price<br>Tax, title, and delivery quoted separately</div>${saving(x)>=500?`<span class="price-win" title="Median of ${x.reference_sample} comparable advertised listings on this site. Not an appraisal.">${dollars(saving(x))} below similar listings</span>`:''}</a><div class="card-footer"><span>${esc(x.city||'Vehicle location')}${x.state!=='US'?', '+esc(x.state):''}</span><span class="reserve-note">Reserve for $250</span></div></article>`).join('');
+    $('cards').innerHTML=filtered.slice(0,limit).map(x=>`<article class="card" data-vin="${x.vin}"><div class="photo-wrap">${image(x)}${(x.photo_count||x.photos?.length)>1?`<span class="photo-count">▧ ${x.photo_count||x.photos.length}</span>`:''}${saving(x)>=500?`<span class="find-badge">✦ Price find</span>`:''}<button class="save" data-save="${x.vin}" aria-label="${saved.has(x.vin)?'Remove saved':'Save'} ${esc(x.year+' '+x.model)}" aria-pressed="${saved.has(x.vin)}">${saved.has(x.vin)?'♥':'♡'}</button></div><a class="card-main" href="?vin=${x.vin}" data-open="${x.vin}"><h3>${x.year} Tesla ${esc(x.model)}</h3><div class="trim">${esc(x.trim)}<br>${x.mileage.toLocaleString()} miles</div><div class="price">${dollars(x.display_price)}</div><div class="price-label">Estimated vehicle price<br>Tax, title, and delivery quoted separately</div>${saving(x)>=500?`<span class="price-win" title="Median of ${x.reference_sample} comparable advertised listings on this site. Not an appraisal.">${dollars(saving(x))} below similar listings</span>`:''}</a><div class="card-footer"><span>${esc(x.city||'Vehicle location')}${x.state!=='US'?', '+esc(x.state):''}</span><span class="reserve-note">${apiReady?'Reserve for $250':'View vehicle'}</span></div></article>`).join('');
     $('empty').hidden=filtered.length>0;$('load-more').hidden=limit>=filtered.length;
     attachImageFallbacks($('cards'));
   }
@@ -61,7 +62,7 @@
     const x=byVIN.get(vin);if(!x){notify('This vehicle is not in the current published snapshot.');return;}
     activeVIN=vin;
     const url=new URL(location.href);url.searchParams.delete('reservation');url.searchParams.delete('session_id');url.searchParams.delete('test_mode');url.searchParams.set('vin',vin);history.replaceState(null,'',url);
-    $('vehicle-content').innerHTML=`<button class="close" data-close="vehicle-dialog" aria-label="Close vehicle details">×</button><div class="vehicle-top"><div class="vehicle-media"><div class="vehicle-image"><div id="gallery-stage">${image(x)}</div><button id="gallery-prev" class="gallery-arrow left" aria-label="Previous vehicle photo">‹</button><button id="gallery-next" class="gallery-arrow right" aria-label="Next vehicle photo">›</button><button id="photo-expand" class="photo-expand">⤢ View photos <span id="gallery-count"></span></button></div><div id="gallery-thumbs" class="gallery-thumbs"></div><div class="gallery-status"><span id="gallery-status" role="status"></span><button id="gallery-retry" class="secondary" hidden>Retry photos</button></div></div><div class="vehicle-summary"><p class="eyebrow">KNOW THE DETAILS</p><h2>${x.year} Tesla ${esc(x.model)}</h2><p>${esc(x.trim)} · ${x.mileage.toLocaleString()} miles</p><div class="price">${dollars(x.display_price)}</div><p class="price-label">Estimated vehicle price. Your complete quote includes tax, title, and delivery.</p><button id="vehicle-request" class="primary" ${apiReady?'':'disabled'}>${apiReady?'Reserve this Tesla · $250':'Explore this Tesla'}</button><p class="price-label">Refundable reservation. Review your complete quote before payment.</p></div></div><div class="vehicle-body"><div class="vehicle-tabs" role="tablist" aria-label="Vehicle information"><button class="tab" role="tab" id="tab-details" aria-controls="vehicle-panel" aria-selected="true" data-tab="details">Vehicle details</button><button class="tab" role="tab" id="tab-pricing" aria-controls="vehicle-panel" aria-selected="false" data-tab="pricing">Price and delivery</button><button class="tab" role="tab" id="tab-process" aria-controls="vehicle-panel" aria-selected="false" data-tab="process">Purchase steps</button></div><div id="vehicle-panel" role="tabpanel" aria-labelledby="tab-details"></div></div>`;
+    $('vehicle-content').innerHTML=`<button class="close" data-close="vehicle-dialog" aria-label="Close vehicle details">×</button><div class="vehicle-top"><div class="vehicle-media"><div class="vehicle-image"><div id="gallery-stage">${image(x)}</div><button id="gallery-prev" class="gallery-arrow left" aria-label="Previous vehicle photo">‹</button><button id="gallery-next" class="gallery-arrow right" aria-label="Next vehicle photo">›</button><button id="photo-expand" class="photo-expand">⤢ View photos <span id="gallery-count"></span></button></div><div id="gallery-thumbs" class="gallery-thumbs"></div><div class="gallery-status"><span id="gallery-status" role="status"></span><button id="gallery-retry" class="secondary" hidden>Retry photos</button></div></div><div class="vehicle-summary"><p class="eyebrow">KNOW THE DETAILS</p><h2>${x.year} Tesla ${esc(x.model)}</h2><p>${esc(x.trim)} · ${x.mileage.toLocaleString()} miles</p><div class="price">${dollars(x.display_price)}</div><p class="price-label">Estimated vehicle price. Your complete quote includes tax, title, and delivery.</p><button id="vehicle-request" class="primary" ${apiReady?'':'disabled'}>${apiReady?'Reserve this Tesla · $250':'Online reservations coming soon'}</button><p class="price-label">Refundable reservation. Review your complete quote before payment.</p></div></div><div class="vehicle-body"><div class="vehicle-tabs" role="tablist" aria-label="Vehicle information"><button class="tab" role="tab" id="tab-details" aria-controls="vehicle-panel" aria-selected="true" data-tab="details">Vehicle details</button><button class="tab" role="tab" id="tab-pricing" aria-controls="vehicle-panel" aria-selected="false" data-tab="pricing">Price and delivery</button><button class="tab" role="tab" id="tab-process" aria-controls="vehicle-panel" aria-selected="false" data-tab="process">Purchase steps</button></div><div id="vehicle-panel" role="tabpanel" aria-labelledby="tab-details"></div></div>`;
     $('vehicle-request').addEventListener('click',()=>startRequest(vin));
     $('vehicle-content').querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>vehicleTab(b.dataset.tab)));
     $('vehicle-content').querySelector('[role=tablist]').addEventListener('keydown',e=>{
@@ -159,7 +160,14 @@
       $('gallery-status').textContent=galleryPhotos.length>1?`${galleryPhotos.length} vehicle photos`:'Loading vehicle photos…';$('gallery-retry').hidden=true;
       try{
         // Photo discovery must not depend on the unrelated checkout configuration race.
-        const result=await api(`vehicles/${x.vin}/photos`);
+        let result;
+        if(x.photo_count>1){
+          const shard=(Number(x.vin.slice(-3))%128).toString(16).padStart(2,'0');
+          if(!galleryShards.has(shard))galleryShards.set(shard,fetch(new URL(`media/${shard}.json?v=${encodeURIComponent(mediaVersion)}`,rootURL)).then(r=>{if(!r.ok)throw new Error('Photo download failed');return r.json();}));
+          try{const data=await galleryShards.get(shard);if(!Array.isArray(data[x.vin])||!data[x.vin].length)throw new Error('Gallery missing');result={photos:data[x.vin]};}
+          catch(e){galleryShards.delete(shard);throw e;}
+        }else if(Number.isInteger(x.photo_count)){result={photos:galleryPhotos};}
+        else{result=await api(`vehicles/${x.vin}/photos`);}
         if(activeVIN!==x.vin||request!==galleryRequest)return;
         if(result.photos.length){const selected=galleryPhotos[galleryIndex]?.url;galleryPhotos=result.photos;x.photos=result.photos;galleryIndex=Math.max(0,galleryPhotos.findIndex(p=>p.url===selected));paintGallery();}
         $('gallery-status').textContent=galleryPhotos.length>1?`${galleryPhotos.length} vehicle photos`:(galleryPhotos.length?'1 vehicle photo available. Additional photos are not available yet.':'Vehicle photos are not available yet.');
@@ -198,8 +206,18 @@
   $('zip-form').addEventListener('submit',e=>{e.preventDefault();zip=$('zip-input').value;try{localStorage.setItem('marketplace_zip',zip);}catch{}$('zip-label').textContent=zip;close('zip-dialog');});
   $('privacy-button').addEventListener('click',()=>open('privacy-dialog'));
   $('order-button').addEventListener('click',refreshOrder);updateSaved();
-  api('config').then(c=>{config=c;apiReady=true;}).catch(()=>{apiReady=false;});
-  fetch(new URL('inventory.json',rootURL)).then(r=>{if(!r.ok)throw new Error('Inventory unavailable');return r.json();}).then(payload=>{
+  function purchaseAvailability(){
+    $('purchase-availability').hidden=apiReady;
+    $('business-status').textContent=apiReady?'Find your Tesla · Reserve online for $250 · Delivery arranged with the selling dealer':'Explore Teslas · Browse vehicle photos · Save your favorites';
+    $('order-button').hidden=!apiReady;
+    if(apiReady)$('hero-description').innerHTML='The Tesla you want. A price you can explore. Reserve online for <strong>$250, refundable.</strong>';
+    if(items.length)applyFilters();
+    const button=$('vehicle-request');if(button){button.disabled=!apiReady;button.textContent=apiReady?'Reserve this Tesla · $250':'Online reservations coming soon';}
+  }
+  purchaseAvailability();
+  api('config').then(c=>{config=c;apiReady=!!c.requests_enabled;purchaseAvailability();}).catch(()=>{apiReady=false;purchaseAvailability();});
+  fetch(new URL('inventory.json?v='+(new URL(scriptURL).searchParams.get('v')||'current'),rootURL)).then(r=>{if(!r.ok)throw new Error('Inventory unavailable');return r.json();}).then(payload=>{
+    mediaVersion=payload.meta?.media_version||'';
     items=payload.items.filter(x=>!x.expires_at||new Date(x.expires_at).getTime()>Date.now());byVIN=new Map(items.map(x=>[x.vin,x]));
     options('model',[...new Set(items.map(x=>x.model))].sort());options('year',[...new Set(items.map(x=>x.year))].sort((a,b)=>b-a));options('state',[...new Set(items.map(x=>x.state))].filter(x=>x!=='US').sort());
     $('snapshot-status').textContent='Your next favorite is in here.';

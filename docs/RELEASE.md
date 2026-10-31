@@ -10,7 +10,13 @@ Customer UI keeps the branded buying flow. Supplier commercial details are exclu
 
 Provider calls are tested with fixtures and real SDK signature checks. No real dealer, payment account, title transfer, dispatch, or customer sale has been verified.
 
-Public production remains unchanged until an approved release. The local preview uses pending partner onboarding with payments disabled.
+This release publishes the static customer storefront to GitHub Pages. Customers can browse, view galleries, save, and compare vehicles.
+
+Reservation APIs and live payments are not deployed on GitHub Pages. The storefront labels reservations as coming soon when the API is unavailable. Partner onboarding remains pending.
+
+Vehicle galleries are loaded from versioned static shards. The initial catalog excludes full photo arrays. No server is needed for customer photos.
+
+Current coverage: 10,535 multi-photo vehicles, 3,550 single-photo vehicles, and 827 without a photo. Further source requests returned 403. Complete coverage is not claimed.
 
 Before launch: approved platform agreements, enrolled dealers, merchant/Connect approval, persistent HTTPS hosting, monitored operations, and a controlled dealer-fulfilled sale with collected spread.
 

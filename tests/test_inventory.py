@@ -100,3 +100,16 @@ def test_supplier_description_cannot_leak_raw_price_through_trim(tmp_path):
     result=build(write_source(tmp_path,[row]),tmp_path)
     assert result['items'][0]['trim']=='70D'
     assert '$20,000' not in (tmp_path/'inventory.json').read_text()
+
+
+def test_static_catalog_download_excludes_gallery_arrays_but_keeps_vin_bound_shards(tmp_path):
+    photos=[{'url':'https://example.test/front.jpg','asking_price':10000},{'url':'https://example.test/rear.jpg'}]
+    gallery_source=tmp_path/'empty-photo-feed.json';gallery_source.write_text('{}')
+    result=build(write_source(tmp_path,[candidate(photos=photos)]),tmp_path,gallery_source=gallery_source)
+    index=json.loads((tmp_path/'inventory.json').read_text())
+    assert 'photos' not in index['items'][0]
+    assert index['items'][0]['photo_count']==2
+    shard=tmp_path/'media'/(format(int(VIN[-3:])%128,'02x')+'.json')
+    gallery=json.loads(shard.read_text())[VIN]
+    assert len(gallery)==2 and all(set(p)=={'url','title','category'} for p in gallery)
+    assert index['meta']['media_version'] and '?v=' in (tmp_path/'index.html').read_text()

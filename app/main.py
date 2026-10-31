@@ -157,7 +157,10 @@ def create_app(settings=None, payments=None):
     def vehicle_photos(vin:str,request:Request):
         if vin not in vehicles:raise HTTPException(404,'Vehicle not found')
         if not store.rate_limit('media:'+digest(request.client.host if request.client else 'unknown'),limit=120):raise HTTPException(429,'Photo lookup limit reached')
-        return media.gallery(vin,vehicles[vin].get('photo',''),vehicles[vin].get('photos',[]))
+        published=vehicles[vin].get('photos',[])
+        shard=settings.inventory_path.parent/'media'/(format(int(vin[-3:])%128,'02x')+'.json')
+        if shard.is_file():published=json.loads(shard.read_text()).get(vin,published)
+        return media.gallery(vin,vehicles[vin].get('photo',''),published)
 
     @app.post('/api/requests',status_code=201)
     def purchase(body:PurchaseRequest,request:Request,idempotency_key:Annotated[str,Header()]):
@@ -506,6 +509,8 @@ def create_app(settings=None, payments=None):
 
     # Explicit public assets only. Never expose .data, source files, or configuration.
     app.mount('/web',StaticFiles(directory=ROOT/'web'),name='assets')
+    if (settings.inventory_path.parent/'media').is_dir():
+        app.mount('/media',StaticFiles(directory=settings.inventory_path.parent/'media'),name='vehicle-photos')
     @app.get('/inventory.json')
     def published_inventory():
         with store.transaction() as c:

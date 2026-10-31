@@ -51,8 +51,8 @@ def main():
                 def photo_response(route):
                     attempts.append(1)
                     if len(attempts)==1:route.fulfill(status=503,content_type='application/json',body='{}')
-                    else:route.fulfill(status=200,content_type='application/json',body=json.dumps({'photos':[{'url':f'https://example.test/angle-{i}.jpg','title':f'Angle {i}','category':'photos'} for i in range(3)]}))
-                race.route('**/api/vehicles/7SAYGDED1RF039277/photos',photo_response)
+                    else:route.fulfill(status=200,content_type='application/json',body=json.dumps({'7SAYGDED1RF039277':[{'url':f'https://example.test/angle-{i}.jpg','title':f'Angle {i}','category':'photos'} for i in range(3)]}))
+                race.route('**/media/*.json*',photo_response)
                 race.goto(base+'/?vin=7SAYGDED1RF039277');race.locator('#gallery-retry').wait_for(state='visible');race.locator('#gallery-retry').click()
                 race.wait_for_function('()=>document.querySelectorAll(".gallery-thumb").length===3')
                 assert len(attempts)==2;results['gallery_independent_of_checkout_config']=True;results['gallery_retry']=True;race.close()

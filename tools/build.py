@@ -2,7 +2,7 @@
 """Build static discovery pages from a dated, attributed snapshot. No network calls."""
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
-import argparse, collections, html, json, statistics, sys, re, os
+import argparse, collections, html, json, statistics, sys, re, os, hashlib
 from urllib.parse import urlsplit
 import xml.etree.ElementTree as ET
 ROOT=Path(__file__).resolve().parents[1]
@@ -43,10 +43,10 @@ def _load_galleries(gallery_file):
         _GALLERY_CACHE['data']=json.loads(gallery_file.read_text())
     return _GALLERY_CACHE['data']
 
-def build(source=None,output=ROOT,now=None):
+def build(source=None,output=ROOT,now=None,gallery_source=None):
     output=Path(output);now=now or datetime.now(timezone.utc)
     source=Path(source or ROOT/'.data/source_snapshot.json')
-    galleries=_load_galleries(ROOT/'data/vehicle_photos.json')
+    galleries=_load_galleries(Path(gallery_source) if gallery_source else ROOT/'data/vehicle_photos.json')
     raw=json.loads(source.read_text());items=[];seen=set();excluded=collections.Counter();supplier_rows={};source_prices={}
     blocked=json.loads((ROOT/'data/exclusions.json').read_text())
     for x in raw['items']:
@@ -114,8 +114,25 @@ def build(source=None,output=ROOT,now=None):
     payload={'meta':{'built_at':now.isoformat(),'count':len(items),'mode':'dealer_fulfillment',
         'partner_onboarding_status':'pending','excluded':dict(excluded),'availability_note':'Listings require seller, title, condition, and price verification.'},'items':items}
     output.mkdir(parents=True,exist_ok=True)
-    (output/'inventory.json').write_text(json.dumps(public_catalog(payload),separators=(',',':')))
+    # Keep the first customer download small. Fetch only the selected gallery shard.
+    media_dir=output/'media';media_dir.mkdir(exist_ok=True)
+    shards={}
+    for item in items:
+        photos=item.get('photos',[])
+        item['photo_count']=len(photos) or int(bool(item.get('photo')))
+        if photos:shards.setdefault(format(int(item['vin'][-3:])%128,'02x'),{})[item['vin']]=photos
+    for path in media_dir.glob('*.json'):
+        if path.stem not in shards:path.unlink()
+    for shard,values in shards.items():
+        (media_dir/(shard+'.json')).write_text(json.dumps(values,separators=(',',':')))
+    payload['meta']['media_version']=hashlib.sha256(json.dumps(shards,sort_keys=True,separators=(',',':')).encode()).hexdigest()[:12]
+    index=public_catalog(payload)
+    for item in index['items']:item.pop('photos',None)
+    (output/'inventory.json').write_text(json.dumps(index,separators=(',',':')))
     template=(ROOT/'web/index.html').read_text()
+    for asset in ('app.js','styles.css'):
+        version=hashlib.sha256((ROOT/'web'/asset).read_bytes()).hexdigest()[:12]
+        template=template.replace('web/'+asset,'web/'+asset+'?v='+version)
     (output/'index.html').write_text(template)
     # Category pages use the same shopping application with an explicit preset.
     # Only category pages enter the sitemap; VIN queries are application detail links.
