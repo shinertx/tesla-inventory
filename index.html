@@ -2694,13 +2694,13 @@
   <!-- 2. Quick Model & Arbitrage Filter Pills -->
   <div class="cv-subbar">
     <div class="cv-subbar-inner">
-      <button type="button" class="preset-chip active" data-preset="fran_arb">🔥 Great Deals ($3,000+ Below Market)</button>
+      <button type="button" class="preset-chip active" data-preset="all_clean_cv">🌎 All 15,088 Verified US Teslas</button>
+      <button type="button" class="preset-chip" data-preset="fran_arb">🔥 Great Deals ($3,000+ Below Market)</button>
       <button type="button" class="preset-chip" data-preset="model_y_hw4">⚡ 2024–2026 Model Y (HW4)</button>
       <button type="button" class="preset-chip" data-preset="model_3_hw4">🚗 2024–2026 Model 3</button>
       <button type="button" class="preset-chip" data-preset="cybertruck">📐 Cybertruck</button>
       <button type="button" class="preset-chip" data-preset="tx_free_ship">🤠 Free Local TX Pickup (1,001)</button>
       <button type="button" class="preset-chip" data-preset="mispriced">💎 Trim Mispriced by Dealer (AWD Listed as Base)</button>
-      <button type="button" class="preset-chip" data-preset="all_clean_cv">🌎 All 12,757 Verified US Teslas</button>
     </div>
   </div>
 
@@ -2716,19 +2716,19 @@
       </div>
       <h1 class="desk-hero-title">Texas GDN Zero-Lot Clearing Desk &amp; NHTSA Architecture</h1>
       <p class="desk-hero-desc">
-        End-to-end commercial automotive arbitrage pipeline tracking 13,575 verified US Tesla VINs. Dual-silo web harvesting (Autolist + TrueCar), 49 CFR Part 565 decoding, empirical cohort median arbitrage spreads, and zero-inventory dealer clearing contracts.
+        End-to-end commercial automotive arbitrage pipeline tracking 15,625 verified US Tesla VINs. Dual-silo web harvesting (Autolist + TrueCar), 49 CFR Part 565 decoding, empirical cohort median arbitrage spreads, and zero-inventory dealer clearing contracts.
       </p>
     </div>
 
     <!-- Live Telemetry Stat Bar -->
     <div class="desk-telemetry-grid">
       <div class="telemetry-card">
-        <div class="telemetry-num">13,575</div>
+        <div class="telemetry-num">15,625</div>
         <div class="telemetry-label">Verified US VINs</div>
         <div class="telemetry-sub">100% Modulo-11 Check Digit Valid</div>
       </div>
       <div class="telemetry-card">
-        <div class="telemetry-num">12,757</div>
+        <div class="telemetry-num">15,088</div>
         <div class="telemetry-label">Active Priced Units</div>
         <div class="telemetry-sub">Floor $10,000 • Ceiling $149,990</div>
       </div>
@@ -2775,7 +2775,7 @@
             <li><strong>Ledger Normalization:</strong> 17-position VIN deduplication, dealer geo-tagging, and distance indexing in SQLite.</li>
           </ul>
           <div class="pipeline-badge-row">
-            <span class="pipeline-micro-badge">13,575 VINs</span>
+            <span class="pipeline-micro-badge">15,625 VINs</span>
             <span class="pipeline-micro-badge">2 Ingestion Silos</span>
             <span class="pipeline-micro-badge">&lt;4.2s Refresh</span>
           </div>
@@ -3179,7 +3179,7 @@ Notary Public, State of Texas: _____________________________ [SEAL]</pre>
         <div class="model-pills-stack" role="group" aria-label="Select Model">
           <button type="button" class="model-pill active" id="pill-all" data-model="ALL" onclick="selectModel('ALL')">
             <span class="pill-name">All Tesla Models</span>
-            <span class="pill-badge" id="pill-count-all">12,757</span>
+            <span class="pill-badge" id="pill-count-all">15,088</span>
           </button>
           <button type="button" class="model-pill" id="pill-model-y" data-model="Model Y" onclick="selectModel('Model Y')">
             <span class="pill-name">Tesla Model Y</span>
@@ -3444,7 +3444,7 @@ Notary Public, State of Texas: _____________________________ [SEAL]</pre>
     <main class="cv-results-wrap" id="listings-container">
       <div class="cv-results-header">
         <div>
-          <div class="results-title" id="results-count">12,757 Tesla Results <span style="font-weight:500;color:var(--ink-3);font-size:0.88rem;">(of 12,757 verified Tesla listings)</span></div>
+          <div class="results-title" id="results-count">15,088 Tesla Results <span style="font-weight:500;color:var(--ink-3);font-size:0.88rem;">(of 15,088 verified Tesla listings)</span></div>
           <div class="results-sub" id="mode-indicator">100% Online Checkout • 7-Day Money-Back Guarantee • NHTSA Position-8 Motor Verified</div>
         </div>
         <div class="sort-wrap">
@@ -5128,7 +5128,7 @@ Notary Public, State of Texas: _____________________________ [SEAL]</pre>
         elGrid.innerHTML = `<div style="grid-column: 1 / -1; background: var(--brand-white); border: 1px solid var(--line); border-radius: var(--radius-card); padding: 3rem; text-align: center; color: var(--ink-3);">
           <strong style="color: var(--cv-navy); font-size: 1.15rem;">No Teslas match your current filters.</strong>
           <p style="margin: 0.5rem 0 1rem;">Try resetting filters or expanding Inspection Tier to \"All Clean Title Inventory\".</p>
-          <button type="button" class="preset-chip active" onclick="applyPreset('all_clean_cv')">Show All 12,757 Teslas</button>
+          <button type="button" class="preset-chip active" onclick="applyPreset('all_clean_cv')">Show All 15,088 Teslas</button>
         </div>`;
         return;
       }
@@ -6920,7 +6920,7 @@ Notary Public, State of Texas: _____________________________ [SEAL]</pre>
       .then(r => r.json())
       .then(payload => {
         ALL_ITEMS = payload.items || [];
-        applyPreset("fran_arb");
+        applyPreset("all_clean_cv");
         const cbParams = new URLSearchParams(window.location.search);
         if (cbParams.get("reservation") === "success") {
           if (typeof window.handleStripeCallback === "function") {
