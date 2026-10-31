@@ -20,3 +20,29 @@ def propose_price(dealer_net_cents,reference_cents=None,sample_size=0,platform_c
         'reference_cents':reference_cents if supported else None,'reference_sample':sample_size,
         'pricing_basis':'comparable_asking_prices' if supported else 'source_asking_only',
         'is_optimal_price_proven':False}
+
+
+def mileage_reference(target,comparables,policy=None):
+    """Fit a bounded mileage adjustment from peer asking prices, excluding the target VIN.
+
+    This is an asking-price estimate, not an appraisal or a proven sale price.
+    """
+    from statistics import median
+    policy=policy or PricingPolicy()
+    if target['mileage']<=0:return None,0
+    peers=[x for x in comparables if x['vin']!=target['vin'] and x['mileage']>0]
+    peers=sorted(peers,key=lambda x:abs(x['mileage']-target['mileage']))[:21]
+    if len(peers)<policy.minimum_comparables:return None,len(peers)
+    prices=[x['asking_cents'] for x in peers];center=median(prices)
+    # Suppress extreme listings before estimating the relationship to mileage.
+    clean=[x for x in peers if center*.65<=x['asking_cents']<=center*1.35]
+    if len(clean)<policy.minimum_comparables:return None,len(clean)
+    mean_miles=sum(x['mileage'] for x in clean)/len(clean)
+    mean_price=sum(x['asking_cents'] for x in clean)/len(clean)
+    variance=sum((x['mileage']-mean_miles)**2 for x in clean)
+    span=max(x['mileage'] for x in clean)-min(x['mileage'] for x in clean)
+    slope=sum((x['mileage']-mean_miles)*(x['asking_cents']-mean_price) for x in clean)/variance if variance and span>=5000 else 0
+    slope=max(-30,min(0,slope)) # At most $0.30 per mile; never reward more mileage.
+    adjustment=max(-10000,min(10000,target['mileage']-median(x['mileage'] for x in clean)))
+    estimate=round(center+slope*adjustment)
+    return int(round(estimate/10000)*10000),len(clean)

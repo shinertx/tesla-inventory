@@ -519,6 +519,8 @@ def create_app(settings=None, payments=None):
         items=[x for x in inventory['items'] if x['vin'] not in occupied and (not x.get('expires_at') or datetime.fromisoformat(x['expires_at']).timestamp()>time.time())]
         from .catalog import public_catalog
         return public_catalog({**inventory,'meta':{**inventory.get('meta',{}),'count':len(items)},'items':items})
+    @app.get('/data/us_zip_centers.json')
+    def zip_centers():return FileResponse(ROOT/'data/us_zip_centers.json',media_type='application/json')
     @app.get('/sitemap.xml')
     def sitemap():return FileResponse(ROOT/'sitemap.xml',media_type='application/xml')
     @app.get('/robots.txt')

@@ -2,7 +2,7 @@
 """Build static discovery pages from a dated, attributed snapshot. No network calls."""
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
-import argparse, collections, html, json, statistics, sys, re, os, hashlib
+import argparse, collections, html, json, sys, re, os, hashlib
 from urllib.parse import urlsplit
 import xml.etree.ElementTree as ET
 ROOT=Path(__file__).resolve().parents[1]
@@ -10,7 +10,8 @@ sys.path.insert(0,str(ROOT))
 from tools.inventory import valid_vin
 from app.catalog import public_catalog
 from tools.media import photo_url,normalize_photos
-from tools.pricing import PricingPolicy,propose_price
+from tools.features import vehicle_features
+from tools.pricing import PricingPolicy,propose_price,mileage_reference
 BASE='https://shinertx.github.io/tesla-inventory'
 PRICING_POLICY=PricingPolicy(buyer_savings_cents=int(os.getenv('BUYER_SAVINGS_CENTS','50000')))
 
@@ -47,6 +48,8 @@ def build(source=None,output=ROOT,now=None,gallery_source=None):
     output=Path(output);now=now or datetime.now(timezone.utc)
     source=Path(source or ROOT/'.data/source_snapshot.json')
     galleries=_load_galleries(Path(gallery_source) if gallery_source else ROOT/'data/vehicle_photos.json')
+    city_file=ROOT/'data/us_city_centers.json'
+    city_centers=json.loads(city_file.read_text()) if city_file.exists() else {}
     raw=json.loads(source.read_text());items=[];seen=set();excluded=collections.Counter();supplier_rows={};source_prices={}
     blocked=json.loads((ROOT/'data/exclusions.json').read_text())
     for x in raw['items']:
@@ -72,28 +75,30 @@ def build(source=None,output=ROOT,now=None,gallery_source=None):
             'state':x.get('state') or 'US','photo':photos[0]['url'] if photos else photo_url(x.get('photo_url')),'photos':photos,
             'fulfillment':'dealer_owned','source_observed_at':x.get('observed_at'),
             'expires_at':(age+timedelta(days=7)).isoformat(),'availability':'source_observed' if source_recent else 'unverified','title_status':'unverified',
-            'hardware':None,'inspection_status':'not_verified','reference_price':None,'reference_sample':0})
+            'inspection_status':'not_verified','reference_price':None,'reference_sample':0,
+            'location_center':city_centers.get(str(x.get('city') or '').casefold().replace(' ','')+'|'+str(x.get('state') or '')),**vehicle_features(x)})
     groups=collections.defaultdict(list)
     for x in items:
         band=next((b for b in (15000,30000,50000,75000) if x['mileage']<=b),999999)
         supplier=supplier_rows[x['vin']]
         pricing_trim=customer_trim(supplier.get('verified_trim'),x['model']) if supplier.get('configuration_evidence_reference') else x['trim']
-        key=(x['model'],x['year'],pricing_trim.casefold(),band)
+        key=(x['model'],x['year'],pricing_trim.casefold(),x.get('drivetrain') or 'unknown',band)
         groups[key].append(x)
     opportunities=[]
     for group in groups.values():
-        reference=int(statistics.median(source_prices[x['vin']] for x in group))*100 if len(group)>=PRICING_POLICY.minimum_comparables else None
+        peers=[{'vin':x['vin'],'mileage':x['mileage'],'asking_cents':source_prices[x['vin']]*100} for x in group]
         for x in group:
+            reference,sample=mileage_reference(x,peers,PRICING_POLICY)
             supplier=supplier_rows[x['vin']]
             net=supplier.get('agreed_dealer_net_cents')
             committed=bool(net and supplier.get('supplier_commitment_reference'))
             net=int(net) if committed else source_prices[x['vin']]*100
             costs=supplier.get('platform_cost_cents')
-            proposal=propose_price(net,reference,len(group),costs,PRICING_POLICY)
+            proposal=propose_price(net,reference,sample,costs,PRICING_POLICY)
             x['display_price']=proposal['proposed_retail_cents']/100
             x['pricing_basis']=proposal['pricing_basis']
             x['reference_price']=reference/100 if reference else None
-            x['reference_sample']=len(group) if reference else 0
+            x['reference_sample']=sample if reference else 0
             hints=[]
             drive=(supplier.get('decoded_drive_hint') or '').lower()
             trim=(supplier.get('decoded_trim_hint') or '').lower()
@@ -124,7 +129,7 @@ def build(source=None,output=ROOT,now=None,gallery_source=None):
     for path in media_dir.glob('*.json'):
         if path.stem not in shards:path.unlink()
     for shard,values in shards.items():
-        (media_dir/(shard+'.json')).write_text(json.dumps(values,separators=(',',':')))
+        (media_dir/(shard+'.json')).write_text(json.dumps(values,sort_keys=True,separators=(',',':')))
     payload['meta']['media_version']=hashlib.sha256(json.dumps(shards,sort_keys=True,separators=(',',':')).encode()).hexdigest()[:12]
     index=public_catalog(payload)
     for item in index['items']:item.pop('photos',None)
