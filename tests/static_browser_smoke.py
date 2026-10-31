@@ -29,7 +29,11 @@ def main(out):
             page.locator('#vehicle-request').click();page.locator('#deal-zip').fill('78201');page.locator('#deal-continue').click()
             page.get_by_text('Deal draft saved on this device. No order or reservation has been placed.').wait_for()
             assert page.evaluate('JSON.parse(localStorage.getItem("marketplace_deal")).vin')=='5YJ3E1EA8KF413066'
+            page.goto(base);page.wait_for_selector('.card');page.locator('#order-button').click();page.locator('#deal-dialog[open]').wait_for()
+            assert page.locator('#deal-zip').input_value()=='78201'
+            assert 'Model 3' in page.locator('#deal-summary').inner_text()
             result['static_deal_draft_no_order_or_payment']=True
+            result['saved_deal_resumes_after_reload']=True
             page.evaluate('localStorage.clear()')
             page.goto(base);page.wait_for_selector('.card');page.locator('.save').first.click();assert page.locator('#saved-count').inner_text()=='1'
             page.locator('[data-discover=under30]').click();assert page.locator('.card').count()>0;result['discovery_and_save']=True

@@ -116,6 +116,7 @@
     e.preventDefault();const postal=$('deal-zip').value;
     try{await resolveZip(postal);if(apiReady){close('deal-dialog');startRequest(activeVIN);return;}
       localStorage.setItem('marketplace_deal',JSON.stringify({vin:activeVIN,zip:postal,created_at:new Date().toISOString()}));
+      localStorage.setItem('marketplace_zip',postal);
       if(!saved.has(activeVIN))toggleSave(activeVIN);
       $('deal-message').textContent='Deal draft saved on this device. No order or reservation has been placed.';
       $('deal-continue').textContent='Draft saved';
@@ -258,11 +259,11 @@
   $('zip-form').addEventListener('submit',async e=>{e.preventDefault();const button=e.currentTarget.querySelector('button');button.disabled=true;$('zip-error').textContent='';try{await resolveZip($('zip-input').value);try{localStorage.setItem('marketplace_zip',zip);}catch{}close('zip-dialog');}catch(error){$('zip-error').textContent=error.message;}finally{button.disabled=false;}});
   if(zip)resolveZip(zip).catch(()=>{zip='';zipPoint=null;$('zip-label').textContent='Set ZIP';});
   $('privacy-button').addEventListener('click',()=>open('privacy-dialog'));
-  $('order-button').addEventListener('click',refreshOrder);updateSaved();
+  $('order-button').addEventListener('click',()=>{if(apiReady){refreshOrder();return;}try{const draft=JSON.parse(localStorage.getItem('marketplace_deal')||'null');if(draft&&byVIN.has(draft.vin)){buildDeal(draft.vin);return;}}catch{}notify('Choose a Tesla and select Build your deal to start.');});updateSaved();
   function purchaseAvailability(){
     $('purchase-availability').hidden=apiReady;
     $('business-status').textContent=apiReady?'Find your Tesla · Reserve online for $250 · Delivery arranged with the selling dealer':'Explore Teslas · Browse vehicle photos · Save your favorites';
-    $('order-button').hidden=!apiReady;
+    $('order-button').hidden=false;$('order-button').textContent=apiReady?'Your purchase':'Your saved deal';
     if(apiReady)$('hero-description').innerHTML='The Tesla you want. A price you can explore. Reserve online for <strong>$250, refundable.</strong>';
     if(items.length)applyFilters();
     const button=$('vehicle-request');if(button){button.disabled=false;button.textContent='Build your deal';}
