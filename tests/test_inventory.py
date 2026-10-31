@@ -113,3 +113,25 @@ def test_static_catalog_download_excludes_gallery_arrays_but_keeps_vin_bound_sha
     gallery=json.loads(shard.read_text())[VIN]
     assert len(gallery)==2 and all(set(p)=={'url','title','category'} for p in gallery)
     assert index['meta']['media_version'] and '?v=' in (tmp_path/'index.html').read_text()
+
+
+def test_large_unconfirmed_gap_cannot_create_public_repricing_or_savings_claim(tmp_path,monkeypatch):
+    monkeypatch.setattr('tools.build.mileage_reference',lambda *args:(4000000,8))
+    build(write_source(tmp_path,[candidate()]),tmp_path)
+    public=json.loads((tmp_path/'inventory.json').read_text())['items'][0]
+    private=json.loads((tmp_path/'.data/arbitrage_opportunities.json').read_text())['items'][0]
+    assert public['display_price']==20000 and public['reference_price'] is None
+    assert private['proposed_retail_cents']==4000000
+    assert 'large_gap_comparison_review' in private['review_flags']
+    assert private['modeled_contribution_cents'] is None
+
+
+def test_confirmed_configuration_and_dealer_net_allow_uncapped_public_repricing(tmp_path,monkeypatch):
+    monkeypatch.setattr('tools.build.mileage_reference',lambda *args:(4000000,8))
+    row=candidate(agreed_dealer_net_cents=1900000,supplier_commitment_reference='commitment:fixture',configuration_evidence_reference='equipment:fixture')
+    build(write_source(tmp_path,[row]),tmp_path)
+    public=json.loads((tmp_path/'inventory.json').read_text())['items'][0]
+    private=json.loads((tmp_path/'.data/arbitrage_opportunities.json').read_text())['items'][0]
+    assert public['display_price']==40000
+    assert private['modeled_gross_spread_cents']==2100000
+    assert private['dealer_net_basis']=='agreed_commitment'

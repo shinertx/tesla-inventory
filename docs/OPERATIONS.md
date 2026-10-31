@@ -193,3 +193,23 @@ Run `python3 tests/static_browser_smoke.py` before publishing. It tests the real
 The static release supports discovery, filters, saved vehicles, comparison, and photos. Reservation APIs and payments remain unconnected on Pages. The UI shows reservations as coming soon when the API is unavailable.
 
 Rollback: revert the release merge and rebuild Pages. No production orders or payments are stored on Pages. Keep dealer, payment, and customer records on their persistent backend.
+
+## Embedded reservation checkout
+
+Set `CHECKOUT_UI_MODE=embedded_page` and `STRIPE_PUBLISHABLE_KEY` alongside the existing secret key and connected-account webhook secret.
+
+The publishable key and secret key must share test/live mode. Live checkout also requires an HTTPS public origin.
+
+Stripe.js loads directly from Stripe only when the customer starts payment. The authenticated checkout response contains the account-scoped session secret.
+
+Session secrets are not included in catalog exports, order summaries, logs, access receipts, or browser storage.
+
+To support an existing hosted integration, explicitly select `CHECKOUT_UI_MODE=hosted_page`. New deployments default to embedded reservations.
+
+Before enabling payments, verify a real sandbox deposit, account routing, accepted quote version, signed webhook, retry, expiry, and refund.
+
+Browser tests use an explicit fake provider. They do not prove live processor readiness.
+
+The $250 payment is a reservation credited toward the total. Full-balance collection and automatic platform-fee splitting are separate integrations.
+
+Spread settlement currently requires the dealer's signed agreement and a reconciled remittance. Never count a deposit or projected spread as revenue.

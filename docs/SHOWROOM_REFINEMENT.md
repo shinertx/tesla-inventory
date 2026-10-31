@@ -25,3 +25,7 @@ ZIP selection uses bundled GeoNames postal centers and inferred city centers. Th
 The VDP shows useful facts first, with title, inspection, equipment, FSD, and availability checks in an expandable section. Quote and payment gates remain enforced by the backend. Public reservations remain unconnected as agreed.
 
 The neutral visual theme uses system typography, eager first-six images, visible images before load-handler completion, and compact vehicle details. Static and backend browser suites verify the new controls and the existing purchase lifecycle separately.
+
+## Pricing update
+
+The later platform-checkout release removes the mandatory $500 buyer buffer. See BUSINESS_OPERATING_MODEL.md for the current policy.

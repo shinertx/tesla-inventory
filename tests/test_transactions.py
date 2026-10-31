@@ -15,7 +15,7 @@ class Payments:
         if self.fail:raise RuntimeError('network')
         self.session_calls+=1
         sid='cs_test_'+order['id']
-        session=dict(account=order['payment_account'],id=sid,url='https://checkout.stripe.com/c/pay/'+sid,status='open',payment_status='unpaid',amount_total=25000,currency='usd',mode='payment',livemode=False,payment_intent='pi_'+order['id'],metadata={'order_id':order['id'],'quote_version':str(order['quote_version'])})
+        session=dict(account=order['payment_account'],id=sid,client_secret=sid+'_secret_fixture',url='https://checkout.stripe.com/c/pay/'+sid,status='open',payment_status='unpaid',amount_total=25000,currency='usd',mode='payment',livemode=False,payment_intent='pi_'+order['id'],metadata={'order_id':order['id'],'quote_version':str(order['quote_version'])})
         self.sessions[sid]=session;return session
     def retrieve_checkout(self,sid,account):
         assert self.sessions[sid]['account']==account
@@ -32,7 +32,7 @@ class Payments:
 def setup(tmp_path):
     inv=tmp_path/'inventory.json';inv.write_text(json.dumps({'items':[{'vin':VIN}]}))
     settings=Settings(db_path=tmp_path/'orders.db',inventory_path=inv,admin_token=TOKEN,
-        platform_agreements_verified=True,supported_states=('TX',),checkout_enabled=True,stripe_key='sk_test_fixture',webhook_secret='whsec_fixture')
+        platform_agreements_verified=True,supported_states=('TX',),checkout_enabled=True,stripe_key='sk_test_fixture',stripe_publishable_key='pk_test_fixture',webhook_secret='whsec_fixture')
     payments=Payments();app=create_app(settings,payments)
     profile=dict(id='fixture-dealer',legal_name='FIXTURE FULFILLING DEALER',license_number='TEST-LICENSE',address='TEST ADDRESS',supported_states=['TX'],stripe_account='acct_fixtureDealer',agreement_reference='agreement:fixture',license_evidence='license:fixture',verified=True)
     with app.state.store.transaction() as db:db.execute('INSERT INTO dealers VALUES(?,?,?)',(profile['id'],json.dumps(profile),int(time.time())))
@@ -202,7 +202,7 @@ def test_customer_cases_have_owner_and_resolution_evidence(setup):
 def test_live_keys_require_https_origin(setup):
     _,s,_,_=setup
     assert not replace(s,stripe_key='sk_live_fixture').payments_ready
-    assert replace(s,stripe_key='sk_live_fixture',origin='https://example.test').payments_ready
+    assert replace(s,stripe_key='sk_live_fixture',stripe_publishable_key='pk_live_fixture',origin='https://example.test').payments_ready
 
 def test_verified_operator_recovery_rotates_customer_access(setup):
     c,_,_,_=setup;o=request(c)
@@ -338,3 +338,38 @@ def test_online_purchase_steps_are_dealer_bound_and_do_not_fake_completion(setup
     response=c.get('/api/orders/'+o['id'],headers=auth(o)).json()
     assert response['online_actions'][0]['kind']=='sign_contract'
     assert response['state']=='deposit_paid'
+
+
+def test_embedded_checkout_requires_matching_public_key(setup):
+    _,settings,_,_=setup
+    assert not replace(settings,stripe_publishable_key='').payments_ready
+    assert not replace(settings,stripe_publishable_key='pk_live_wrong_mode').payments_ready
+    assert not replace(settings,checkout_ui_mode='invalid').payments_ready
+
+
+def test_embedded_checkout_secret_is_authenticated_and_reused(setup):
+    client,_,payments,_=setup;order=request(client);approve(client,order)
+    assert client.post(f"/api/orders/{order['id']}/checkout",json={'quote_version':1,'terms_accepted':True}).status_code==404
+    first=checkout(client,order);second=checkout(client,order)
+    assert first.status_code==second.status_code==200
+    assert first.json()==second.json()
+    assert first.json()['mode']=='embedded_page'
+    assert first.json()['account']=='acct_fixtureDealer'
+    assert first.json()['publishable_key']=='pk_test_fixture'
+    assert first.json()['client_secret'].endswith('_secret_fixture')
+    assert 'url' not in first.json() and payments.session_calls==1
+    assert status(client,order)=='checkout_pending'
+    public_order=client.get(f"/api/orders/{order['id']}",headers=auth(order)).json()
+    assert 'client_secret' not in json.dumps(public_order)
+
+
+def test_embedded_provider_does_not_redirect_or_charge_spread_on_deposit(setup,monkeypatch):
+    _,settings,_,_=setup;calls=[]
+    import stripe
+    monkeypatch.setattr(stripe.checkout.Session,'create',lambda **kw:calls.append(kw) or {'id':'cs_fixture'})
+    StripePayments(settings).create_checkout({'id':'fixture','vin':VIN,'quote_version':1,'payment_account':'acct_fixtureDealer'},quote_body(),int(time.time())+1800)
+    params=calls[0]
+    assert params['ui_mode']=='embedded_page' and params['redirect_on_completion']=='never'
+    assert 'success_url' not in params and 'cancel_url' not in params
+    assert params['line_items'][0]['price_data']['unit_amount']==25000
+    assert 'application_fee_amount' not in params.get('payment_intent_data',{})

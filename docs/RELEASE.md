@@ -21,3 +21,13 @@ Current coverage: 10,535 multi-photo vehicles, 3,550 single-photo vehicles, and 
 Before launch: approved platform agreements, enrolled dealers, merchant/Connect approval, persistent HTTPS hosting, monitored operations, and a controlled dealer-fulfilled sale with collected spread.
 
 Rollback must preserve orders and payment scope. Do not restore fake inspection claims, URL-driven paid state, or acquisition/resale semantics. Disable new checkouts while reconciling exceptions.
+
+## Platform checkout and pricing release
+
+- Market-reference pricing with exact-mileage adjustments and whole-dollar estimates.
+- No fixed markup, mandatory discount, or spread ceiling. Extreme gaps require evidence before public repricing.
+- Branded deal builder and explicit local drafts on static hosting. No fake orders or deposits.
+- Authenticated embedded reservation checkout, with connected-account scope and signed webhook confirmation.
+- Full-balance collection and document signing still require approved provider integrations. Automatic spread splitting is not implemented.
+- No schema migration; payments stay disabled in production until provider/backend onboarding.
+- Roll back if deal drafts, galleries, price disclosures, or customer access fail. Preserve order databases and payment records.

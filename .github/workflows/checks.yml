@@ -21,3 +21,4 @@ jobs:
       - run: node --check web/app.js
       - run: python tests/browser_smoke.py
       - run: python tests/static_browser_smoke.py
+      - run: python tests/checkout_browser_smoke.py

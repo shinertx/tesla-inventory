@@ -2,9 +2,9 @@ from tools.pricing import PricingPolicy,propose_price
 
 def test_large_opportunity_is_not_capped_at_fifteen_hundred():
     result=propose_price(2500000,3500000,12,platform_cost_cents=150000)
-    assert result['proposed_retail_cents']==3450000
-    assert result['modeled_gross_spread_cents']==950000
-    assert result['modeled_contribution_cents']==800000
+    assert result['proposed_retail_cents']==3500000
+    assert result['modeled_gross_spread_cents']==1000000
+    assert result['modeled_contribution_cents']==850000
 
 def test_no_reference_does_not_invent_a_markup_or_optimal_price():
     result=propose_price(2500000,3500000,2)
@@ -42,3 +42,15 @@ def test_reference_does_not_reward_mileage_or_use_too_few_peers():
     assert mileage_reference(target,[{'vin':'other','mileage':15000,'asking_cents':2000000}])[0] is None
     peers=[{'vin':str(i),'mileage':i*10000,'asking_cents':3000000+i*100000} for i in range(6)]
     assert mileage_reference(target,peers)[0]==mileage_reference({**target,'mileage':40000},peers)[0]
+
+
+def test_unusual_gap_is_flagged_without_capping_private_opportunity():
+    result=propose_price(2500000,5000000,12)
+    assert result['proposed_retail_cents']==5000000
+    assert result['modeled_gross_spread_cents']==2500000
+    assert result['requires_market_review'] and not result['costs_verified']
+
+
+def test_negative_costs_are_rejected():
+    import pytest
+    with pytest.raises(ValueError):propose_price(2500000,3500000,12,platform_cost_cents=-100)

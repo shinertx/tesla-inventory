@@ -75,7 +75,11 @@ Taxes, title/registration, dealer documentation, and delivery charges are dealer
 
 The fixed $1,500 catalog markup is removed. Pricing proposals use comparable asking prices and the dealer's agreed net, when available.
 
-The provisional policy proposes a vehicle price $500 below the cohort median, without a fixed spread ceiling. The buyer buffer is configurable; it is not a proven optimum.
+Retail defaults to the mileage-adjusted comparable asking-price reference. There is no mandatory discount, fixed markup, or spread ceiling.
+
+Large modeled gaps require evidence before increasing public estimates. These remain private review candidates, without a hard profit cap.
+
+The optional buyer discount supports explicit pricing experiments. No optimal price is claimed without conversion and collected-contribution evidence.
 
 Insufficient comparable evidence falls back to the source asking price with no invented markup. Operators must verify configuration and terms before approving the final quote.
 
@@ -167,8 +171,28 @@ The queue includes source asking price, agreed or unconfirmed dealer net, compar
 
 Source asking price is not a committed dealer net. VIN-derived configuration hints remain unverified until supported by vehicle-specific evidence.
 
-Example only: $25,000 agreed dealer net and a $35,000 supported reference can support a $34,500 proposal. That models a $9,500 gross spread. With $1,500 platform costs, modeled contribution is $8,000.
+Example only: $25,000 agreed dealer net and a $35,000 supported reference can support a $35,000 proposal. That models a $10,000 gross spread. With $1,500 platform costs, modeled contribution is $8,500.
 
 The example is not a promised sale, profit, or optimal price. Completed sales, demand costs, and dealer remittances determine actual performance.
 
 Additional lender or service income is excluded unless it is contracted, earned, and reconciled.
+
+## Marketplace checkout ownership
+
+Customers build their deal, request their quote, review seller terms, reserve, track status, and open support cases through this storefront.
+
+The connected backend supports embedded Stripe reservation checkout. Session secrets require private order access and are never saved in browser storage.
+
+Only signed, reconciled provider events confirm payment. Browser completion callbacks only refresh server status.
+
+The $250 reservation is credited against the total. It is not platform revenue or an application fee.
+
+The current full-balance and document steps still use approved provider links. They are tracked here but are not native embedded integrations.
+
+The platform captures spread through the signed dealer settlement agreement and reconciled receipt. Automatic full-balance splitting is not implemented.
+
+Public GitHub Pages supports browsing, galleries, and local deal drafts. A draft does not place an order, hold inventory, or collect money.
+
+Live requests and payments require a persistent backend, approved partners, matching provider keys, signed agreements, and verified operating authority.
+
+Trade-ins are excluded.

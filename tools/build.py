@@ -13,7 +13,7 @@ from tools.media import photo_url,normalize_photos
 from tools.features import vehicle_features
 from tools.pricing import PricingPolicy,propose_price,mileage_reference
 BASE='https://shinertx.github.io/tesla-inventory'
-PRICING_POLICY=PricingPolicy(buyer_savings_cents=int(os.getenv('BUYER_SAVINGS_CENTS','50000')))
+PRICING_POLICY=PricingPolicy(buyer_savings_cents=int(os.getenv('BUYER_SAVINGS_CENTS','0')))
 
 
 def safe_url(value):
@@ -95,10 +95,11 @@ def build(source=None,output=ROOT,now=None,gallery_source=None):
             net=int(net) if committed else source_prices[x['vin']]*100
             costs=supplier.get('platform_cost_cents')
             proposal=propose_price(net,reference,sample,costs,PRICING_POLICY)
-            x['display_price']=proposal['proposed_retail_cents']/100
-            x['pricing_basis']=proposal['pricing_basis']
-            x['reference_price']=reference/100 if reference else None
-            x['reference_sample']=sample if reference else 0
+            x['display_price']=(source_prices[x['vin']]*100 if proposal['requires_market_review'] and not (committed and supplier.get('configuration_evidence_reference')) else proposal['proposed_retail_cents'])/100
+            x['pricing_basis']='source_asking_pending_review' if proposal['requires_market_review'] and not (committed and supplier.get('configuration_evidence_reference')) else proposal['pricing_basis']
+            public_reference=reference if not proposal['requires_market_review'] or (committed and supplier.get('configuration_evidence_reference')) else None
+            x['reference_price']=public_reference/100 if public_reference else None
+            x['reference_sample']=sample if public_reference else 0
             hints=[]
             drive=(supplier.get('decoded_drive_hint') or '').lower()
             trim=(supplier.get('decoded_trim_hint') or '').lower()
@@ -106,6 +107,9 @@ def build(source=None,output=ROOT,now=None,gallery_source=None):
             if 'awd' in drive and any(k in listed for k in ('rwd','rear wheel','rear-wheel')):hints.append('drivetrain_mismatch_review')
             if 'performance' in trim and 'performance' not in listed:hints.append('performance_trim_review')
             if listed in ('standard','base','trim unverified'):hints.append('configuration_review')
+            if proposal['requires_market_review']:hints.append('large_gap_comparison_review')
+            if not reference:hints.append('insufficient_comparables')
+            if not supplier.get('configuration_evidence_reference'):hints.append('equipment_evidence_required')
             opportunities.append({'vin':x['vin'],'model':x['model'],'year':x['year'],'trim':x['trim'],
                 'source_dealer':supplier.get('dealer_name'),'source_url':supplier.get('source_url'),
                 'source_asking_cents':source_prices[x['vin']]*100,'dealer_net_cents':net,
