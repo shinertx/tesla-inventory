@@ -22,17 +22,26 @@ class Settings:
     balance_payment_method_types: tuple[str, ...] = ('us_bank_account',)
     min_contribution_cents: int = 100000
     retention_days: int = 90
+    sandbox_mode: bool = False
+
+    @property
+    def is_test_sandbox(self):
+        return bool(self.sandbox_mode and not self.stripe_key.startswith('sk_live_'))
+
+    @property
+    def agreements_gate_passed(self):
+        return bool(self.platform_agreements_verified or (self.is_test_sandbox and self.stripe_key.startswith('sk_test_')))
 
     @property
     def payments_ready(self):
-        return bool(self.platform_agreements_verified and self.checkout_enabled and self.stripe_key and self.webhook_secret
+        return bool(self.agreements_gate_passed and self.checkout_enabled and self.stripe_key and self.webhook_secret
                     and self.stripe_key.startswith(('sk_test_','sk_live_'))
                     and self.checkout_ui_mode in ('embedded_page','hosted_page')
                     and self.payment_method_types and set(self.payment_method_types)<={'card','us_bank_account'}
                     and self.balance_payment_method_types and set(self.balance_payment_method_types)<={'us_bank_account'}
                     and (self.checkout_ui_mode=='hosted_page' or (
                         self.stripe_publishable_key.startswith('pk_live_' if self.stripe_key.startswith('sk_live_') else 'pk_test_')))
-                    and (not self.stripe_key.startswith('sk_live_') or self.origin.startswith('https://')))
+                    and (not self.stripe_key.startswith('sk_live_') or (self.origin.startswith('https://') and self.platform_agreements_verified)))
 
     @classmethod
     def from_env(cls):
@@ -52,4 +61,5 @@ class Settings:
             payment_method_types=methods or ('card',),
             min_contribution_cents=int(os.getenv('MIN_CONTRIBUTION_CENTS', '100000')),
             retention_days=int(os.getenv('REQUEST_RETENTION_DAYS', '90')),
+            sandbox_mode=os.getenv('SANDBOX_MODE', '').lower() == 'true',
         )

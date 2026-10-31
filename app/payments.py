@@ -1,5 +1,6 @@
 import stripe
 stripe.default_http_client = stripe.new_default_http_client(timeout=10)
+stripe.api_version = '2026-03-25.dahlia'
 
 class StripePayments:
     def __init__(self, settings):

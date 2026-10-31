@@ -495,3 +495,68 @@ def test_transport_rate_quote_cannot_unlock_in_transit(setup):
     r_accept=client.post(f"/api/admin/orders/{o['id']}/transport",json={'state':'carrier_accepted','provider':'Montway Auto Transport','quote_reference':'evidence:rate-quote','rate_cents':60000,'quote_expires_at':now+86400,'pickup_window_start':now+3600,'pickup_window_end':now+86400,'delivery_window_start':now+86400,'delivery_window_end':now+172800,'carrier_acceptance_reference':'dispatch:montway-123'},headers=admin())
     assert r_accept.status_code==200 and r_accept.json()['transport']['state']=='carrier_accepted'
     assert client.post(f"/api/admin/orders/{o['id']}/transition",json=t_body('dealer_funded'),headers=admin()).status_code==200
+
+
+@pytest.mark.parametrize('first_kind,late_kind',[
+    ('checkout.session.async_payment_succeeded','checkout.session.completed'),
+    ('checkout.session.completed','checkout.session.async_payment_succeeded'),
+])
+def test_distinct_deposit_success_events_preserve_advanced_order(setup,first_kind,late_kind):
+    client,_,payments,store=setup
+    order=request(client);approve(client,order);assert checkout(client,order).status_code==200
+    session=next(iter(payments.sessions.values()))
+    session.update(status='complete',payment_status='paid')
+    def deliver(event_id,kind):
+        return client.post('/api/stripe/webhook',json={'id':event_id,'type':kind,'account':session['account'],
+            'data':{'object':{'id':session['id']}}},headers={'Stripe-Signature':'valid-test-signature'})
+    assert deliver('evt_first_success',first_kind).status_code==200
+    keys=TRANSITIONS['deposit_paid'][1]
+    assert client.post(f"/api/admin/orders/{order['id']}/transition",json={'state':'dealer_confirmed',
+        'evidence':{key:'verified:fixture' for key in keys}},headers=admin()).status_code==200
+    assert deliver('evt_distinct_late_success',late_kind).status_code==200
+    assert status(client,order)=='dealer_confirmed'
+    with store.connect() as db:
+        assert db.execute("SELECT COUNT(*) FROM events WHERE order_id=? AND kind='deposit_paid'",(order['id'],)).fetchone()[0]==1
+        assert db.execute("SELECT COUNT(*) FROM stripe_events WHERE id IN ('evt_first_success','evt_distinct_late_success')").fetchone()[0]==2
+        assert db.execute('SELECT expires_at FROM holds WHERE order_id=?',(order['id'],)).fetchone()[0] is None
+
+
+def test_distinct_deposit_success_does_not_reopen_completed_refund(setup):
+    client,_,payments,store=setup
+    order=request(client);approve(client,order);checkout(client,order);assert event(client,payments,order).status_code==200
+    assert client.post(f"/api/orders/{order['id']}/cancel",json={'reason':'Cancel test purchase'},headers=auth(order)).status_code==200
+    assert client.post(f"/api/admin/orders/{order['id']}/refund",json={},headers=admin()).status_code==200
+    assert status(client,order)=='refunded'
+    assert event(client,payments,order).status_code==200
+    assert status(client,order)=='refunded'
+    assert payments.refunds==1
+
+
+@pytest.mark.parametrize('mismatch',['amount','account','payment'])
+def test_distinct_deposit_success_still_validates_provider_data(setup,mismatch):
+    client,_,payments,_=setup
+    order=request(client);approve(client,order);checkout(client,order);assert event(client,payments,order).status_code==200
+    session=next(iter(payments.sessions.values()))
+    if mismatch=='amount':session['amount_total']=24999
+    if mismatch=='account':session['account']='acct_other'
+    if mismatch=='payment':session['payment_intent']='pi_different'
+    assert event(client,payments,order).status_code==409
+    assert status(client,order)=='deposit_paid'
+
+
+def test_first_paid_event_after_processing_expiry_still_requires_refund(setup):
+    client,_,payments,store=setup
+    order=request(client);approve(client,order);checkout(client,order)
+    session=next(iter(payments.sessions.values()))
+    session.update(status='complete',payment_status='unpaid')
+    pending=client.post('/api/stripe/webhook',json={'id':'evt_initial_processing','type':'checkout.session.completed',
+        'account':session['account'],'data':{'object':{'id':session['id']}}},headers={'Stripe-Signature':'valid-test-signature'})
+    assert pending.status_code==200 and status(client,order)=='deposit_processing'
+    with store.transaction() as db:
+        q=json.loads(db.execute('SELECT quote FROM orders WHERE id=?',(order['id'],)).fetchone()[0])
+        q['valid_until']=int(time.time())-1
+        db.execute('UPDATE orders SET quote=? WHERE id=?',(json.dumps(q),order['id']))
+    assert event(client,payments,order).status_code==200
+    assert status(client,order)=='refund_pending'
+    with store.connect() as db:
+        assert db.execute("SELECT COUNT(*) FROM events WHERE order_id=? AND kind='deposit_paid'",(order['id'],)).fetchone()[0]==0

@@ -69,6 +69,8 @@ def create_app(settings=None, payments=None):
         response.headers['Content-Security-Policy']="default-src 'self'; img-src 'self' https: data:; style-src 'self'; script-src 'self' https://js.stripe.com; connect-src 'self' https://api.stripe.com https://*.stripe.com; frame-src https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
         if request.url.path.startswith('/api/'):
             response.headers['Cache-Control']='no-store'
+        if settings.is_test_sandbox or settings.stripe_key.startswith('sk_test_'):
+            response.headers['X-Robots-Tag']='noindex, nofollow'
         return response
 
     def admin(authorization: Annotated[str|None, Header()]=None):
@@ -130,7 +132,9 @@ def create_app(settings=None, payments=None):
     def config():
         with store.connect() as c:
             approved=sum(bool(json.loads(r['profile']).get('verified')) for r in c.execute('SELECT profile FROM dealers'))
-        return {'mode':'dealer_fulfillment','partner_onboarding_status':'ready' if approved and settings.platform_agreements_verified else 'pending',
+        onboarding='ready' if (approved and settings.platform_agreements_verified) else ('sandbox_test_only' if (approved and settings.is_test_sandbox) else 'pending')
+        return {'mode':'dealer_fulfillment','partner_onboarding_status':onboarding,
+            'sandbox_mode':settings.is_test_sandbox,'test_mode':settings.stripe_key.startswith('sk_test_'),
             'supported_states':settings.supported_states,'payments_enabled':bool(settings.payments_ready and approved),
             'payment_methods':list(settings.payment_method_types),'ach_enabled':'us_bank_account' in settings.balance_payment_method_types or 'us_bank_account' in settings.payment_method_types,
             'balance_payment_methods':list(settings.balance_payment_method_types),'balance_payment_method':'us_bank_account','deposit_cents':DEPOSIT,'requests_enabled':True,'inventory_owner':'fulfilling_dealer'}
@@ -138,6 +142,8 @@ def create_app(settings=None, payments=None):
     @app.put('/api/admin/dealers/{dealer_id}',dependencies=[Depends(admin)])
     def onboard_dealer(dealer_id:str,body:Dealer):
         if dealer_id!=body.id:raise HTTPException(409,'Dealer ID mismatch')
+        if settings.is_test_sandbox and not any(k in body.legal_name.upper() for k in ('TEST','SANDBOX','FIXTURE')):
+            raise HTTPException(409,'Sandbox only accepts clearly labeled synthetic test dealers')
         with store.transaction() as c:
             c.execute('INSERT INTO dealers VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET profile=excluded.profile,updated_at=excluded.updated_at',(dealer_id,body.model_dump_json(),int(time.time())))
         return {'id':dealer_id,'verified':body.verified}
@@ -230,7 +236,7 @@ def create_app(settings=None, payments=None):
 
     @app.post('/api/admin/orders/{order_id}/quote',dependencies=[Depends(admin)])
     def quote(order_id:str,body:Quote):
-        if not settings.platform_agreements_verified:raise HTTPException(409,'Platform transaction agreements are pending')
+        if not settings.agreements_gate_passed:raise HTTPException(409,'Platform transaction agreements are pending')
         now=int(time.time())
         if body.valid_until<now+1900:raise HTTPException(409,'Quote and seller hold need at least 32 minutes remaining')
         if body.contribution_cents<settings.min_contribution_cents:raise HTTPException(409,'Quote fails contribution requirement')
@@ -371,7 +377,10 @@ def create_app(settings=None, payments=None):
                     if session.get('payment_status')!='paid':raise HTTPException(409,'Payment does not match this order')
                     if row['payment_id'] and row['payment_id']!=session['payment_intent']:
                         raise HTTPException(409,'Different payment already recorded')
-                    if row['state']!='deposit_paid':
+                    # Distinct success events for one accepted payment can arrive after fulfillment advances.
+                    accepted=(row['payment_id']==session['payment_intent'] and c.execute(
+                        "SELECT 1 FROM events WHERE order_id=? AND kind='deposit_paid' LIMIT 1",(row['id'],)).fetchone())
+                    if row['state']!='deposit_paid' and not accepted:
                         q=Quote.model_validate_json(row['quote']);hold=c.execute('SELECT * FROM holds WHERE order_id=?',(row['id'],)).fetchone()
                         partner=c.execute('SELECT profile FROM dealers WHERE id=?',(row['dealer_id'],)).fetchone()
                         partner_valid=bool(partner and json.loads(partner['profile']).get('verified') and json.loads(partner['profile']).get('stripe_account')==row['payment_account'])
@@ -503,7 +512,7 @@ def create_app(settings=None, payments=None):
 
     @app.post('/api/admin/orders/{order_id}/transition',dependencies=[Depends(admin)])
     def transition(order_id:str,body:Transition):
-        if not settings.platform_agreements_verified:raise HTTPException(409,'Platform transaction agreements are pending')
+        if not settings.agreements_gate_passed:raise HTTPException(409,'Platform transaction agreements are pending')
         now=int(time.time())
         with store.transaction() as c:
             row=get_order(c,order_id);dealer_for_order(c,row);rule=TRANSITIONS.get(row['state'])
@@ -661,10 +670,23 @@ def create_app(settings=None, payments=None):
         return public_catalog({**inventory,'meta':{**inventory.get('meta',{}),'count':len(items)},'items':items})
     @app.get('/data/us_zip_centers.json')
     def zip_centers():return FileResponse(ROOT/'data/us_zip_centers.json',media_type='application/json')
+    @app.get('/terms/{doc_slug}')
+    def sandbox_terms(doc_slug:str):
+        if doc_slug not in ('buyers_guide_reference','warranty_terms_reference','return_terms_reference','deposit_terms_reference'):
+            raise HTTPException(404)
+        from fastapi.responses import HTMLResponse
+        title=doc_slug.replace('_',' ').title()
+        return HTMLResponse(f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex,nofollow"><title>{title} — SYNTHETIC SANDBOX TEST ONLY</title></head><body><h1>{title} (SYNTHETIC SANDBOX TEST ONLY)</h1><p>This document is a synthetic sandbox fixture for integration verification only. No real vehicle sale, warranty, or dealer obligation is created.</p><p>Disclosed synthetic seller: SYNTHETIC SANDBOX DEALER (TEST ONLY) · $250 test reservation deposit is refundable in Stripe TEST mode.</p></body></html>')
     @app.get('/sitemap.xml')
-    def sitemap():return FileResponse(ROOT/'sitemap.xml',media_type='application/xml')
+    def sitemap():
+        if settings.is_test_sandbox:raise HTTPException(404)
+        return FileResponse(ROOT/'sitemap.xml',media_type='application/xml')
     @app.get('/robots.txt')
-    def robots():return FileResponse(ROOT/'robots.txt',media_type='text/plain')
+    def robots():
+        if settings.is_test_sandbox:
+            from fastapi.responses import PlainTextResponse
+            return PlainTextResponse('User-agent: *\nDisallow: /\n')
+        return FileResponse(ROOT/'robots.txt',media_type='text/plain')
     @app.get('/CNAME')
     def cname():return FileResponse(ROOT/'CNAME',media_type='text/plain')
     @app.get('/voltsandvins-indexnow-key.txt')

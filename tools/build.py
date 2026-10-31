@@ -200,7 +200,10 @@ def build(source=None,output=ROOT,now=None,gallery_source=None):
     for url in entries:ET.SubElement(ET.SubElement(tree,ns+'url'),ns+'loc').text=url
     ET.ElementTree(tree).write(output/'sitemap.xml',encoding='utf-8',xml_declaration=True)
     (output/'robots.txt').write_text(f'User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: {BASE}/sitemap.xml\n')
-    (output/'CNAME').write_text('voltsandvins.com\n')
+    if output!=ROOT or os.getenv('ENABLE_GITHUB_PAGES_CNAME','').lower()=='true':
+        (output/'CNAME').write_text('voltsandvins.com\n')
+    elif (output/'CNAME').exists():
+        (output/'CNAME').unlink()
     (output/'voltsandvins-indexnow-key.txt').write_text(INDEXNOW_KEY+'\n')
     print(json.dumps({'published':len(items),'excluded':dict(excluded),'category_pages':len(categories),'sitemap_urls':len(entries)}))
     return payload
