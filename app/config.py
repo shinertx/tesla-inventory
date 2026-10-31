@@ -16,12 +16,18 @@ class Settings:
     checkout_enabled: bool = False
     stripe_key: str = ''
     webhook_secret: str = ''
+    stripe_publishable_key: str = ''
+    checkout_ui_mode: str = 'embedded_page'
     min_contribution_cents: int = 100000
     retention_days: int = 90
 
     @property
     def payments_ready(self):
         return bool(self.platform_agreements_verified and self.checkout_enabled and self.stripe_key and self.webhook_secret
+                    and self.stripe_key.startswith(('sk_test_','sk_live_'))
+                    and self.checkout_ui_mode in ('embedded_page','hosted_page')
+                    and (self.checkout_ui_mode=='hosted_page' or (
+                        self.stripe_publishable_key.startswith('pk_live_' if self.stripe_key.startswith('sk_live_') else 'pk_test_')))
                     and (not self.stripe_key.startswith('sk_live_') or self.origin.startswith('https://')))
 
     @classmethod
@@ -36,6 +42,8 @@ class Settings:
             supported_states=tuple(x.strip().upper() for x in os.getenv('SUPPORTED_STATES', '').split(',') if x.strip()),
             checkout_enabled=os.getenv('CHECKOUT_ENABLED', '').lower() == 'true',
             stripe_key=os.getenv('STRIPE_SECRET_KEY', ''), webhook_secret=os.getenv('STRIPE_WEBHOOK_SECRET', ''),
+            stripe_publishable_key=os.getenv('STRIPE_PUBLISHABLE_KEY',''),
+            checkout_ui_mode=os.getenv('CHECKOUT_UI_MODE','embedded_page'),
             min_contribution_cents=int(os.getenv('MIN_CONTRIBUTION_CENTS', '100000')),
             retention_days=int(os.getenv('REQUEST_RETENTION_DAYS', '90')),
         )

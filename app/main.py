@@ -64,7 +64,7 @@ def create_app(settings=None, payments=None):
         response=await call_next(request)
         response.headers['X-Content-Type-Options']='nosniff'
         response.headers['Referrer-Policy']='no-referrer'
-        response.headers['Content-Security-Policy']="default-src 'self'; img-src 'self' https: data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        response.headers['Content-Security-Policy']="default-src 'self'; img-src 'self' https: data:; style-src 'self'; script-src 'self' https://js.stripe.com; connect-src 'self' https://api.stripe.com https://*.stripe.com; frame-src https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
         if request.url.path.startswith('/api/'):
             response.headers['Cache-Control']='no-store'
         return response
@@ -240,6 +240,14 @@ def create_app(settings=None, payments=None):
             store.event(c,order_id,'quote_approved',{'contribution_cents':body.contribution_cents,'expected_spread_cents':body.spread_cents,'dealer_id':dealer.id},True)
             return public(get_order(c,order_id))
 
+    def checkout_presentation(session,account):
+        if session.get('client_secret'):
+            return {'mode':'embedded_page','client_secret':session['client_secret'],
+                'publishable_key':settings.stripe_publishable_key,'account':account}
+        if settings.checkout_ui_mode=='hosted_page' and session.get('url'):
+            return {'mode':'hosted_page','url':session['url']}
+        raise HTTPException(503,'Payment form is unavailable; retry safely')
+
     @app.post('/api/orders/{order_id}/checkout')
     def checkout(order_id:str,body:CheckoutAcceptance,request:Request,authorization:Annotated[str|None,Header()]=None):
         if not settings.payments_ready:raise HTTPException(409,'Partner checkout is not yet configured')
@@ -264,12 +272,12 @@ def create_app(settings=None, payments=None):
                 try:session=payments.retrieve_checkout(row['checkout_id'],row['payment_account'])
                 except Exception:raise HTTPException(503,'Payment provider unavailable; retry safely')
                 if session.get('status')!='open':raise HTTPException(409,'Checkout is no longer open; check order status')
-                return {'url':session['url']}
+                return checkout_presentation(session,row['payment_account'])
             try:session=payments.create_checkout(dict(row),q,now+1800)
             except Exception:raise HTTPException(503,'Payment provider unavailable; retry safely')
             c.execute("UPDATE orders SET state='checkout_pending',checkout_id=?,updated_at=?,action_due_at=? WHERE id=?",(session['id'],now,now+1800,order_id))
             store.event(c,order_id,'checkout_created',{'session_id':session['id'],'accepted_quote_version':body.quote_version,'terms_accepted_at':now})
-            return {'url':session['url']}
+            return checkout_presentation(session,row['payment_account'])
 
     @app.post('/api/stripe/webhook')
     async def webhook(request:Request):

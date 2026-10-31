@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class PricingPolicy:
-    buyer_savings_cents: int = 50000
+    buyer_savings_cents: int = 0
     minimum_comparables: int = 5
 
     def __post_init__(self):
@@ -12,6 +12,7 @@ class PricingPolicy:
 def propose_price(dealer_net_cents,reference_cents=None,sample_size=0,platform_cost_cents=None,policy=None):
     policy=policy or PricingPolicy()
     if dealer_net_cents<=0:raise ValueError('Dealer proceeds must be positive')
+    if platform_cost_cents is not None and platform_cost_cents<0:raise ValueError('Costs cannot be negative')
     supported=bool(reference_cents and sample_size>=policy.minimum_comparables)
     retail=max(dealer_net_cents,reference_cents-policy.buyer_savings_cents) if supported else dealer_net_cents
     spread=retail-dealer_net_cents
@@ -19,7 +20,9 @@ def propose_price(dealer_net_cents,reference_cents=None,sample_size=0,platform_c
         'modeled_contribution_cents':spread-platform_cost_cents if platform_cost_cents is not None else None,
         'reference_cents':reference_cents if supported else None,'reference_sample':sample_size,
         'pricing_basis':'comparable_asking_prices' if supported else 'source_asking_only',
-        'is_optimal_price_proven':False}
+        'is_optimal_price_proven':False,
+        'requires_market_review':bool(supported and spread/dealer_net_cents>.25),
+        'costs_verified':platform_cost_cents is not None}
 
 
 def mileage_reference(target,comparables,policy=None):
@@ -45,4 +48,4 @@ def mileage_reference(target,comparables,policy=None):
     slope=max(-30,min(0,slope)) # At most $0.30 per mile; never reward more mileage.
     adjustment=max(-10000,min(10000,target['mileage']-median(x['mileage'] for x in clean)))
     estimate=round(center+slope*adjustment)
-    return int(round(estimate/10000)*10000),len(clean)
+    return int(round(estimate/100)*100),len(clean)

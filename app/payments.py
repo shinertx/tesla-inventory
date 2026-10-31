@@ -6,6 +6,10 @@ class StripePayments:
         self.settings = settings
 
     def create_checkout(self, order, quote, expires_at):
+        presentation=({'ui_mode':'embedded_page','redirect_on_completion':'never'}
+            if self.settings.checkout_ui_mode=='embedded_page' else {
+                'ui_mode':'hosted_page','success_url':self.settings.origin+'/?checkout=returned',
+                'cancel_url':self.settings.origin+'/?checkout=cancelled'})
         return stripe.checkout.Session.create(
             api_key=self.settings.stripe_key, stripe_account=order['payment_account'], mode='payment',
             payment_method_types=['card'], client_reference_id=order['id'],
@@ -14,8 +18,7 @@ class StripePayments:
                 'product_data':{'name':'Refundable vehicle reservation deposit',
                     'description':f"VIN {order['vin']}; quote {order['quote_version']}"}},'quantity':1}],
             expires_at=expires_at,
-            success_url=self.settings.origin+'/?checkout=returned',
-            cancel_url=self.settings.origin+'/?checkout=cancelled',
+            **presentation,
             idempotency_key=f"checkout:{order['id']}:{order['quote_version']}",
         )
 

@@ -89,3 +89,5 @@ aside { border-radius: 12px; }
 }
 
 .save{width:44px;height:44px}.discovery-chip{min-height:44px}.gallery-thumb{min-height:44px}.card-footer>span:first-child{min-width:0;flex:1}.card-footer{flex-direction:row;gap:8px}
+
+.deal-steps{padding-left:1.4rem;line-height:1.7}.embedded-payment:not(:empty){margin:24px 0;min-height:340px}.online-steps{border:1px solid var(--line);border-radius:12px;padding:16px}
