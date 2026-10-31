@@ -29,6 +29,7 @@ class Dealer(StrictModel):
     address: str = Field(min_length=5,max_length=300)
     supported_states: list[str] = Field(min_length=1)
     stripe_account: str = Field(pattern=r'^acct_[A-Za-z0-9]+$')
+    online_portal_hosts: list[str] = Field(default_factory=list)
     agreement_reference: str = Field(min_length=5,max_length=500)
     license_evidence: str = Field(min_length=5,max_length=500)
     verified: bool = False
@@ -139,3 +140,8 @@ class AccessRecovery(StrictModel):
 class SettlementReversal(StrictModel):
     amount_cents: int = Field(gt=0,le=100_000_000)
     reference: str = Field(min_length=5,max_length=500)
+
+class OnlineAction(StrictModel):
+    kind: Literal['sign_contract','pay_balance','submit_title_documents','track_delivery']
+    url: str = Field(min_length=10,max_length=2048)
+    evidence_reference: str = Field(min_length=5,max_length=500)

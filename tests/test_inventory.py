@@ -30,12 +30,12 @@ def test_hardware_inspection_and_title_are_not_invented(tmp_path):
     assert x['inspection_status']=='not_verified'
     assert x['title_status']=='unverified'
     assert x['availability']=='unverified'
-    assert x['display_price']==21500
+    assert x['display_price']==20000
     assert not ({'asking_price','service_fee','dealer','source_url','source'} & x.keys())
     sitemap=(tmp_path/'sitemap.xml').read_text()
     assert '?vin=' not in sitemap
     category=(tmp_path/'models/model-s.html').read_text()
-    assert '$21,500' in category
+    assert '$20,000' in category
     assert '97.4%' not in category
 
 def test_source_refresh_updates_price_and_preserves_original_observations(tmp_path):
@@ -94,3 +94,9 @@ def test_customer_export_never_contains_private_supplier_commercial_data(tmp_pat
     assert not {'dealer','asking_price','service_fee','source_url'}&payload['items'][0].keys()
     from app.catalog import public_catalog
     assert public_catalog({'items':[{'vin':VIN,'dealer':'PRIVATE','asking_price':1,'source_url':'PRIVATE'}]})['items']==[{'vin':VIN}]
+
+def test_supplier_description_cannot_leak_raw_price_through_trim(tmp_path):
+    row={**candidate(),'dealer_trim':'Used 2015 Tesla Model S 70D with 60000 miles - $20,000'}
+    result=build(write_source(tmp_path,[row]),tmp_path)
+    assert result['items'][0]['trim']=='70D'
+    assert '$20,000' not in (tmp_path/'inventory.json').read_text()

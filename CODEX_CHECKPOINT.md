@@ -23,3 +23,23 @@ Push the verified changes to existing PR #1 and verify current-head CI. Actual d
 ## Boundaries
 
 No production deployment, real payment, partner enrollment, or customer sale. Actual agreements, dealer credentials, provider approval, and hosting remain external launch requirements.
+
+## Latest user steering
+
+Maximize supported collected spread per Tesla. Source underpriced configurations, negotiate dealer net proceeds, and sell against supported retail value. Remove fixed $1,500 pricing.
+
+Preserve the $250 refundable reservation. Improve visual discovery and galleries. Keep dealer ownership and fulfillment.
+
+## Added
+
+Market-reference pricing proposals and a private ranked arbitrage queue; real-photo-first browsing; price discovery, shortlist comparison, and VIN-bound galleries; secure online signing/payment/title/tracking handoffs.
+
+## Next
+
+Complete final tests, refreshed preview, PR update, push, and current-head CI verification. No public production deployment.
+
+## Final local verification
+
+61 regression tests pass. Desktop/mobile browser checks pass for price discovery, shortlist comparison, 43-photo gallery navigation, purchase requests, cancellation, and protected payment state. The private queue has no fixed spread cap.
+
+Local preview is refreshed. Next: push to existing PR #1 and verify current-head CI.

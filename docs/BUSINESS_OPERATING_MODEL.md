@@ -73,7 +73,13 @@ Expected contribution = spread minus demand, platform service, payment, reserve,
 
 Taxes, title/registration, dealer documentation, and delivery charges are dealer/pass-through amounts. They are not platform revenue in this implementation.
 
-The catalog's $1,500 planning markup is an estimate. It does not establish a payable dealer obligation or earned profit.
+The fixed $1,500 catalog markup is removed. Pricing proposals use comparable asking prices and the dealer's agreed net, when available.
+
+The provisional policy proposes a vehicle price $500 below the cohort median, without a fixed spread ceiling. The buyer buffer is configurable; it is not a proven optimum.
+
+Insufficient comparable evidence falls back to the source asking price with no invented markup. Operators must verify configuration and terms before approving the final quote.
+
+The objective is the largest supported collected contribution per completed Tesla. A high displayed markup does not establish a payable dealer obligation or earned profit.
 
 An approved quote requires a supplier commitment and spread agreement. Customer vehicle pricing is consistent across shopping views.
 
@@ -152,3 +158,17 @@ Dealer ownership reduces inventory capital exposure. Demand spend, service oblig
 - Monitored operations, privacy, backups, and customer recovery.
 
 No dealer agreement, merchant account, live payment, or dealer-fulfilled customer outcome was established during this code change.
+
+## Private arbitrage pricing
+
+`python3 -m tools.build` writes `.data/arbitrage_opportunities.json`. The authenticated `/api/admin/arbitrage` endpoint and operator CLI expose the ranked proposals.
+
+The queue includes source asking price, agreed or unconfirmed dealer net, comparable reference, proposed retail, modeled gross spread, cost-aware contribution when costs are known, and configuration-review flags.
+
+Source asking price is not a committed dealer net. VIN-derived configuration hints remain unverified until supported by vehicle-specific evidence.
+
+Example only: $25,000 agreed dealer net and a $35,000 supported reference can support a $34,500 proposal. That models a $9,500 gross spread. With $1,500 platform costs, modeled contribution is $8,000.
+
+The example is not a promised sale, profit, or optimal price. Completed sales, demand costs, and dealer remittances determine actual performance.
+
+Additional lender or service income is excluded unless it is contracted, earned, and reconciled.

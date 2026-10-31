@@ -7,6 +7,7 @@ import argparse, json, re, sys
 from curl_cffi import requests
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
 from tools.inventory import ingest, export
+from tools.media import photo_url
 LD_RE=re.compile(r'<script[^>]*application/ld\+json[^>]*>(.*?)</script>',re.S|re.I)
 
 class SourceError(RuntimeError):pass
@@ -22,9 +23,14 @@ def normalized(vin,model,year,trim,price,mileage,dealer,city,state,photo,url,ris
     if model not in ('Model 3','Model Y','Model S','Model X','Cybertruck'):return None
     price=numeric(price);mileage=numeric(mileage);year=numeric(year)
     if price is None or mileage is None or year is None:return None
+    values=photo if isinstance(photo,list) else [photo]
+    photos=[]
+    for value in values:
+        media_url=photo_url(value if isinstance(value,str) else (value.get('contentUrl') or value.get('url')) if isinstance(value,dict) else '')
+        if media_url:photos.append({'url':media_url,'title':'Vehicle photo','category':'photos'})
     return dict(vin=vin,model=model,year=year,dealer_trim=trim or 'Trim unverified',asking_price=price,mileage=mileage,
         dealer_name=dealer or 'Source dealer unverified',city=city or '',state=state or 'US',
-        photo_url=photo if isinstance(photo,str) else '',source_url=url if isinstance(url,str) else '',risk_flag=risk)
+        photo_url=photos[0]['url'] if photos else '',photos=photos,source_url=url if isinstance(url,str) else '',risk_flag=risk)
 
 def parse_source(source,response,model=None,year=None):
     rows=[]

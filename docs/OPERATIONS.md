@@ -127,3 +127,29 @@ Assign operators and connect monitored notification delivery before accepting pu
 Keep evidence in restricted storage. Schedule inactive-lead anonymization and apply a reviewed paid-transaction retention policy.
 
 Use encrypted backups and test restores. Confirm dealer support, returns, title, tax, insurance, and settlement responsibilities before enabling payments.
+
+## Arbitrage and customer media
+
+Use `python3 -m tools.dealer_ops arbitrage` for private ranked pricing proposals. There is no fixed $1,500 retail markup or spread cap.
+
+`BUYER_SAVINGS_CENTS` sets the provisional buffer below comparable asking-price medians. Final customer quotes remain independently approved against the dealer commitment and actual costs.
+
+Customer cards omit operational availability warnings. The backend still requires an actual dealer hold before charging a reservation.
+
+Real-photo vehicles lead the showroom. Generic default image paths do not count as vehicle photography.
+
+`GET /api/vehicles/{vin}/photos` serves cached VIN-bound media. Carvana Flight data and JSON-LD arrays preserve galleries and condition photographs.
+
+CarGurus detail requests were blocked during verification. Its known primary photo remains available; the code does not fabricate extra angles or repeatedly retry blocked detail pages.
+
+The original ledger's photo count included 794 generic placeholder paths. The current public set includes 13,945 vehicles with real HTTPS primary-photo URLs; URL presence does not independently prove every remote image remains accessible.
+
+## Fully online completion
+
+The $250 reservation remains. Customer quote approval, secure dealer deposit, provider contract signing, dealer balance payment, title-document submission, and delivery tracking can happen online.
+
+Enroll approved `online_portal_hosts` on the dealer record. Configure per-order `online-actions` for signing, dealer balance payment, title documents, or delivery tracking.
+
+Actions only appear in the appropriate order state. Clicking a link never marks a contract signed or funds received; state changes still require evidence.
+
+These are secure provider handoffs. Actual e-sign, lender, payment, and title accounts still need integration and end-to-end verification.

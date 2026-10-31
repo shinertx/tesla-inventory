@@ -323,3 +323,18 @@ def test_checkout_cannot_ignore_changed_seller_or_destination_authority(setup,ch
         profile=json.loads(db.execute('SELECT profile FROM dealers').fetchone()[0]);profile.update(change)
         db.execute('UPDATE dealers SET profile=?',(json.dumps(profile),))
     assert checkout(c,o).status_code==409
+
+def test_online_purchase_steps_are_dealer_bound_and_do_not_fake_completion(setup):
+    c,_,p,store=setup;o=request(c);approve(c,o)
+    with store.transaction() as db:
+        profile=json.loads(db.execute('SELECT profile FROM dealers').fetchone()[0]);profile['online_portal_hosts']=['secure.example.test']
+        db.execute('UPDATE dealers SET profile=?',(json.dumps(profile),))
+    path=f"/api/admin/orders/{o['id']}/online-actions"
+    action={'kind':'sign_contract','url':'https://secure.example.test/sign/123','evidence_reference':'provider:contract'}
+    assert c.post(path,json=action,headers=admin()).status_code==409
+    checkout(c,o);event(c,p,o)
+    assert c.post(path,json={**action,'url':'https://wrong.example.test/sign'},headers=admin()).status_code==409
+    assert c.post(path,json=action,headers=admin()).status_code==200
+    response=c.get('/api/orders/'+o['id'],headers=auth(o)).json()
+    assert response['online_actions'][0]['kind']=='sign_contract'
+    assert response['state']=='deposit_paid'

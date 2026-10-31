@@ -6,11 +6,19 @@ from fastapi import FastAPI, Depends, Header, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from .config import Settings, ROOT
-from .models import PurchaseRequest, Quote, Transition, Cancellation, CheckoutAcceptance, SellerHold, CustomerCase, CaseResolution, AccessRecovery, Dealer, Settlement, SettlementReversal
+from .models import PurchaseRequest, Quote, Transition, Cancellation, CheckoutAcceptance, SellerHold, CustomerCase, CaseResolution, AccessRecovery, Dealer, Settlement, SettlementReversal, OnlineAction
 from .store import Store
 from .payments import StripePayments
+from .media import VehicleMedia
 
 DEPOSIT = 25000
+ONLINE_STATES={
+    'sign_contract':{'deposit_paid'},
+    'pay_balance':{'dealer_confirmed'},
+    'submit_title_documents':{'dealer_confirmed','dealer_funded','in_transit','delivered'},
+    'track_delivery':{'in_transit','delivered'},
+}
+
 TRANSITIONS = {
     'deposit_paid': ('dealer_confirmed', {'dealer_sale_contract','dealer_order_acceptance','identity_check','deposit_reconciled'}),
     'dealer_confirmed': ('dealer_funded', {'dealer_received_balance','dealer_funding_reference','fraud_review'}),
@@ -30,6 +38,7 @@ def create_app(settings=None, payments=None):
     vehicles={x['vin']:x for x in inventory['items']}
     app=FastAPI(title='Tesla marketplace',docs_url=None,redoc_url=None)
     app.state.store=store
+    media=VehicleMedia(store,settings.sourcing_path)
 
     @app.middleware('http')
     async def security(request, call_next):
@@ -116,6 +125,13 @@ def create_app(settings=None, payments=None):
             c.execute('INSERT INTO dealers VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET profile=excluded.profile,updated_at=excluded.updated_at',(dealer_id,body.model_dump_json(),int(time.time())))
         return {'id':dealer_id,'verified':body.verified}
 
+    @app.get('/api/admin/arbitrage',dependencies=[Depends(admin)])
+    def arbitrage():
+        path=ROOT/'.data/arbitrage_opportunities.json'
+        if not path.is_file():return {'items':[]}
+        data=json.loads(path.read_text())
+        return {**data,'items':data.get('items',[])[:200]}
+
     @app.get('/api/admin/sourcing',dependencies=[Depends(admin)])
     def sourcing(vin:str|None=None):
         if not settings.sourcing_path.is_file():return {'items':[]}
@@ -126,6 +142,12 @@ def create_app(settings=None, payments=None):
     @app.get('/api/admin/dealers',dependencies=[Depends(admin)])
     def dealers():
         with store.connect() as c:return [json.loads(r['profile']) for r in c.execute('SELECT profile FROM dealers')]
+
+    @app.get('/api/vehicles/{vin}/photos')
+    def vehicle_photos(vin:str,request:Request):
+        if vin not in vehicles:raise HTTPException(404,'Vehicle not found')
+        if not store.rate_limit('media:'+digest(request.client.host if request.client else 'unknown'),limit=120):raise HTTPException(429,'Photo lookup limit reached')
+        return media.gallery(vin,vehicles[vin].get('photo',''))
 
     @app.post('/api/requests',status_code=201)
     def purchase(body:PurchaseRequest,request:Request,idempotency_key:Annotated[str,Header()]):
@@ -157,7 +179,9 @@ def create_app(settings=None, payments=None):
     def status(order_id:str,authorization:Annotated[str|None,Header()]=None):
         with store.transaction() as c:
             store.expire(c,int(time.time()))
-            return public(order_access(c,order_id,authorization))
+            row=order_access(c,order_id,authorization)
+            actions=[{'kind':x['kind'],'url':x['url']} for x in c.execute('SELECT * FROM online_actions WHERE order_id=?',(order_id,)) if row['state'] in ONLINE_STATES[x['kind']]]
+            return {**public(row),'online_actions':actions}
 
     @app.post('/api/orders/{order_id}/privacy')
     def privacy(order_id:str,authorization:Annotated[str|None,Header()]=None):
@@ -351,6 +375,19 @@ def create_app(settings=None, payments=None):
             c.execute('UPDATE orders SET state=?,updated_at=?,action_due_at=? WHERE id=?',(body.state,int(time.time()),int(time.time())+86400,order_id))
             store.event(c,order_id,body.state,body.evidence,True)
             return public(get_order(c,order_id))
+
+    @app.post('/api/admin/orders/{order_id}/online-actions',dependencies=[Depends(admin)])
+    def online_action(order_id:str,body:OnlineAction):
+        from urllib.parse import urlsplit
+        url=urlsplit(body.url)
+        with store.transaction() as c:
+            row=get_order(c,order_id);dealer=dealer_for_order(c,row)
+            if row['state'] not in ONLINE_STATES[body.kind]:raise HTTPException(409,'This online step is not available yet')
+            if url.scheme!='https' or url.hostname not in dealer.online_portal_hosts or url.username or url.password:
+                raise HTTPException(409,'Use an approved secure dealer portal')
+            c.execute('INSERT INTO online_actions VALUES(?,?,?,?) ON CONFLICT(order_id,kind) DO UPDATE SET url=excluded.url,evidence_reference=excluded.evidence_reference',(order_id,body.kind,body.url,body.evidence_reference))
+            store.event(c,order_id,'online_step_ready',{'kind':body.kind},True)
+        return {'ready':True}
 
     @app.post('/api/admin/orders/{order_id}/settle',dependencies=[Depends(admin)])
     def settle(order_id:str,body:Settlement):

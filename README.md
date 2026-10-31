@@ -88,3 +88,5 @@ This repository now contains the frontend, builder, source normalization, transa
 Supplier data stays outside Git. A fresh clone can run the API and customer UI from the sanitized catalog. Rebuilding requires a private source snapshot or an authorized collection.
 
 The earlier personal scratch scripts are obsolete. Use this repository's build commands to avoid restoring unsafe generated claims.
+
+Private arbitrage proposals use market references and agreed dealer proceeds, with no fixed markup ceiling. See the operating model for pricing assumptions. Photo galleries and secure online provider steps are supported.
