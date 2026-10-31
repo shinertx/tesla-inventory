@@ -9,7 +9,7 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 from tools.inventory import valid_vin
 from app.catalog import public_catalog
-from tools.media import photo_url
+from tools.media import photo_url,normalize_photos
 from tools.pricing import PricingPolicy,propose_price
 BASE='https://shinertx.github.io/tesla-inventory'
 PRICING_POLICY=PricingPolicy(buyer_savings_cents=int(os.getenv('BUYER_SAVINGS_CENTS','50000')))
@@ -36,6 +36,8 @@ def timestamp(value):
 def build(source=None,output=ROOT,now=None):
     output=Path(output);now=now or datetime.now(timezone.utc)
     source=Path(source or ROOT/'.data/source_snapshot.json')
+    gallery_file=ROOT/'data/vehicle_photos.json'
+    galleries=json.loads(gallery_file.read_text()) if gallery_file.exists() else {}
     raw=json.loads(source.read_text());items=[];seen=set();excluded=collections.Counter();supplier_rows={};source_prices={}
     blocked=json.loads((ROOT/'data/exclusions.json').read_text())
     for x in raw['items']:
@@ -54,10 +56,11 @@ def build(source=None,output=ROOT,now=None):
         observed=timestamp(x.get('observed_at'))
         # A live source observation is still not an exclusive dealer hold.
         source_recent=bool(observed and observed>=now-timedelta(hours=48))
+        photos=normalize_photos(galleries.get(vin,[])+x.get('photos',[]))
         items.append({'vin':vin,'model':x['model'],'year':x['year'],
             'trim':customer_trim(x.get('dealer_trim'),x['model']),'mileage':mileage,'display_price':price,
             'stock_number':'TSL-'+vin[-6:],'pricing_status':'estimate','city':x.get('city') or '',
-            'state':x.get('state') or 'US','photo':photo_url(x.get('photo_url')) or next((p['url'] for p in x.get('photos',[]) if isinstance(p,dict) and photo_url(p.get('url'))),''),'photos':[p for p in x.get('photos',[]) if isinstance(p,dict) and photo_url(p.get('url'))],
+            'state':x.get('state') or 'US','photo':photos[0]['url'] if photos else photo_url(x.get('photo_url')),'photos':photos,
             'fulfillment':'dealer_owned','source_observed_at':x.get('observed_at'),
             'expires_at':(age+timedelta(days=7)).isoformat(),'availability':'source_observed' if source_recent else 'unverified','title_status':'unverified',
             'hardware':None,'inspection_status':'not_verified','reference_price':None,'reference_sample':0})

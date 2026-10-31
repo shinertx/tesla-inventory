@@ -2,7 +2,7 @@
 import json,time
 from urllib.parse import urlsplit
 from curl_cffi import requests
-from tools.media import extract_gallery,photo_url
+from tools.media import extract_gallery,photo_url,normalize_photos
 
 class VehicleMedia:
     def __init__(self,store,sourcing_path):
@@ -13,14 +13,15 @@ class VehicleMedia:
             self.rows={x['vin']:x for x in json.loads(self.path.read_text()).get('items',[])};self.mtime=self.path.stat().st_mtime
         return self.rows.get(vin,{})
 
-    def gallery(self,vin,primary=''):
+    def gallery(self,vin,primary='',published=None):
+        if published and len(published)>1:
+            photos=normalize_photos(published)
+            return {'vin':vin,'photos':photos,'count':len(photos),'status':'ready'}
         now=int(time.time())
         with self.store.connect() as c:cached=c.execute('SELECT * FROM vehicle_media WHERE vin=?',(vin,)).fetchone()
         if cached and cached['expires_at']>now:return json.loads(cached['payload'])
-        row=self.source(vin);photos=[]
-        for x in row.get('photos',[]):
-            if isinstance(x,dict) and photo_url(x.get('url')):photos.append(x)
-        if not photos:
+        row=self.source(vin);photos=normalize_photos(row.get('photos',[]))
+        if len(photos)<2:
             url=row.get('source_url','');p=urlsplit(url)
             allowed=(p.scheme=='https' and not p.username and not p.password and
                 ((p.hostname=='www.carvana.com' and re_path(p.path,r'/vehicle/\d+')) or
@@ -29,12 +30,12 @@ class VehicleMedia:
             if allowed:
                 try:
                     response=requests.get(url,impersonate='chrome120',timeout=8,allow_redirects=False)
-                    if response.status_code==200:photos=extract_gallery(response.text,vin)
+                    if response.status_code==200:photos=normalize_photos(extract_gallery(response.text,vin)+photos)
                 except Exception:pass
         if not photos:
             for url in [primary,row.get('photo_url','')]:
                 if photo_url(url) and not any(x['url']==url for x in photos):photos.append({'url':url,'title':'Vehicle photo','category':'photos'})
-        result={'vin':vin,'photos':photos,'count':len(photos)}
+        result={'vin':vin,'photos':photos,'count':len(photos),'status':'ready' if len(photos)>1 else 'limited'}
         ttl=86400 if len(photos)>1 else 900
         with self.store.transaction() as c:c.execute('INSERT INTO vehicle_media VALUES(?,?,?) ON CONFLICT(vin) DO UPDATE SET payload=excluded.payload,expires_at=excluded.expires_at',(vin,json.dumps(result),now+ttl))
         return result

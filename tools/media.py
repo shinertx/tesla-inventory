@@ -1,5 +1,6 @@
 """Extract VIN-bound vehicle photography. Never turn stock placeholders into vehicle evidence."""
 import json,re
+from html import unescape
 from urllib.parse import urlsplit
 
 
@@ -22,18 +23,25 @@ def walk(value):
 
 def extract_gallery(html,vin):
     """Supports JSON-LD and Next.js Flight data, binding photos to the requested VIN."""
-    objects=[]
+    objects=[];flight=[]
     for attrs,body in re.findall(r'<script([^>]*)>(.*?)</script>',html,re.S|re.I):
         if 'application/ld+json' in attrs or 'application/json' in attrs:
             try:objects.append(json.loads(body))
-            except (ValueError,TypeError):pass
+            except (ValueError,TypeError):
+                try:objects.append(json.loads(unescape(body)))
+                except (ValueError,TypeError):pass
         if 'self.__next_f.push(' in body:
             try:chunk=json.loads(body.split('self.__next_f.push(',1)[1].rsplit(')',1)[0])
             except (ValueError,IndexError):continue
             if len(chunk)>1 and isinstance(chunk[1],str):
+                flight.append(chunk[1])
                 for line in chunk[1].splitlines():
                     try:objects.append(json.loads(line.partition(':')[2]))
                     except ValueError:pass
+    # Flight records can span multiple script chunks.
+    for line in ''.join(flight).splitlines():
+        try:objects.append(json.loads(line.partition(':')[2]))
+        except ValueError:pass
     photos=[];seen=set()
     def add(url,title,category):
         url=photo_url(url)
@@ -46,14 +54,26 @@ def extract_gallery(html,vin):
             if isinstance(media,dict):
                 add((media.get('heroes') or {}).get('hero'),'Exterior overview','exterior')
                 spins=media.get('spins') or []
-                if spins:
-                    for frame in spins[0].get('images',[]):add(frame.get('imageUrl'),'Exterior angle','exterior')
+                for spin in spins:
+                    for frame in spin.get('images',[]):add(frame.get('imageUrl'),'Vehicle angle',spin.get('location') or 'exterior')
                 for x in media.get('features',[]):add(x.get('imageUrl'),x.get('title') or 'Vehicle detail',x.get('location') or 'details')
                 for x in media.get('imperfections',[]):add(x.get('imageUrl'),(x.get('zoneDescription','')+' — '+x.get('title','Condition detail')).strip(' —'),'condition')
-            image=record.get('image') or record.get('images') or record.get('photos')
+            image=record.get('image') or record.get('images') or record.get('photos') or record.get('photo_urls')
             if isinstance(image,str):add(image,'Vehicle photo','photos')
             elif isinstance(image,list):
                 for x in image:
                     if isinstance(x,str):add(x,'Vehicle photo','photos')
                     elif isinstance(x,dict):add(x.get('contentUrl') or x.get('imageUrl') or x.get('url'),x.get('caption') or 'Vehicle photo','photos')
+    return photos
+
+
+def normalize_photos(values):
+    """Keep public photo metadata, excluding source commercial fields and placeholders."""
+    photos=[];seen=set()
+    for x in values or []:
+        x={'url':x} if isinstance(x,str) else x
+        if not isinstance(x,dict):continue
+        url=photo_url(x.get('url') or x.get('contentUrl') or x.get('imageUrl'))
+        if url and url not in seen:
+            seen.add(url);photos.append({'url':url,'title':str(x.get('title') or x.get('caption') or 'Vehicle photo')[:160],'category':str(x.get('category') or 'photos')[:32]})
     return photos

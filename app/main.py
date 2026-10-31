@@ -147,7 +147,7 @@ def create_app(settings=None, payments=None):
     def vehicle_photos(vin:str,request:Request):
         if vin not in vehicles:raise HTTPException(404,'Vehicle not found')
         if not store.rate_limit('media:'+digest(request.client.host if request.client else 'unknown'),limit=120):raise HTTPException(429,'Photo lookup limit reached')
-        return media.gallery(vin,vehicles[vin].get('photo',''))
+        return media.gallery(vin,vehicles[vin].get('photo',''),vehicles[vin].get('photos',[]))
 
     @app.post('/api/requests',status_code=201)
     def purchase(body:PurchaseRequest,request:Request,idempotency_key:Annotated[str,Header()]):

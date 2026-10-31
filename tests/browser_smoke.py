@@ -45,8 +45,19 @@ def main():
                 page.locator('.save').nth(1).click();page.locator('#saved-button').click();assert page.locator('.shortlist-car').count()==2
                 page.locator('#compare-saved').click();assert page.locator('.comparison-grid article').count()==2;results['shortlist_comparison']=True
                 page.locator('[data-close=compare-dialog]').click()
+                # A failed config request previously suppressed photo discovery entirely.
+                race=context.new_page();race.route('**/api/config',lambda r:r.abort())
+                attempts=[]
+                def photo_response(route):
+                    attempts.append(1)
+                    if len(attempts)==1:route.fulfill(status=503,content_type='application/json',body='{}')
+                    else:route.fulfill(status=200,content_type='application/json',body=json.dumps({'photos':[{'url':f'https://example.test/angle-{i}.jpg','title':f'Angle {i}','category':'photos'} for i in range(3)]}))
+                race.route('**/api/vehicles/7SAYGDED1RF039277/photos',photo_response)
+                race.goto(base+'/?vin=7SAYGDED1RF039277');race.locator('#gallery-retry').wait_for(state='visible');race.locator('#gallery-retry').click()
+                race.wait_for_function('()=>document.querySelectorAll(".gallery-thumb").length===3')
+                assert len(attempts)==2;results['gallery_independent_of_checkout_config']=True;results['gallery_retry']=True;race.close()
                 gallery=context.new_page();gallery.goto(base+'/?vin=5YJ3E1EA8KF413066');gallery.wait_for_selector('#gallery-thumbs .gallery-thumb')
-                assert gallery.locator('.gallery-thumb').count()==43
+                assert gallery.locator('.gallery-thumb').count()>=43
                 gallery.locator('#gallery-next').click();assert gallery.locator('#gallery-count').inner_text().startswith('2 /')
                 gallery.locator('#photo-expand').click();assert gallery.locator('#photo-dialog').evaluate('(x)=>x.open');results['full_vehicle_gallery']=True
                 forged=context.new_page();forged.goto(base+'/?reservation=success&vin=7G2CEHED5RA040513&test_mode=true');forged.wait_for_selector('.card')

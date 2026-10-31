@@ -153,3 +153,30 @@ Enroll approved `online_portal_hosts` on the dealer record. Configure per-order 
 Actions only appear in the appropriate order state. Clicking a link never marks a contract signed or funds received; state changes still require evidence.
 
 These are secure provider handoffs. Actual e-sign, lender, payment, and title accounts still need integration and end-to-end verification.
+
+
+## Vehicle photo coverage
+
+Public cards and galleries use actual VIN-bound photos. Generic placeholders are excluded.
+
+Gallery lookup runs independently of checkout configuration. Customer pages show loading, limited coverage, and retry states.
+
+`data/vehicle_photos.json` stores public photo metadata. The build embeds these galleries in `inventory.json`, including static hosting.
+
+Run the backfill on the approved remote worker:
+
+```sh
+python3 -m tools.enrich_photos --source source.json --output galleries.json --report photo-report.json
+```
+
+The input uses the private snapshot schema. Output is keyed by VIN. Import supplier photo feeds with `--feed dealer-photo-feed.json`.
+
+Each feed value contains an array of HTTPS photo URLs or `{url,title,category}` objects. Include every exterior, interior, equipment, and condition photo.
+
+A 403 or 429 stops requests to that host for the run. No challenge bypass or guessed image paths are used.
+
+Merge reviewed multi-photo output into `data/vehicle_photos.json`, rebuild, and restart the API. Public photos supersede old single-image cache entries.
+
+The October 30 backfill examined 15,088 imported records. Remote Carvana and TrueCar requests returned 403. Complete fleet coverage remains blocked.
+
+One saved VIN-bound page supplies 59 public images. Other records retain their known photos until supplier galleries become accessible.

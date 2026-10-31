@@ -10,7 +10,7 @@
   const dollars = amount => new Intl.NumberFormat('en-US', {style:'currency',currency:'USD',maximumFractionDigits:0}).format(amount);
   let items=[], byVIN=new Map(), filtered=[], limit=36, activeVIN=null, apiReady=false, config=null;
   let saved=new Set(), zip='', requestKey=null, discovery='all';
-  let galleryPhotos=[],galleryIndex=0;const failedPhotos=new Set();
+  let galleryPhotos=[],galleryIndex=0;let galleryRequest=0;const failedPhotos=new Set();
   try { saved=new Set(JSON.parse(localStorage.getItem('marketplace_saved') || '[]')); zip=localStorage.getItem('marketplace_zip') || ''; } catch {}
   if (!/^\d{5}$/.test(zip)) zip='';
   const stages=['requested','quoted','checkout_pending','deposit_paid','dealer_confirmed','dealer_funded','in_transit','delivered','settlement_pending','completed'];
@@ -61,7 +61,7 @@
     const x=byVIN.get(vin);if(!x){notify('This vehicle is not in the current published snapshot.');return;}
     activeVIN=vin;
     const url=new URL(location.href);url.searchParams.delete('reservation');url.searchParams.delete('session_id');url.searchParams.delete('test_mode');url.searchParams.set('vin',vin);history.replaceState(null,'',url);
-    $('vehicle-content').innerHTML=`<button class="close" data-close="vehicle-dialog" aria-label="Close vehicle details">×</button><div class="vehicle-top"><div class="vehicle-media"><div class="vehicle-image"><div id="gallery-stage">${image(x)}</div><button id="gallery-prev" class="gallery-arrow left" aria-label="Previous vehicle photo">‹</button><button id="gallery-next" class="gallery-arrow right" aria-label="Next vehicle photo">›</button><button id="photo-expand" class="photo-expand">⤢ View photos <span id="gallery-count"></span></button></div><div id="gallery-thumbs" class="gallery-thumbs"></div></div><div class="vehicle-summary"><p class="eyebrow">KNOW THE DETAILS</p><h2>${x.year} Tesla ${esc(x.model)}</h2><p>${esc(x.trim)} · ${x.mileage.toLocaleString()} miles</p><div class="price">${dollars(x.display_price)}</div><p class="price-label">Estimated vehicle price. Your complete quote includes tax, title, and delivery.</p><button id="vehicle-request" class="primary" ${apiReady?'':'disabled'}>${apiReady?'Reserve this Tesla · $250':'Explore this Tesla'}</button><p class="price-label">Refundable reservation. Review your complete quote before payment.</p></div></div><div class="vehicle-body"><div class="vehicle-tabs" role="tablist" aria-label="Vehicle information"><button class="tab" role="tab" id="tab-details" aria-controls="vehicle-panel" aria-selected="true" data-tab="details">Vehicle details</button><button class="tab" role="tab" id="tab-pricing" aria-controls="vehicle-panel" aria-selected="false" data-tab="pricing">Price and delivery</button><button class="tab" role="tab" id="tab-process" aria-controls="vehicle-panel" aria-selected="false" data-tab="process">Purchase steps</button></div><div id="vehicle-panel" role="tabpanel" aria-labelledby="tab-details"></div></div>`;
+    $('vehicle-content').innerHTML=`<button class="close" data-close="vehicle-dialog" aria-label="Close vehicle details">×</button><div class="vehicle-top"><div class="vehicle-media"><div class="vehicle-image"><div id="gallery-stage">${image(x)}</div><button id="gallery-prev" class="gallery-arrow left" aria-label="Previous vehicle photo">‹</button><button id="gallery-next" class="gallery-arrow right" aria-label="Next vehicle photo">›</button><button id="photo-expand" class="photo-expand">⤢ View photos <span id="gallery-count"></span></button></div><div id="gallery-thumbs" class="gallery-thumbs"></div><div class="gallery-status"><span id="gallery-status" role="status"></span><button id="gallery-retry" class="secondary" hidden>Retry photos</button></div></div><div class="vehicle-summary"><p class="eyebrow">KNOW THE DETAILS</p><h2>${x.year} Tesla ${esc(x.model)}</h2><p>${esc(x.trim)} · ${x.mileage.toLocaleString()} miles</p><div class="price">${dollars(x.display_price)}</div><p class="price-label">Estimated vehicle price. Your complete quote includes tax, title, and delivery.</p><button id="vehicle-request" class="primary" ${apiReady?'':'disabled'}>${apiReady?'Reserve this Tesla · $250':'Explore this Tesla'}</button><p class="price-label">Refundable reservation. Review your complete quote before payment.</p></div></div><div class="vehicle-body"><div class="vehicle-tabs" role="tablist" aria-label="Vehicle information"><button class="tab" role="tab" id="tab-details" aria-controls="vehicle-panel" aria-selected="true" data-tab="details">Vehicle details</button><button class="tab" role="tab" id="tab-pricing" aria-controls="vehicle-panel" aria-selected="false" data-tab="pricing">Price and delivery</button><button class="tab" role="tab" id="tab-process" aria-controls="vehicle-panel" aria-selected="false" data-tab="process">Purchase steps</button></div><div id="vehicle-panel" role="tabpanel" aria-labelledby="tab-details"></div></div>`;
     $('vehicle-request').addEventListener('click',()=>startRequest(vin));
     $('vehicle-content').querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>vehicleTab(b.dataset.tab)));
     $('vehicle-content').querySelector('[role=tablist]').addEventListener('keydown',e=>{
@@ -126,15 +126,27 @@
     });
     open('order-dialog');
   }
+  function watchGalleryImage(img){
+    if(!img)return;
+    img.addEventListener('error',()=>{
+      const panel=document.createElement('div');panel.className='photo-fallback';
+      const text=document.createElement('span');text.textContent='This photo could not load.';
+      const retry=document.createElement('button');retry.className='secondary';retry.textContent='Retry this photo';
+      retry.addEventListener('click',()=>{panel.replaceWith(img);watchGalleryImage(img);img.src=img.src;});
+      panel.append(text,retry);img.replaceWith(panel);
+    },{once:true});
+  }
   function paintGallery(){
     $('gallery-prev').hidden=$('gallery-next').hidden=galleryPhotos.length<2;
     if(!galleryPhotos.length)return;const photo=galleryPhotos[galleryIndex];
     $('gallery-stage').innerHTML=`<img class="loaded" src="${esc(photo.url)}" alt="${esc(photo.title)}" referrerpolicy="no-referrer">`;
+    watchGalleryImage($('gallery-stage').querySelector('img'));
     $('gallery-count').textContent=`${galleryIndex+1} / ${galleryPhotos.length}`;
     $('gallery-prev').hidden=$('gallery-next').hidden=galleryPhotos.length<2;
     $('gallery-thumbs').innerHTML=galleryPhotos.map((x,i)=>`<button class="gallery-thumb ${i===galleryIndex?'active':''}" data-photo="${i}" aria-label="${esc(x.title)} — photo ${i+1}"><img src="${esc(x.url)}" loading="lazy" alt="${esc(x.title)}" referrerpolicy="no-referrer"></button>`).join('');
     $('gallery-thumbs').querySelectorAll('[data-photo]').forEach(b=>b.addEventListener('click',()=>{galleryIndex=Number(b.dataset.photo);paintGallery();}));
     if($('photo-dialog').open)paintFullPhoto();
+    const thumb=$('gallery-thumbs').querySelector('.active');if(thumb)thumb.scrollIntoView({block:'nearest',inline:'nearest'});
   }
   function changePhoto(delta){if(!galleryPhotos.length)return;galleryIndex=(galleryIndex+delta+galleryPhotos.length)%galleryPhotos.length;paintGallery();}
   function paintFullPhoto(){const photo=galleryPhotos[galleryIndex];if(!photo)return;$('full-photo').src=photo.url;$('full-photo').alt=photo.title;$('full-caption').textContent=`${galleryIndex+1} / ${galleryPhotos.length} · ${photo.title}`;}
@@ -142,7 +154,21 @@
     galleryPhotos=x.photos?.length?x.photos:(x.photo?[{url:x.photo,title:`${x.year} Tesla ${x.model}`,category:'photos'}]:[]);galleryIndex=0;paintGallery();
     $('gallery-prev').addEventListener('click',()=>changePhoto(-1));$('gallery-next').addEventListener('click',()=>changePhoto(1));
     $('photo-expand').addEventListener('click',()=>{if(!galleryPhotos.length)return;paintFullPhoto();open('photo-dialog');});
-    if(apiReady&&galleryPhotos.length<2)api(`vehicles/${x.vin}/photos`).then(result=>{if(activeVIN===x.vin&&result.photos.length){galleryPhotos=result.photos;x.photos=result.photos;galleryIndex=0;paintGallery();}}).catch(()=>{});
+    const load=async()=>{
+      const request=++galleryRequest;
+      $('gallery-status').textContent=galleryPhotos.length>1?`${galleryPhotos.length} vehicle photos`:'Loading vehicle photos…';$('gallery-retry').hidden=true;
+      try{
+        // Photo discovery must not depend on the unrelated checkout configuration race.
+        const result=await api(`vehicles/${x.vin}/photos`);
+        if(activeVIN!==x.vin||request!==galleryRequest)return;
+        if(result.photos.length){const selected=galleryPhotos[galleryIndex]?.url;galleryPhotos=result.photos;x.photos=result.photos;galleryIndex=Math.max(0,galleryPhotos.findIndex(p=>p.url===selected));paintGallery();}
+        $('gallery-status').textContent=galleryPhotos.length>1?`${galleryPhotos.length} vehicle photos`:(galleryPhotos.length?'1 vehicle photo available. Additional photos are not available yet.':'Vehicle photos are not available yet.');
+      }catch(e){
+        if(activeVIN!==x.vin||request!==galleryRequest)return;
+        $('gallery-status').textContent=galleryPhotos.length>1?`${galleryPhotos.length} vehicle photos`:'Additional photos could not load. Please retry.';$('gallery-retry').hidden=false;
+      }
+    };
+    $('gallery-retry').addEventListener('click',load);load();
   }
   $('full-prev').addEventListener('click',()=>changePhoto(-1));$('full-next').addEventListener('click',()=>changePhoto(1));
   $('photo-dialog').addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key==='ArrowLeft'){e.preventDefault();changePhoto(e.key==='ArrowRight'?1:-1);}});

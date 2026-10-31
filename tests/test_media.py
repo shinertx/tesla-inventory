@@ -48,3 +48,54 @@ def test_blocked_detail_source_uses_known_primary_without_retrying(tmp_path,monk
     def forbidden(*args,**kwargs):raise AssertionError('Blocked source should not be retried')
     monkeypatch.setattr(module.requests,'get',forbidden)
     assert VehicleMedia(Store(tmp_path/'db.sqlite'),source).gallery(VIN,'https://example.test/known.jpg')['count']==1
+
+
+def test_all_spin_sets_and_fragmented_flight_records_are_collected():
+    car={'vin':VIN,'vexVdpImageData':{'spins':[
+        {'images':[{'imageUrl':'https://example.test/front.jpg'}]},
+        {'location':'interior','images':[{'imageUrl':'https://example.test/cabin.jpg'}]}]}}
+    flight='1:'+json.dumps(car)+'\n';cut=len(flight)//2
+    html=''.join('<script>self.__next_f.push('+json.dumps([1,part])+')</script>' for part in [flight[:cut],flight[cut:]])
+    photos=extract_gallery(html,VIN)
+    assert [p['url'] for p in photos]==['https://example.test/front.jpg','https://example.test/cabin.jpg']
+    assert photos[1]['category']=='interior'
+
+
+def test_published_gallery_supersedes_stale_single_photo_cache(tmp_path):
+    from app.store import Store
+    from app.media import VehicleMedia
+    service=VehicleMedia(Store(tmp_path/'db.sqlite'),tmp_path/'absent.json')
+    assert service.gallery(VIN,'https://example.test/old.jpg')['count']==1
+    photos=[{'url':'https://example.test/front.jpg'},{'url':'https://example.test/back.jpg'}]
+    result=service.gallery(VIN,published=photos)
+    assert result['count']==2 and result['status']=='ready'
+
+
+def test_photo_feed_normalization_excludes_private_fields_and_duplicates():
+    from tools.media import normalize_photos
+    photos=normalize_photos([{'url':'https://example.test/front.jpg','dealer_name':'Private Dealer','asking_price':25000},
+        'https://example.test/front.jpg','https://example.test/no-image.jpg',{'url':'https://example.test/back.jpg'}])
+    assert len(photos)==2 and all(set(p)=={'url','title','category'} for p in photos)
+
+
+def test_single_imported_photo_does_not_prevent_full_gallery_lookup(tmp_path,monkeypatch):
+    from app.store import Store
+    from app.media import VehicleMedia
+    from app import media as module
+    source=tmp_path/'source.json';source.write_text(json.dumps({'items':[{'vin':VIN,'source_url':'https://www.carvana.com/vehicle/12345','photos':[{'url':'https://example.test/front.jpg'}]}]}))
+    html='<script type="application/ld+json">'+json.dumps({'vin':VIN,'image':['https://example.test/front.jpg','https://example.test/rear.jpg']})+'</script>'
+    class Response:status_code=200;text=html
+    monkeypatch.setattr(module.requests,'get',lambda *a,**kw:Response())
+    assert VehicleMedia(Store(tmp_path/'db.sqlite'),source).gallery(VIN)['count']==2
+
+
+def test_backfill_stops_blocked_hosts_and_preserves_supplier_feed(tmp_path,monkeypatch):
+    from tools import enrich_photos
+    source=tmp_path/'source.json';source.write_text(json.dumps({'items':[{'vin':v,'source_url':'https://www.carvana.com/vehicle/12345'} for v in [VIN,'5YJ3E1EA8KF413066','7SAYGDED1RF039277']]}))
+    feed=tmp_path/'feed.json';feed.write_text(json.dumps({'7SAYGDED1RF039277':['https://example.test/front.jpg','https://example.test/rear.jpg']}))
+    calls=[]
+    class Blocked:status_code=403
+    monkeypatch.setattr(enrich_photos.requests,'get',lambda *a,**kw:calls.append(a) or Blocked())
+    out=tmp_path/'photos.json';result=enrich_photos.collect(source,out,tmp_path/'report.json',feed,pause=0)
+    assert len(calls)==1 and result['blocked_hosts']==['www.carvana.com']
+    assert len(json.loads(out.read_text())['7SAYGDED1RF039277'])==2
