@@ -46,7 +46,7 @@ def create_app(settings=None, payments=None):
     store=Store(settings.db_path)
     payments=payments or StripePayments(settings)
     inventory,vehicles=_load_inventory(settings.inventory_path)
-    app=FastAPI(title='Tesla marketplace',docs_url=None,redoc_url=None)
+    app=FastAPI(title='Used EV Direct',docs_url=None,redoc_url=None)
     app.state.store=store
     media=VehicleMedia(store,settings.sourcing_path)
 

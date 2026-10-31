@@ -158,7 +158,7 @@ def build(source=None,output=ROOT,now=None,gallery_source=None):
         cards=''.join(f'<li><a href="../?vin={x["vin"]}">{html.escape(str(x["year"])+" "+x["model"]+" "+x["trim"])}</a> — ${x["display_price"]:,.0f}, estimated vehicle price; tax, title and delivery quoted separately.</li>' for x in subset[:24])
         text=template.replace('href="web/', 'href="../web/').replace('src="web/','src="../web/')
         text=text.replace('data-preset=""',f'data-preset="{field}:{html.escape(label,quote=True)}"')
-        text=text.replace('<title>Tesla Marketplace</title>',f'<title>{html.escape(label)} Tesla listings | Tesla Marketplace</title>')
+        text=text.replace('<title>Used EV Direct | Used Tesla Storefront</title>',f'<title>{html.escape(label)} Used Tesla listings | Used EV Direct</title>')
         text=text.replace('<link rel="canonical" href="'+BASE+'/">','<link rel="canonical" href="'+href+'">')
         text=text.replace('<!-- CATEGORY_CONTENT -->',f'<section class="category-intro"><h1>{html.escape(label)} Tesla listings</h1><p>{len(subset):,} vehicles to explore. Dealer confirmation is required before reservation.</p><details><summary>Featured vehicles</summary><ul>{cards}</ul></details></section>')
         (output/group/(slug+'.html')).write_text(text)
