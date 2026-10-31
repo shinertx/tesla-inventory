@@ -176,3 +176,25 @@ def test_reservable_stock_separation_requires_seller_hold_and_clean_title(tmp_pa
     assert items[approved_vin]['reservable'] is True
     assert items[approved_vin]['availability']=='seller_approved'
     assert result['meta']['reservable_count']==1
+
+
+def test_supported_catalog_savings_and_comparability_guard(tmp_path,monkeypatch):
+    monkeypatch.setattr('tools.build.mileage_reference',lambda *args:(3320000,9))
+    good={**candidate(),'asking_price':30000}
+    mismatched_vin='5YJ3E1EA1LF654321'
+    for d in '0123456789X':
+        cand='5YJ3E1EA'+d+'LF654321'
+        if valid_vin(cand):
+            mismatched_vin=cand;break
+    mismatched={**candidate(),'vin':mismatched_vin,'asking_price':30000,'dealer_trim':'RWD','decoded_drive_hint':'AWD'}
+    build(write_source(tmp_path,[good,mismatched]),tmp_path)
+    items={x['vin']:x for x in json.loads((tmp_path/'inventory.json').read_text())['items']}
+    # Good row: reference $33,200, net $30,000 -> $3,200 raw gap; after $2,300 floor ($1,300 cost + $1,000 contribution), buyer saves $900 ($32,300 display)
+    assert items[VIN]['reference_price']==33200
+    assert items[VIN]['display_price']==32300
+    assert items[VIN]['savings_amount']==900
+    assert items[VIN]['benchmark_date']
+    # Mismatched drivetrain without equipment evidence cannot claim public savings
+    assert items[mismatched_vin]['display_price']==30000
+    assert items[mismatched_vin]['reference_price'] is None
+    assert items[mismatched_vin]['savings_amount']==0

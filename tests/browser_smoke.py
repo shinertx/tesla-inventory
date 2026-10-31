@@ -30,8 +30,12 @@ def main():
                 assert 'Availability needs confirmation' not in page.locator('#cards').inner_text();results['clean_customer_cards']=True
                 if page.locator('[data-discover=finds]').is_visible():
                     page.locator('[data-discover=finds]').click();assert page.locator('.price-win').count()==page.locator('.card').count()
+                    assert 'Save $' in page.locator('.price-win').first.inner_text()
+                    page.locator('.card-benchmark summary').first.click()
+                    assert 'peer Tesla asking prices' in page.locator('.card-benchmark').first.inner_text()
+                page.select_option('#sort','savings');assert 'Save $' in page.locator('.price-win').first.inner_text()
                 results['price_discovery']=True
-                page.locator('[data-discover=all]').click()
+                page.select_option('#sort','recommended');page.locator('[data-discover=all]').click()
                 page.select_option('#model','Cybertruck');results['model_filter']=all('Cybertruck' in t for t in page.locator('.card h3').all_text_contents());assert results['model_filter']
                 page.locator('.save').first.click();assert page.locator('#saved-count').inner_text()=='1'
                 page.locator('.card-main').first.click();page.wait_for_selector('#vehicle-dialog[open]')

@@ -118,8 +118,16 @@ def create_app(settings=None, payments=None):
             profile=json.loads(row['dealer_profile'])
             summary['seller']={k:profile[k] for k in ('legal_name','license_number','address')}
             summary['inventory_owner']='fulfilling_dealer'
+            v=vehicles.get(row['vin'],{})
+            ref_price=v.get('reference_price')
+            ref_sample=int(v.get('reference_sample') or 0)
+            ref_cents=int(round(ref_price*100)) if ref_price and ref_sample>=5 else None
             summary.update(total_cents=parsed.total_cents,deposit_cents=DEPOSIT,
                 balance_after_deposit_cents=parsed.total_cents-DEPOSIT,
+                reference_price_cents=ref_cents,
+                reference_sample=ref_sample if ref_cents else 0,
+                benchmark_date=v.get('benchmark_date'),
+                vehicle_savings_cents=max(0,ref_cents-parsed.vehicle_price_cents) if ref_cents else 0,
                 terms={k:q[k] for k in ['buyers_guide_reference','warranty_terms_reference','return_terms_reference','deposit_terms_reference']})
         financing=json.loads(row['financing_detail']) if row['financing_detail'] else {'state':row['financing_state']}
         transport=json.loads(row['transport_detail']) if row['transport_detail'] else {'state':row['transport_state']}

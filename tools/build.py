@@ -14,7 +14,12 @@ from tools.features import vehicle_features
 from tools.pricing import PricingPolicy,propose_price,mileage_reference
 BASE=os.getenv('PUBLIC_BASE_URL','https://voltsandvins.com').rstrip('/')
 INDEXNOW_KEY='7f9a2d4c8e1b6a3f5c0d9e8b7a6f5e4d'
-PRICING_POLICY=PricingPolicy(buyer_savings_cents=int(os.getenv('BUYER_SAVINGS_CENTS','0')))
+PRICING_POLICY=PricingPolicy(
+    buyer_savings_cents=int(os.getenv('BUYER_SAVINGS_CENTS','150000')),
+    minimum_contribution_cents=int(os.getenv('MIN_CONTRIBUTION_CENTS','100000')),
+    platform_cost_floor_cents=int(os.getenv('PLATFORM_COST_FLOOR_CENTS','130000')),
+    minimum_buyer_savings_cents=int(os.getenv('MIN_BUYER_SAVINGS_CENTS','50000')),
+)
 
 def schema_script(page_url, page_name, subset):
     graph=[
@@ -95,11 +100,11 @@ def build(source=None,output=ROOT,now=None,gallery_source=None):
             'trim':customer_trim(x.get('dealer_trim'),x['model']),'mileage':mileage,'display_price':price,
             'stock_number':'TSL-'+vin[-6:],'pricing_status':'estimate','city':x.get('city') or '',
             'state':x.get('state') or 'US','photo':photos[0]['url'] if photos else photo_url(x.get('photo_url')),'photos':photos,
-            'fulfillment':'dealer_owned','source_observed_at':x.get('observed_at'),
+            'fulfillment':'dealer_owned','source_observed_at':x.get('observed_at'),'benchmark_date':(age or now).date().isoformat(),
             'expires_at':(age+timedelta(days=7)).isoformat(),'reservable':reservable,
             'availability':'seller_approved' if reservable else ('source_observed' if source_recent else 'unverified'),
             'title_status':'clean_verified' if reservable else 'unverified',
-            'inspection_status':'verified' if (reservable and x.get('inspection_reference')) else 'not_verified','reference_price':None,'reference_sample':0,
+            'inspection_status':'verified' if (reservable and x.get('inspection_reference')) else 'not_verified','reference_price':None,'reference_sample':0,'savings_amount':0,
             'location_center':city_centers.get(str(x.get('city') or '').casefold().replace(' ','')+'|'+str(x.get('state') or '')),**vehicle_features(x)})
     groups=collections.defaultdict(list)
     for x in items:
@@ -119,11 +124,6 @@ def build(source=None,output=ROOT,now=None,gallery_source=None):
             net=int(net) if committed else source_prices[x['vin']]*100
             costs=supplier.get('platform_cost_cents')
             proposal=propose_price(net,reference,sample,costs,PRICING_POLICY)
-            x['display_price']=(source_prices[x['vin']]*100 if proposal['requires_market_review'] and not (committed and supplier.get('configuration_evidence_reference')) else proposal['proposed_retail_cents'])/100
-            x['pricing_basis']='source_asking_pending_review' if proposal['requires_market_review'] and not (committed and supplier.get('configuration_evidence_reference')) else proposal['pricing_basis']
-            public_reference=reference if not proposal['requires_market_review'] or (committed and supplier.get('configuration_evidence_reference')) else None
-            x['reference_price']=public_reference/100 if public_reference else None
-            x['reference_sample']=sample if public_reference else 0
             hints=[]
             drive=(supplier.get('decoded_drive_hint') or '').lower()
             trim=(supplier.get('decoded_trim_hint') or '').lower()
@@ -134,6 +134,14 @@ def build(source=None,output=ROOT,now=None,gallery_source=None):
             if proposal['requires_market_review']:hints.append('large_gap_comparison_review')
             if not reference:hints.append('insufficient_comparables')
             if not supplier.get('configuration_evidence_reference'):hints.append('equipment_evidence_required')
+            verified_commit=bool(committed and supplier.get('configuration_evidence_reference'))
+            needs_review=bool((proposal['requires_market_review'] or 'drivetrain_mismatch_review' in hints or 'performance_trim_review' in hints) and not verified_commit)
+            x['display_price']=(source_prices[x['vin']]*100 if needs_review else proposal['proposed_retail_cents'])/100
+            x['pricing_basis']='source_asking_pending_review' if needs_review else proposal['pricing_basis']
+            public_reference=reference if not needs_review else None
+            x['reference_price']=public_reference/100 if public_reference else None
+            x['reference_sample']=sample if public_reference else 0
+            x['savings_amount']=max(0,int(round(x['reference_price']-x['display_price']))) if x['reference_price'] and x['reference_price']>x['display_price'] else 0
             opportunities.append({'vin':x['vin'],'model':x['model'],'year':x['year'],'trim':x['trim'],
                 'source_dealer':supplier.get('dealer_name'),'source_url':supplier.get('source_url'),
                 'source_asking_cents':source_prices[x['vin']]*100,'dealer_net_cents':net,
