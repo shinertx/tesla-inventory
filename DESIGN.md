@@ -15,11 +15,11 @@ Find a suitable used Tesla, understand uncertainty, request verification, and re
 
 ## Required behavior
 
-Keep browsing available during dealership setup. Clearly identify the pending license status.
+Keep browsing available during dealer onboarding. Explain that enrolled dealers own and fulfill the vehicles.
 
-Use one estimated vehicle price across all views. Disclose the included planning fee and unquoted charges.
+Use one estimated vehicle price across all views. Include the planning markup in the vehicle price. Show taxes, title, and delivery in the final quote.
 
-Separate source listings from seller-confirmed availability. Require evidence for condition and equipment claims.
+Separate source listings from seller-confirmed availability. Require evidence for condition and equipment claims. Keep supplier links and net proceeds in authenticated operations.
 
 Paid checkout follows a server-approved quote. Payment redirects do not establish payment.
 

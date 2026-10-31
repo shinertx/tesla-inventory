@@ -10,6 +10,12 @@ CREATE TABLE IF NOT EXISTS orders (
  checkout_id TEXT UNIQUE, payment_id TEXT UNIQUE, created_at INTEGER NOT NULL,
  updated_at INTEGER NOT NULL, action_due_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS dealers (id TEXT PRIMARY KEY,profile TEXT NOT NULL,updated_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS settlement_receipts (reference TEXT PRIMARY KEY,order_id TEXT UNIQUE NOT NULL);
+CREATE TABLE IF NOT EXISTS settlement_reversals (reference TEXT PRIMARY KEY,order_id TEXT NOT NULL,amount_cents INTEGER NOT NULL,created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS settlements (order_id TEXT PRIMARY KEY,expected_spread_cents INTEGER NOT NULL,
+ received_cents INTEGER NOT NULL,adjustment_cents INTEGER NOT NULL,actual_platform_cost_cents INTEGER NOT NULL,
+ evidence TEXT NOT NULL,settled_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS holds (
  vin TEXT PRIMARY KEY, order_id TEXT UNIQUE NOT NULL, expires_at INTEGER,
  FOREIGN KEY(order_id) REFERENCES orders(id)
@@ -36,6 +42,14 @@ class Store:
         self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         with self.connect() as c:
             c.executescript(SCHEMA)
+            columns={r[1] for r in c.execute('PRAGMA table_info(orders)')}
+            for name,definition in [('workflow_model',"TEXT NOT NULL DEFAULT 'legacy_resale'"),('dealer_id','TEXT'),('payment_account','TEXT'),('dealer_profile','TEXT')]:
+                if name not in columns:c.execute(f'ALTER TABLE orders ADD COLUMN {name} {definition}')
+            legacy=c.execute("SELECT id,state,quote FROM orders WHERE workflow_model='legacy_resale' AND quote IS NOT NULL AND state NOT IN ('model_review','cancelled','refunded')").fetchall()
+            for row in legacy:
+                c.execute("UPDATE orders SET state='model_review' WHERE id=?",(row['id'],))
+                self.event(c,row['id'],'legacy_resale_requires_review',{'previous_state':row['state']},True)
+            c.commit()
         self.path.chmod(0o600)
 
     def connect(self):

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Authenticated dealership work queue. Never place secrets in command arguments."""
+"""Authenticated dealer-network operations. Never place secrets in command arguments."""
 import argparse, json, os, urllib.request, urllib.error
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument('action',choices=['orders','outbox','quote','transition','refund','ack','privacy-purge'])
+    p=argparse.ArgumentParser();p.add_argument('action',choices=['orders','outbox','quote','transition','refund','ack','privacy-purge','sourcing','dealers','economics','settle','settlement-reversal'])
     p.add_argument('--id');p.add_argument('--file');p.add_argument('--origin',default=os.getenv('PUBLIC_ORIGIN','http://127.0.0.1:8000'))
     args=p.parse_args();token=os.getenv('ADMIN_TOKEN','')
     if len(token)<32:p.error('Set ADMIN_TOKEN in the environment')
-    if args.action in ('orders','outbox'):path=args.action;data=None
+    if args.action in ('orders','outbox','sourcing','dealers','economics'):path=args.action;data=None
     elif args.action=='ack':path=f'outbox/{args.id}/ack';data=b'{}'
     elif args.action=='privacy-purge':path='privacy/purge';data=b'{}'
     else:

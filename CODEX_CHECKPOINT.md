@@ -1,53 +1,25 @@
-# Active objective
+# Current objective
 
-Build a truthful Carvana-style Tesla storefront and a controlled own-dealership transaction service.
+Align PR #1 with dealer-owned inventory and fulfillment. The platform generates demand and captures agreed spread.
 
 ## Decision
 
-User selected their own licensed dealership as seller. Legal identity and license evidence remain pending.
+User explicitly superseded the own-dealership acquisition/resale model. Dealers remain vehicle owners, sellers, and fulfillers.
 
-## Baseline
+## Implemented
 
-Commit 5020dcb. Static site and data reconcile with the public site.
-Inspection readings and credentials are hardcoded. Payments trust URL parameters.
-Legacy Python sources live beside this repository and are not tracked here.
+Dealer registry, dealer-bound quotes and payment accounts, connected-account deposits/refunds, dealer fulfillment stages, spread settlement/reversals, and demand-channel economics.
 
-## Work
-
-Replace unsafe templates with maintained source. Add durable requests, quotes, verified deposits, inventory holds, and fulfillment controls.
-Add an operating model covering acquisition, funding, title, inspections, transport, returns, warranty, privacy, and unit economics.
-Keep paid checkout closed without real configured dealership evidence.
-
-## Verification
-
-Run bounded local regression tests and independent browser checks. Do not run bulk collectors or charge cards.
-
-## Next
-
-Implement canonical source and regenerate static output.
-
-## Implementation complete
-
-Canonical frontend, builder, acquisition normalization, API, tests, CI, and operating documents are tracked in this repository.
-
-The legacy compiler entry point now forwards to the maintained builder. Its original is backed up in this task's work directory.
-
-Published local catalog: 14,912 candidates. Persistent exclusions suppress 176 risk-flagged records.
+Supplier data moved to ignored .data storage. Customer exports omit supplier identity, net prices, and source listing links. Seller identity is disclosed on the final quote.
 
 ## Verified
 
-- 37 regression tests passed.
-- Independent desktop/mobile browser flows passed with zero JavaScript exceptions.
-- All 68 generated HTML files passed forbidden-claim checks.
-- Source exclusions and unknown equipment/title states were reconciled across the published catalog.
-- JavaScript syntax, Python parsing, and whitespace checks passed.
-
-## External work remaining
-
-License acquisition/amendment, actual dealership identity, merchant account, persistent API hosting, monitored notifications, and real provider sandbox proof remain pending.
-
-No real payments, external messages, or bulk collection occurred.
+50 regression tests pass. Desktop/mobile browser flows pass with zero JavaScript exceptions. Public exports omit private supplier fields. Local preview is refreshed in dealer_fulfillment mode with payments disabled.
 
 ## Next
 
-Publish the repair branch for review. Confirm remote CI when available. Do not call the transaction service production-ready.
+Push the verified changes to existing PR #1 and verify current-head CI. Actual dealer enrollment and provider proof remain pending.
+
+## Boundaries
+
+No production deployment, real payment, partner enrollment, or customer sale. Actual agreements, dealer credentials, provider approval, and hosting remain external launch requirements.

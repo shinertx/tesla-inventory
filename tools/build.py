@@ -8,6 +8,7 @@ import xml.etree.ElementTree as ET
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 from tools.inventory import valid_vin
+from app.catalog import public_catalog
 BASE='https://shinertx.github.io/tesla-inventory'
 SERVICE_FEE=1500
 
@@ -24,7 +25,7 @@ def timestamp(value):
 
 def build(source=None,output=ROOT,now=None):
     output=Path(output);now=now or datetime.now(timezone.utc)
-    source=Path(source or ROOT/'data/source_snapshot.json')
+    source=Path(source or ROOT/'.data/source_snapshot.json')
     raw=json.loads(source.read_text());items=[];seen=set();excluded=collections.Counter()
     blocked=json.loads((ROOT/'data/exclusions.json').read_text())
     for x in raw['items']:
@@ -43,11 +44,10 @@ def build(source=None,output=ROOT,now=None):
         # A live source observation is still not an exclusive dealer hold.
         source_recent=bool(observed and observed>=now-timedelta(hours=48))
         items.append({'vin':vin,'model':x['model'],'year':x['year'],
-            'trim':x.get('dealer_trim') or 'Trim unverified','mileage':mileage,'asking_price':price,
-            'service_fee':SERVICE_FEE,'display_price':price+SERVICE_FEE,
-            'dealer':x.get('dealer_name') or 'Source dealer unverified','city':x.get('city') or '',
-            'state':x.get('state') or 'US','photo':safe_url(x.get('photo_url')),'source_url':url,
-            'source':x.get('source','unknown'),'source_observed_at':x.get('observed_at'),
+            'trim':x.get('dealer_trim') or 'Trim unverified','mileage':mileage,'display_price':price+SERVICE_FEE,
+            'stock_number':'TSL-'+vin[-6:],'pricing_status':'estimate','city':x.get('city') or '',
+            'state':x.get('state') or 'US','photo':safe_url(x.get('photo_url')),
+            'fulfillment':'dealer_owned','source_observed_at':x.get('observed_at'),
             'expires_at':(age+timedelta(days=7)).isoformat(),'availability':'source_observed' if source_recent else 'unverified','title_status':'unverified',
             'hardware':None,'inspection_status':'not_verified','reference_price':None,'reference_sample':0})
     groups=collections.defaultdict(list)
@@ -60,11 +60,10 @@ def build(source=None,output=ROOT,now=None):
             med=int(statistics.median(x['display_price'] for x in group))
             for x in group:x.update(reference_price=med,reference_sample=len(group))
     items.sort(key=lambda x:(x['display_price'],x['vin']))
-    payload={'meta':{'built_at':now.isoformat(),'count':len(items),'mode':'discovery',
-        'license_status':'pending','excluded':dict(excluded),'source_provenance':raw.get('provenance',''),
-        'service_fee':SERVICE_FEE,'availability_note':'Listings require seller, title, condition, and price verification.'},'items':items}
+    payload={'meta':{'built_at':now.isoformat(),'count':len(items),'mode':'dealer_fulfillment',
+        'partner_onboarding_status':'pending','excluded':dict(excluded),'availability_note':'Listings require seller, title, condition, and price verification.'},'items':items}
     output.mkdir(parents=True,exist_ok=True)
-    (output/'inventory.json').write_text(json.dumps(payload,separators=(',',':')))
+    (output/'inventory.json').write_text(json.dumps(public_catalog(payload),separators=(',',':')))
     template=(ROOT/'web/index.html').read_text()
     (output/'index.html').write_text(template)
     # Category pages use the same shopping application with an explicit preset.
@@ -79,12 +78,12 @@ def build(source=None,output=ROOT,now=None):
     for group,slug,label,field in categories:
         subset=[x for x in items if str(x[field])==label]
         href=f'{BASE}/{group}/{slug}.html'
-        cards=''.join(f'<li><a href="../?vin={x["vin"]}">{html.escape(str(x["year"])+" "+x["model"]+" "+x["trim"])}</a> — ${x["display_price"]:,}, includes ${SERVICE_FEE:,} service fee; tax, title and delivery unquoted.</li>' for x in subset[:24])
+        cards=''.join(f'<li><a href="../?vin={x["vin"]}">{html.escape(str(x["year"])+" "+x["model"]+" "+x["trim"])}</a> — ${x["display_price"]:,}, estimated vehicle price; tax, title and delivery quoted separately.</li>' for x in subset[:24])
         text=template.replace('href="web/', 'href="../web/').replace('src="web/','src="../web/')
         text=text.replace('data-preset=""',f'data-preset="{field}:{html.escape(label,quote=True)}"')
         text=text.replace('<title>Tesla Marketplace</title>',f'<title>{html.escape(label)} Tesla listings | Tesla Marketplace</title>')
         text=text.replace('<link rel="canonical" href="'+BASE+'/">','<link rel="canonical" href="'+href+'">')
-        text=text.replace('<!-- CATEGORY_CONTENT -->',f'<section class="category-intro"><h1>{html.escape(label)} Tesla listings</h1><p>{len(subset):,} candidate listings. Availability requires confirmation.</p><details><summary>Featured source listings</summary><ul>{cards}</ul></details></section>')
+        text=text.replace('<!-- CATEGORY_CONTENT -->',f'<section class="category-intro"><h1>{html.escape(label)} Tesla listings</h1><p>{len(subset):,} vehicles to explore. Dealer confirmation is required before reservation.</p><details><summary>Featured vehicles</summary><ul>{cards}</ul></details></section>')
         (output/group/(slug+'.html')).write_text(text)
         entries.append(href)
     ET.register_namespace('', 'http://www.sitemaps.org/schemas/sitemap/0.9')

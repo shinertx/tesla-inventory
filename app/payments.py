@@ -7,7 +7,7 @@ class StripePayments:
 
     def create_checkout(self, order, quote, expires_at):
         return stripe.checkout.Session.create(
-            api_key=self.settings.stripe_key, mode='payment',
+            api_key=self.settings.stripe_key, stripe_account=order['payment_account'], mode='payment',
             payment_method_types=['card'], client_reference_id=order['id'],
             metadata={'order_id':order['id'],'quote_version':str(order['quote_version'])},
             line_items=[{'price_data':{'currency':'usd','unit_amount':25000,
@@ -22,12 +22,16 @@ class StripePayments:
     def verify_event(self, raw, signature):
         return stripe.Webhook.construct_event(raw,signature,self.settings.webhook_secret)
 
-    def retrieve_checkout(self, session_id):
-        return stripe.checkout.Session.retrieve(session_id,api_key=self.settings.stripe_key)
+    def retrieve_checkout(self, session_id, account):
+        return stripe.checkout.Session.retrieve(session_id,api_key=self.settings.stripe_key,stripe_account=account)
 
     def refund(self, order):
         return stripe.Refund.create(payment_intent=order['payment_id'],amount=25000,
-            api_key=self.settings.stripe_key,idempotency_key=f"refund:{order['id']}:deposit")
+            api_key=self.settings.stripe_key,stripe_account=order['payment_account'],idempotency_key=f"refund:{order['id']}:deposit")
 
-    def expire_checkout(self, session_id):
-        return stripe.checkout.Session.expire(session_id,api_key=self.settings.stripe_key)
+    def dealer_can_charge(self,account):
+        data=stripe.Account.retrieve(account,api_key=self.settings.stripe_key)
+        return bool(data.get('charges_enabled') and data.get('details_submitted'))
+
+    def expire_checkout(self, session_id, account):
+        return stripe.checkout.Session.expire(session_id,api_key=self.settings.stripe_key,stripe_account=account)

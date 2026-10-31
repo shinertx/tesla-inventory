@@ -1,205 +1,154 @@
-# Own-dealership operating model
+# Dealer-owned Tesla fulfillment marketplace
 
-Status: licensing pending. Owner selected an own-dealership model. No legal entity or license has been verified.
+## Decision and roles
 
-## The product promise
+The platform generates demand, matches vehicles, coordinates the buying experience, and earns an agreed transaction spread.
 
-Give buyers a familiar online vehicle-shopping experience. Confirm the vehicle, complete price, seller, and written terms before taking a deposit.
+Dealers retain vehicle ownership and act as the sellers and fulfillment partners. Vehicles are never purchased into platform inventory.
 
-A source listing is a lead. It becomes reservable only after an actual source-dealer hold and an approved quote.
+Customers get a branded, guided buying experience. Their final quote and contract identify the actual selling dealer.
 
-## Licensing and ownership
+This supersedes the earlier own-dealership acquisition/resale design.
 
-Buying a dealer license is not a valid shortcut. TxDMV states dealer licenses are not transferable or assignable.
+## Is the model good?
 
-An acquisition may require ownership amendments or a new application. A new legal entity can require a new license.
+It is a credible model to test. It reduces the capital tied up in owned vehicles and lets existing dealers supply fulfillment capacity.
 
-Confirm the entity, beneficial ownership, management, licensed premises, retail license category, bond, insurance, and operating authority.
+Its economics depend on three things: committed dealer supply, affordable qualified demand, and a spread the dealer actually pays.
 
-Do not treat a wholesale-only license as retail authority. Obtain professional review of the actual acquisition structure.
+A catalog, a price difference, or a reservation is not proof of a profitable sale.
 
-Sources: [TxDMV dealer manual](https://www.txdmv.gov/sites/default/files/body-files/Motor_Vehicle_Dealer_Manual.pdf), [GDN categories](https://www.txdmv.gov/dealers/licensing/independent-gdn), [ownership updates](https://www.txdmv.gov/dealers/starting-your-new-dealership).
+The durable customer value is finding a suitable Tesla and completing the purchase reliably. The catalog is a means to that outcome.
 
-## Launch scope
+The business must give dealers incremental buyers or faster sales. The agreement must compensate the platform for that contribution.
 
-Start with one licensed entity, one supported destination state, and a small dealer-confirmed selection.
+## Transaction flow
 
-Do not advertise nationwide transaction capability until the title, tax, transport, and consumer-contract processes support each destination.
+Demand → match → supplier commitment and quote → dealer deposit → dealer acceptance → dealer funding → dealer dispatch → delivery → spread reconciliation.
 
-The source catalog can remain broad. Checkout must enforce the destination allowlist.
+The code uses:
 
-## Supply and acquisition
+`requested → quoted → checkout_pending → deposit_paid → dealer_confirmed → dealer_funded → in_transit → delivered → settlement_pending → completed`
 
-Owner: dealership sourcing lead.
+There is no platform vehicle-acquisition, inventory-funding, or title-through-platform stage.
 
-For each vehicle, retain the seller identity, acquisition price, all source fees, VIN, actual photographs, odometer, and a written hold.
+## Supplier onboarding
 
-The hold must identify its expiry, release terms, sale conditions, and the person authorized to commit the source dealer.
+Retain the dealer's verified legal identity, license evidence, address, permitted destination states, payment account, and signed agreement.
 
-Obtain permission to reuse listings and images. Confirm feed/API rights before scheduled collection. Scraping capability does not establish redistribution rights.
+The agreement must define:
 
-Keep title/condition exclusions independent of source refreshes. Never reconstruct an unknown VIN through checksum guesses.
+- Dealer ownership, seller role, and fulfillment duties.
+- Inventory/data/photo permissions and update obligations.
+- Vehicle-specific net proceeds and the customer price the dealer agrees to honor.
+- The platform's spread, attribution, settlement timing, refund treatment, and clawbacks.
+- Who receives customer funds and handles financing, taxes, title, delivery, warranty, and returns.
+- Hold duration, cancellation, substitutions, damage, complaints, and service targets.
 
-Record observed source prices as observations. Never equate an import timestamp with availability verification.
+Do not assume a publicly listed car belongs to an enrolled fulfillment partner.
 
-## Vehicle acceptance
+The configuration approval flag records an operational/legal review. It does not establish regulatory authority by itself.
 
-Owner: inspection and title lead.
+## Demand channels
 
-Collect:
+Measure organic search, paid search, referrals, affiliates, and other channels separately.
 
-- Title history and ownership chain.
-- Brand, flood, theft, lien, and odometer evidence.
-- Inspection report, dated photographs, and material-condition disclosures.
-- Battery health evidence with test method, date, and technician identity.
-- Hardware evidence from the actual vehicle.
-- Purchased software versus subscriptions; no assumed transfer of FSD or connectivity.
-- Remaining factory warranty evidence and any separate written warranty terms.
-- Open-recall disposition and charging-equipment condition.
-- Keys, charging adapters, tire condition, glass, underbody, and transport condition.
+Requests retain channel and campaign attribution. Client-provided attribution is a claim; it is not a payment entitlement.
 
-A clean title does not establish accident-free condition. A VIN does not establish current hardware or purchased software rights.
+Use actual campaign spend and settled earnings to assess contribution. Do not optimize around raw traffic or deposits.
 
-## Price and unit economics
+Test one repeatable segment first, such as a specific Tesla model and price range.
 
-Owner: dealership principal.
+Proposed pilot: obtain written dealer commitments and complete a small set of dealer-fulfilled sales before expanding paid acquisition.
 
-Show one consistent estimated vehicle price across cards, detail pages, and category pages. Disclose the current $1,500 planning fee explicitly.
+A useful pilot proves price integrity, supplier acceptance, delivery, customer support, and collected spread after channel costs.
 
-A final quote replaces that estimate. Quote taxes, registration, documentation, delivery, and other mandatory amounts before collecting a deposit.
+## Pricing and spread
 
-Review price advertising with counsel. Texas requires a dealer to honor advertised prices, subject to permitted exclusions.
+The private supplier net is not a platform vehicle purchase price.
 
-[TxDMV advertising guidance](https://www.txdmv.gov/sites/default/files/body-files/Dealer_Advertising_Presentation.pdf)
+Expected spread = customer vehicle price minus the dealer's agreed vehicle net proceeds.
 
-Contribution equals vehicle proceeds plus retained fees, less acquisition, transport, inspection/reconditioning, marketing, return/warranty reserve, and other costs.
+Expected contribution = spread minus demand, platform service, payment, reserve, and other platform-borne costs.
 
-Taxes and registration are liabilities. They are excluded from contribution revenue.
+Taxes, title/registration, dealer documentation, and delivery charges are dealer/pass-through amounts. They are not platform revenue in this implementation.
 
-Do not count lender reserve without an executed lender agreement and an eligible funded loan. The implemented model assumes no lender reserve.
+The catalog's $1,500 planning markup is an estimate. It does not establish a payable dealer obligation or earned profit.
 
-The provisional minimum contribution is $1,000 per sale. The owner must approve it against actual acquisition cost and risk.
+An approved quote requires a supplier commitment and spread agreement. Customer vehicle pricing is consistent across shopping views.
 
-The price comparison is based on advertised listings. It is not an appraisal or a guaranteed resale value.
+## Payments
 
-## Working capital
+The implemented Stripe adapter creates deposits directly on the fulfilling dealer's connected account.
 
-Owner: finance lead.
+It scopes checkout lookup and refunds to that account. Signed webhook account identity must match the stored order.
 
-The $250 deposit is refundable customer money. Do not treat it as acquisition funding or profit.
+A $250 refundable deposit does not produce a $1,500 platform fee. The deposit adapter takes no application fee.
 
-Peak cash exposure equals acquisition, transport, reconditioning, and settlement needs, less cleared funds available for those purposes.
+The remaining vehicle balance is paid to the dealer or its financing/settlement provider. The platform records dealer funding evidence.
 
-Example: a $25,000 vehicle plus $1,000 logistics requires roughly $26,000 before contingencies when usable buyer funding has not cleared.
+The platform records spread only after dealer fulfillment and a reconciled dealer remittance.
 
-A source-dealer hold reduces availability risk. It does not eliminate capital, seller-default, damage, return, or title risk.
+Stripe supports connected-account direct charges and platform fees, but an actual merchant/Connect setup still requires approval and sandbox verification.
 
-Document the funding source, daily exposure cap, bank verification, reconciliation, and conditions for paying the source seller.
+[Stripe direct-charge documentation](https://docs.stripe.com/connect/direct-charges.md?platform=web&ui=stripe-hosted)
 
-## Customer contract and disclosures
+## Fulfillment responsibilities
 
-Owner: dealership principal with counsel.
+The dealer confirms availability, title, liens, equipment, condition, recalls, and written customer terms.
 
-Define the seller, deposit scope, quote validity, cancellation rules, timing, and dispute channel.
+A quote cannot outlive its vehicle hold. Reconfirm expired dealer commitments before advancing fulfillment.
 
-Provide the applicable Buyers Guide and separate warranty terms. The FTC says online used-car buyers are entitled to a Buyers Guide.
+The dealer accepts the buyer's contract, receives the purchase balance, and dispatches the vehicle.
 
-Applicability varies by vehicle and jurisdiction. The quote accepts an exemption only with a documented basis.
+Retain carrier coverage, bill of lading, pickup condition, delivery acceptance, and Tesla app-transfer evidence.
 
-[FTC dealer guidance](https://www.ftc.gov/business-guidance/resources/dealers-guide-used-car-rule), [online buyer guidance](https://consumer.ftc.gov/articles/buying-used-car-dealer).
+The dealer handles title directly to the buyer and records applicable tax/registration completion.
 
-Do not promise seven-day returns or a warranty until the responsible party, eligibility, exclusions, funding reserve, and recovery process exist.
+Do not advertise platform inspection certification, owned hubs, warranties, or return guarantees without the underlying agreement and evidence.
 
-Do not use “official DMV form” labels for generated internal paperwork.
+## Settlement and reversals
 
-## Payments and fraud
+A deposit is a dealer-held customer liability. It is excluded from platform earnings.
 
-Owner: finance lead.
+An advertised spread is expected income. It is excluded from collected-earnings reporting.
 
-Use a dedicated dealer merchant account. Confirm processor acceptance of the business and transaction pattern.
+Settlement requires a dealer statement and receipt. Received spread plus documented adjustments must reconcile to the approved quote.
 
-Accept the quote version and linked terms before opening card-only deposit checkout.
+Idempotency prevents recording the same settlement twice. Reversals are separate entries and reduce collected spread and contribution.
 
-Only a signed webhook plus a server-retrieved matching checkout session can confirm payment.
+The current settlement endpoint records operator-verified external receipts. It does not move money or automatically invoice dealers.
 
-Reconcile deposit liabilities daily. Expired or cancelled holds with late payments enter a refund queue.
+## Customer experience
 
-Review identity, bank changes, lien payoffs, cash-reporting duties, sanctions screening, and funding fraud with qualified providers.
+Use clean shopping language, one vehicle price, vehicle location, stock number, photos, and clear purchase steps.
 
-Do not collect identity documents or bank details through the free-request form.
+Supplier names, raw prices, and listing links belong in authenticated operations. Identify the actual seller before the customer accepts terms or pays.
 
-[Stripe fulfillment](https://docs.stripe.com/checkout/fulfillment), [webhook verification](https://docs.stripe.com/events/manage-webhook-endpoints).
+VINs and photographs remain searchable. Hiding supplier details does not replace commercial agreements or protect against every bypass.
 
-## Financing and trade-ins
+The final quote contains the applicable seller identity, complete price, Buyers Guide basis, warranty, return, and deposit terms.
 
-These services are not offered in the current customer flow.
+## Customer support and risk
 
-Before enabling financing, establish lender contracts, credit consent, applications, adverse-action responsibilities, applicable licensing, and approved disclosures.
+The platform coordinates support; the selling dealer performs its contractual obligations.
 
-Before accepting trade-ins, establish appraisal, lien payoff, negative-equity treatment, title acceptance, pickup, and revised tax treatment.
+Customer cases cover returns, warranty, transport damage, title delays, and other purchase issues.
 
-A loan calculator is not loan approval. A mileage formula is not a binding appraisal.
+Specify eligibility, responsible party, transport costs, refund timing, escalation, and the effect on platform fees.
 
-## Acquisition, delivery, and title
+Disputes and unexpected deposit refunds freeze progress. Dealer revocation blocks new transactions; existing money must still be reconciled.
 
-Owner: fulfillment lead.
-
-Do not purchase until customer contracts and cleared funding satisfy the approved acquisition plan.
-
-Retain source bill of sale, acquisition payment, title chain, and lien release.
-
-Dispatch only with carrier insurance, a bill of lading, pickup-condition evidence, and a dispatch reference.
-
-Obtain delivery acceptance, condition evidence, keys, and Tesla account-transfer confirmation.
-
-Complete title/registration, tax remittance, return resolution, and final reconciliation before closing the order.
-
-Texas requires licensed dealers to use webDEALER for title and registration processing. Confirm operational enrollment before launch.
-
-[TxDMV dealer requirements](https://www.txdmv.gov/dealers).
-
-## Returns, complaints, and disputes
-
-Owner: customer operations lead.
-
-Publish the actual cancellation and return policy before quoting.
-
-Distinguish pre-contract deposit cancellation from post-contract vehicle returns. The latter requires contract review and vehicle recovery.
-
-Define mileage limits, damage responsibility, transport costs, restocking terms if permitted, refund timing, and warranty claim routing.
-
-Keep chargebacks, unexpected refunds, and fraud concerns in payment review. Do not continue fulfillment through those states.
-
-## Operating queue and service levels
-
-Each order has an action deadline and an append-only event trail.
-
-The authenticated operator queue and durable outbox require a named human owner. No email delivery is claimed.
-
-Proposed targets: review requests within one business day; resolve payment exceptions the same business day.
-
-Before public service launch, configure monitored notification delivery and escalation coverage. A database outbox alone does not notify staff.
-
-## Data and security
-
-Customer access uses a private bearer token. Operator access uses a separate secret.
-
-Use HTTPS, restricted hosting, encrypted disks/backups, least-privilege staff access, secret management, and tested restoration.
-
-Inactive unpaid requests have a configurable 90-day anonymization process. Schedule it before production.
-
-Paid transactions require a separate legally reviewed retention schedule. Identity verification belongs in a specialist system.
+Dealer ownership reduces inventory capital exposure. Demand spend, service obligations, disputed fees, and execution risk remain.
 
 ## Launch acceptance
 
-- License and ownership structure confirmed for the selling entity and premises.
-- Bond, insurance, bank, processor, and title process established.
-- Source permission, vehicle hold, inspection, and title evidence recorded.
-- Complete quote meets contribution and cash-exposure limits.
-- Customer terms reviewed and accessible.
-- Real Stripe test-mode deposit, cancellation, webhook retry, and refund proven with the merchant account.
-- One controlled acquisition, delivery, title transfer, and reconciliation proven.
-- Return/recovery process exercised before promising returns.
-- Operator coverage, notifications, backups, retention, and incident handling verified.
+- Enrolled dealer agreement, license evidence, payment account, and approved states.
+- Actual vehicle commitment and evidence-supported customer quote.
+- Real provider sandbox deposit, webhook, cancellation, and refund.
+- Dealer acceptance, balance receipt, dispatch, delivery, title, and tax proof.
+- Reconciled platform remittance and any clawbacks.
+- Positive contribution after measured demand and support costs.
+- Monitored operations, privacy, backups, and customer recovery.
 
-The software enforces transaction checkpoints. Evidence references still require responsible human verification.
+No dealer agreement, merchant account, live payment, or dealer-fulfilled customer outcome was established during this code change.

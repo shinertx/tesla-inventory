@@ -6,18 +6,17 @@ from fastapi import FastAPI, Depends, Header, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from .config import Settings, ROOT
-from .models import PurchaseRequest, Quote, Transition, Cancellation, CheckoutAcceptance, SellerHold, CustomerCase, CaseResolution, AccessRecovery
+from .models import PurchaseRequest, Quote, Transition, Cancellation, CheckoutAcceptance, SellerHold, CustomerCase, CaseResolution, AccessRecovery, Dealer, Settlement, SettlementReversal
 from .store import Store
 from .payments import StripePayments
 
 DEPOSIT = 25000
 TRANSITIONS = {
-    'deposit_paid': ('contracted', {'signed_purchase_agreement','identity_check','deposit_reconciled'}),
-    'contracted': ('funded', {'cleared_balance','funding_reference','fraud_review'}),
-    'funded': ('purchased', {'source_bill_of_sale','title_chain','lien_release','acquisition_payment'}),
-    'purchased': ('in_transit', {'carrier_insurance','bill_of_lading','pickup_condition','dispatch_reference'}),
+    'deposit_paid': ('dealer_confirmed', {'dealer_sale_contract','dealer_order_acceptance','identity_check','deposit_reconciled'}),
+    'dealer_confirmed': ('dealer_funded', {'dealer_received_balance','dealer_funding_reference','fraud_review'}),
+    'dealer_funded': ('in_transit', {'dealer_dispatch','carrier_insurance','bill_of_lading','pickup_condition'}),
     'in_transit': ('delivered', {'delivery_receipt','delivery_condition','tesla_app_transfer'}),
-    'delivered': ('completed', {'title_registration','tax_remittance','return_window_resolved','final_reconciliation'}),
+    'delivered': ('settlement_pending', {'dealer_title_to_buyer','dealer_tax_remittance','return_window_resolved','dealer_sale_statement'}),
 }
 
 def digest(value):
@@ -68,13 +67,34 @@ def create_app(settings=None, payments=None):
         if not row:raise HTTPException(404,'Request not found')
         return row
 
+    def dealer_for(c,dealer_id):
+        stored=c.execute('SELECT profile FROM dealers WHERE id=?',(dealer_id,)).fetchone()
+        if not stored:raise HTTPException(409,'Fulfilling dealer has not been onboarded')
+        dealer=Dealer.model_validate_json(stored['profile'])
+        if not dealer.verified:raise HTTPException(409,'Fulfilling dealer is not approved')
+        return dealer
+
+    def dealer_for_order(c,row):
+        if row['workflow_model']!='dealer_fulfillment' or not row['payment_account']:
+            raise HTTPException(409,'Legacy resale order requires manual review')
+        dealer=dealer_for(c,row['dealer_id'])
+        if dealer.stripe_account!=row['payment_account']:
+            raise HTTPException(409,'Dealer payment account changed; reconcile the existing order')
+        original=json.loads(row['dealer_profile'])
+        if any(original[k]!=getattr(dealer,k) for k in ('legal_name','license_number','address')):
+            raise HTTPException(409,'Selling dealer identity changed; review the quote')
+        return dealer
+
     def public(row):
-        q=json.loads(row['quote']) if row['quote'] else None
+        q=json.loads(row['quote']) if row['quote'] and row['workflow_model']=='dealer_fulfillment' else None
         summary=None
         if q:
             parsed=Quote.model_validate(q)
             summary={k:q[k] for k in ['vehicle_price_cents','tax_cents','title_registration_cents',
                 'documentation_cents','delivery_charge_cents','valid_until']}
+            profile=json.loads(row['dealer_profile'])
+            summary['seller']={k:profile[k] for k in ('legal_name','license_number','address')}
+            summary['inventory_owner']='fulfilling_dealer'
             summary.update(total_cents=parsed.total_cents,deposit_cents=DEPOSIT,
                 balance_after_deposit_cents=parsed.total_cents-DEPOSIT,
                 terms={k:q[k] for k in ['buyers_guide_reference','warranty_terms_reference','return_terms_reference','deposit_terms_reference']})
@@ -83,10 +103,29 @@ def create_app(settings=None, payments=None):
 
     @app.get('/api/config')
     def config():
-        return {'mode':'own_dealership','license_status':'verified' if settings.dealer_ready else 'pending',
-            'dealer':{'name':settings.dealer_name,'gdn':settings.dealer_gdn,'address':settings.dealer_address} if settings.dealer_ready else None,
-            'supported_states':settings.supported_states,'payments_enabled':settings.payments_ready,
-            'deposit_cents':DEPOSIT,'requests_enabled':True}
+        with store.connect() as c:
+            approved=sum(bool(json.loads(r['profile']).get('verified')) for r in c.execute('SELECT profile FROM dealers'))
+        return {'mode':'dealer_fulfillment','partner_onboarding_status':'ready' if approved and settings.platform_agreements_verified else 'pending',
+            'supported_states':settings.supported_states,'payments_enabled':bool(settings.payments_ready and approved),
+            'deposit_cents':DEPOSIT,'requests_enabled':True,'inventory_owner':'fulfilling_dealer'}
+
+    @app.put('/api/admin/dealers/{dealer_id}',dependencies=[Depends(admin)])
+    def onboard_dealer(dealer_id:str,body:Dealer):
+        if dealer_id!=body.id:raise HTTPException(409,'Dealer ID mismatch')
+        with store.transaction() as c:
+            c.execute('INSERT INTO dealers VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET profile=excluded.profile,updated_at=excluded.updated_at',(dealer_id,body.model_dump_json(),int(time.time())))
+        return {'id':dealer_id,'verified':body.verified}
+
+    @app.get('/api/admin/sourcing',dependencies=[Depends(admin)])
+    def sourcing(vin:str|None=None):
+        if not settings.sourcing_path.is_file():return {'items':[]}
+        data=json.loads(settings.sourcing_path.read_text())
+        rows=data.get('items',[])
+        return {'items':[x for x in rows if not vin or x.get('vin')==vin][:200]}
+
+    @app.get('/api/admin/dealers',dependencies=[Depends(admin)])
+    def dealers():
+        with store.connect() as c:return [json.loads(r['profile']) for r in c.execute('SELECT profile FROM dealers')]
 
     @app.post('/api/requests',status_code=201)
     def purchase(body:PurchaseRequest,request:Request,idempotency_key:Annotated[str,Header()]):
@@ -106,11 +145,12 @@ def create_app(settings=None, payments=None):
                 return {**public(row),'access_token':token}
             store.expire(c,now)
             if c.execute('SELECT 1 FROM holds WHERE vin=?',(body.vin,)).fetchone():
-                raise HTTPException(409,'This vehicle is already reserved or purchased. Choose another listing.')
+                raise HTTPException(409,'This vehicle is already reserved or sold. Choose another listing.')
             order_id=str(uuid.uuid4())
             c.execute('INSERT INTO orders(id,access_hash,request_key,request_hash,vin,customer,state,created_at,updated_at,action_due_at) '
                 'VALUES(?,?,?,?,?,?,?,?,?,?)',(order_id,digest(token),digest(idempotency_key),request_hash,body.vin,raw,'requested',now,now,now+86400))
-            store.event(c,order_id,'request_received',{'vin':body.vin},True)
+            c.execute("UPDATE orders SET workflow_model='dealer_fulfillment' WHERE id=?",(order_id,))
+            store.event(c,order_id,'request_received',{'vin':body.vin,'demand_channel':body.demand_channel,'campaign_id':body.campaign_id},True)
             return {**public(get_order(c,order_id)),'access_token':token}
 
     @app.get('/api/orders/{order_id}')
@@ -146,7 +186,7 @@ def create_app(settings=None, payments=None):
 
     @app.post('/api/admin/orders/{order_id}/quote',dependencies=[Depends(admin)])
     def quote(order_id:str,body:Quote):
-        if not settings.dealer_ready:raise HTTPException(409,'Dealership licensing is pending')
+        if not settings.platform_agreements_verified:raise HTTPException(409,'Platform transaction agreements are pending')
         now=int(time.time())
         if body.valid_until<now+1900:raise HTTPException(409,'Quote and seller hold need at least 32 minutes remaining')
         if body.contribution_cents<settings.min_contribution_cents:raise HTTPException(409,'Quote fails contribution requirement')
@@ -154,21 +194,29 @@ def create_app(settings=None, payments=None):
         with store.transaction() as c:
             row=get_order(c,order_id)
             if row['state'] not in ('requested','quoted','quote_expired'):raise HTTPException(409,'Order cannot be requoted')
+            dealer=dealer_for(c,body.dealer_id)
             customer=json.loads(row['customer'])
-            if customer.get('state') not in settings.supported_states:raise HTTPException(409,'Destination is not supported')
+            if customer.get('state') not in dealer.supported_states or customer.get('state') not in settings.supported_states:raise HTTPException(409,'Destination is not supported')
             c.execute("UPDATE orders SET quote=?,quote_version=quote_version+1,state='quoted',checkout_id=NULL,updated_at=?,action_due_at=? WHERE id=?",(body.model_dump_json(),now,body.valid_until,order_id))
+            c.execute("UPDATE orders SET workflow_model='dealer_fulfillment',dealer_id=?,payment_account=?,dealer_profile=? WHERE id=?",(dealer.id,dealer.stripe_account,dealer.model_dump_json(),order_id))
             c.execute('INSERT INTO source_holds VALUES(?,?,?) ON CONFLICT(order_id) DO UPDATE SET expires_at=excluded.expires_at,reference=excluded.reference',(order_id,body.seller_hold_until,body.seller_hold_reference))
-            store.event(c,order_id,'quote_approved',{'contribution_cents':body.contribution_cents},True)
+            store.event(c,order_id,'quote_approved',{'contribution_cents':body.contribution_cents,'expected_spread_cents':body.spread_cents,'dealer_id':dealer.id},True)
             return public(get_order(c,order_id))
 
     @app.post('/api/orders/{order_id}/checkout')
     def checkout(order_id:str,body:CheckoutAcceptance,request:Request,authorization:Annotated[str|None,Header()]=None):
-        if not settings.payments_ready:raise HTTPException(409,'Paid checkout is unavailable while dealership setup is pending')
+        if not settings.payments_ready:raise HTTPException(409,'Partner checkout is not yet configured')
         now=int(time.time())
         with store.transaction() as c:
             store.expire(c,now)
             row=order_access(c,order_id,authorization)
             if row['state'] not in ('quoted','checkout_pending'):raise HTTPException(409,'A verified quote is required')
+            dealer=dealer_for_order(c,row)
+            destination=json.loads(row['customer']).get('state')
+            if destination not in dealer.supported_states or destination not in settings.supported_states:raise HTTPException(409,'Destination is no longer supported')
+            try:capable=payments.dealer_can_charge(row['payment_account'])
+            except Exception:raise HTTPException(503,'Dealer payment capability could not be verified')
+            if not capable:raise HTTPException(409,'Dealer payment account cannot accept charges')
             q=Quote.model_validate_json(row['quote'])
             if body.quote_version!=row['quote_version']:raise HTTPException(409,'Quote changed; review the current quote')
             if min(q.valid_until,q.seller_hold_until)<now+1900:raise HTTPException(409,'Quote needs renewal')
@@ -176,7 +224,7 @@ def create_app(settings=None, payments=None):
                 c.execute('INSERT INTO holds(vin,order_id,expires_at) VALUES(?,?,?) ON CONFLICT(order_id) DO NOTHING',(row['vin'],order_id,now+1800))
             except sqlite3.IntegrityError:raise HTTPException(409,'Another customer currently holds this vehicle')
             if row['checkout_id']:
-                try:session=payments.retrieve_checkout(row['checkout_id'])
+                try:session=payments.retrieve_checkout(row['checkout_id'],row['payment_account'])
                 except Exception:raise HTTPException(503,'Payment provider unavailable; retry safely')
                 if session.get('status')!='open':raise HTTPException(409,'Checkout is no longer open; check order status')
                 return {'url':session['url']}
@@ -197,7 +245,11 @@ def create_app(settings=None, payments=None):
         # Fetch canonical provider data; URL parameters never mutate payment state.
         session=None
         if kind in ('checkout.session.completed','checkout.session.async_payment_succeeded'):
-            try:session=payments.retrieve_checkout(obj['id'])
+            with store.connect() as lookup:
+                bound=lookup.execute('SELECT payment_account FROM orders WHERE checkout_id=?',(obj['id'],)).fetchone()
+            if not bound or not event.get('account') or event['account']!=bound['payment_account']:
+                raise HTTPException(409,'Webhook account does not match the fulfilling dealer')
+            try:session=payments.retrieve_checkout(obj['id'],bound['payment_account'])
             except Exception:raise HTTPException(503,'Payment verification unavailable')
         with store.transaction() as c:
             if c.execute('SELECT 1 FROM stripe_events WHERE id=?',(event['id'],)).fetchone():return {'received':True}
@@ -214,7 +266,9 @@ def create_app(settings=None, payments=None):
                     if row['payment_id']!=session['payment_intent']:raise HTTPException(409,'Different payment already recorded')
                 else:
                     q=Quote.model_validate_json(row['quote']);hold=c.execute('SELECT * FROM holds WHERE order_id=?',(row['id'],)).fetchone()
-                    usable=(settings.payments_ready and row['state']=='checkout_pending' and hold and hold['expires_at']>now
+                    partner=c.execute('SELECT profile FROM dealers WHERE id=?',(row['dealer_id'],)).fetchone()
+                    partner_valid=bool(partner and json.loads(partner['profile']).get('verified') and json.loads(partner['profile']).get('stripe_account')==row['payment_account'])
+                    usable=(partner_valid and settings.payments_ready and row['state']=='checkout_pending' and hold and hold['expires_at']>now
                         and min(q.valid_until,q.seller_hold_until)>now)
                     state='deposit_paid' if usable else 'refund_pending'
                     c.execute('UPDATE orders SET state=?,payment_id=?,updated_at=?,action_due_at=? WHERE id=?',(state,session['payment_intent'],now,now+86400,row['id']))
@@ -223,12 +277,14 @@ def create_app(settings=None, payments=None):
                     store.event(c,row['id'],state,{'payment_id':session['payment_intent']},True)
             elif kind=='checkout.session.expired':
                 row=c.execute('SELECT * FROM orders WHERE checkout_id=?',(obj['id'],)).fetchone()
+                if row and row['payment_account']!=event.get('account'):raise HTTPException(409,'Webhook account mismatch')
                 if row and row['state']=='checkout_pending':
                     c.execute("UPDATE orders SET state='quote_expired',updated_at=? WHERE id=?",(now,row['id']))
                     c.execute('DELETE FROM holds WHERE order_id=?',(row['id'],))
                     store.event(c,row['id'],'checkout_expired',{},True)
             elif kind in ('refund.updated','refund.created'):
                 row=c.execute('SELECT * FROM orders WHERE payment_id=?',(obj.get('payment_intent',''),)).fetchone()
+                if row and row['payment_account']!=event.get('account'):raise HTTPException(409,'Webhook account mismatch')
                 if row and obj.get('amount')==DEPOSIT and obj.get('status')=='succeeded':
                     if row['state']=='refund_pending':
                         c.execute("UPDATE orders SET state='refunded',updated_at=? WHERE id=?",(now,row['id']))
@@ -239,6 +295,7 @@ def create_app(settings=None, payments=None):
                         store.event(c,row['id'],'unexpected_refund',{'refund_id':obj['id']},True)
             elif kind=='charge.dispute.created':
                 row=c.execute('SELECT * FROM orders WHERE payment_id=?',(obj.get('payment_intent',''),)).fetchone()
+                if row and row['payment_account']!=event.get('account'):raise HTTPException(409,'Webhook account mismatch')
                 if row:
                     c.execute("UPDATE orders SET state='payment_review',updated_at=? WHERE id=?",(now,row['id']))
                     store.event(c,row['id'],'dispute_received',{'dispute_id':obj['id']},True)
@@ -268,6 +325,7 @@ def create_app(settings=None, payments=None):
         with store.transaction() as c:
             row=get_order(c,order_id)
             if row['state']=='refunded':return public(row)
+            if row['workflow_model']!='dealer_fulfillment' or not row['payment_account']:raise HTTPException(409,'Legacy payment requires manual review')
             if row['state']!='refund_pending' or not row['payment_id']:raise HTTPException(409,'No pending deposit refund')
             try:result=payments.refund(dict(row))
             except Exception:raise HTTPException(503,'Refund failed; retry with the same order')
@@ -281,11 +339,11 @@ def create_app(settings=None, payments=None):
 
     @app.post('/api/admin/orders/{order_id}/transition',dependencies=[Depends(admin)])
     def transition(order_id:str,body:Transition):
-        if body.state in ('contracted','purchased') and not settings.dealer_ready:raise HTTPException(409,'Dealership authority must be confirmed')
+        if not settings.platform_agreements_verified:raise HTTPException(409,'Platform transaction agreements are pending')
         with store.transaction() as c:
-            row=get_order(c,order_id);rule=TRANSITIONS.get(row['state'])
+            row=get_order(c,order_id);dealer_for_order(c,row);rule=TRANSITIONS.get(row['state'])
             if not rule or body.state!=rule[0]:raise HTTPException(409,'Invalid order transition')
-            if body.state in ('contracted','funded','purchased'):
+            if body.state in ('dealer_confirmed','dealer_funded','in_transit'):
                 hold=c.execute('SELECT expires_at FROM source_holds WHERE order_id=?',(order_id,)).fetchone()
                 if not hold or hold['expires_at']<=int(time.time()):raise HTTPException(409,'Source dealer hold expired; reconfirm before proceeding')
             if any(len(body.evidence.get(key,'').strip())<5 for key in rule[1]):
@@ -293,6 +351,52 @@ def create_app(settings=None, payments=None):
             c.execute('UPDATE orders SET state=?,updated_at=?,action_due_at=? WHERE id=?',(body.state,int(time.time()),int(time.time())+86400,order_id))
             store.event(c,order_id,body.state,body.evidence,True)
             return public(get_order(c,order_id))
+
+    @app.post('/api/admin/orders/{order_id}/settle',dependencies=[Depends(admin)])
+    def settle(order_id:str,body:Settlement):
+        with store.transaction() as c:
+            row=get_order(c,order_id)
+            if row['workflow_model']!='dealer_fulfillment':raise HTTPException(409,'Legacy resale order requires review')
+            existing=c.execute('SELECT * FROM settlements WHERE order_id=?',(order_id,)).fetchone()
+            if existing:
+                if json.loads(existing['evidence'])!=body.model_dump():raise HTTPException(409,'Settlement already recorded with different evidence')
+                return public(row)
+            if row['state']!='settlement_pending':raise HTTPException(409,'Dealer fulfillment must finish before spread settlement')
+            q=Quote.model_validate_json(row['quote'])
+            if body.received_cents+body.adjustment_cents!=q.spread_cents:raise HTTPException(409,'Dealer remittance does not reconcile to the agreed spread')
+            now=int(time.time())
+            try:c.execute('INSERT INTO settlement_receipts VALUES(?,?)',(body.receipt_reference,order_id))
+            except sqlite3.IntegrityError:raise HTTPException(409,'Receipt reference was already used for another order')
+            c.execute('INSERT INTO settlements VALUES(?,?,?,?,?,?,?)',(order_id,q.spread_cents,body.received_cents,body.adjustment_cents,body.actual_platform_cost_cents,body.model_dump_json(),now))
+            c.execute("UPDATE orders SET state='completed',updated_at=? WHERE id=?",(now,order_id))
+            store.event(c,order_id,'spread_settled',{'received_cents':body.received_cents,'actual_contribution_cents':body.received_cents-body.actual_platform_cost_cents},True)
+            return public(get_order(c,order_id))
+
+    @app.post('/api/admin/orders/{order_id}/settlement-reversal',dependencies=[Depends(admin)])
+    def reverse_settlement(order_id:str,body:SettlementReversal):
+        with store.transaction() as c:
+            row=c.execute('SELECT * FROM settlements WHERE order_id=?',(order_id,)).fetchone()
+            if not row:raise HTTPException(409,'No received spread to reverse')
+            prior=c.execute('SELECT * FROM settlement_reversals WHERE reference=?',(body.reference,)).fetchone()
+            if prior:
+                if prior['order_id']!=order_id or prior['amount_cents']!=body.amount_cents:raise HTTPException(409,'Reversal reference already used')
+                return {'recorded':True}
+            reversed_cents=c.execute('SELECT COALESCE(SUM(amount_cents),0) FROM settlement_reversals WHERE order_id=?',(order_id,)).fetchone()[0]
+            if reversed_cents+body.amount_cents>row['received_cents']:raise HTTPException(409,'Cannot reverse more spread than was received')
+            c.execute('INSERT INTO settlement_reversals VALUES(?,?,?,?)',(body.reference,order_id,body.amount_cents,int(time.time())))
+            store.event(c,order_id,'spread_reversed',body.model_dump(),True)
+        return {'recorded':True}
+
+    @app.get('/api/admin/economics',dependencies=[Depends(admin)])
+    def economics():
+        with store.connect() as c:
+            rows=c.execute('SELECT o.customer,s.*,(SELECT COALESCE(SUM(r.amount_cents),0) FROM settlement_reversals r WHERE r.order_id=s.order_id) AS reversed_cents FROM settlements s JOIN orders o ON o.id=s.order_id').fetchall()
+        channels={}
+        for row in rows:
+            channel=json.loads(row['customer']).get('demand_channel','direct')
+            stats=channels.setdefault(channel,{'settled_sales':0,'spread_received_cents':0,'spread_reversed_cents':0,'net_spread_cents':0,'actual_platform_cost_cents':0,'contribution_cents':0})
+            stats['settled_sales']+=1;stats['spread_received_cents']+=row['received_cents'];stats['actual_platform_cost_cents']+=row['actual_platform_cost_cents'];stats['spread_reversed_cents']+=row['reversed_cents'];stats['net_spread_cents']+=row['received_cents']-row['reversed_cents'];stats['contribution_cents']+=row['received_cents']-row['reversed_cents']-row['actual_platform_cost_cents']
+        return {'basis':'dealer remittances, not vehicle GMV or refundable deposits','channels':channels}
 
     @app.post('/api/admin/orders/{order_id}/access',dependencies=[Depends(admin)])
     def recover_access(order_id:str,body:AccessRecovery):
@@ -309,7 +413,7 @@ def create_app(settings=None, payments=None):
         if body.expires_at<=int(time.time()):raise HTTPException(409,'Hold must extend into the future')
         with store.transaction() as c:
             row=get_order(c,order_id)
-            if row['state'] not in ('deposit_paid','contracted','funded'):raise HTTPException(409,'Hold cannot be renewed in this state')
+            if row['state'] not in ('deposit_paid','dealer_confirmed','dealer_funded'):raise HTTPException(409,'Hold cannot be renewed in this state')
             c.execute('INSERT INTO source_holds VALUES(?,?,?) ON CONFLICT(order_id) DO UPDATE SET expires_at=excluded.expires_at,reference=excluded.reference',(order_id,body.expires_at,body.reference))
             store.event(c,order_id,'source_hold_reconfirmed',body.model_dump(),True)
         return {'renewed':True}
@@ -361,7 +465,8 @@ def create_app(settings=None, payments=None):
             store.expire(c,int(time.time()))
             occupied={r[0] for r in c.execute('SELECT vin FROM holds')}
         items=[x for x in inventory['items'] if x['vin'] not in occupied and (not x.get('expires_at') or datetime.fromisoformat(x['expires_at']).timestamp()>time.time())]
-        return {**inventory,'meta':{**inventory.get('meta',{}),'count':len(items)},'items':items}
+        from .catalog import public_catalog
+        return public_catalog({**inventory,'meta':{**inventory.get('meta',{}),'count':len(items)},'items':items})
     @app.get('/sitemap.xml')
     def sitemap():return FileResponse(ROOT/'sitemap.xml',media_type='application/xml')
     @app.get('/robots.txt')

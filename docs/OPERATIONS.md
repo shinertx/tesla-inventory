@@ -1,157 +1,129 @@
-# Transaction operations
+# Dealer-network operations
+
+## Ownership and deployment
+
+The platform owns demand generation and transaction coordination. The fulfilling dealer owns the car and sells directly to the customer.
+
+Host the API on persistent HTTPS infrastructure. GitHub Pages supports static shopping only.
+
+Use one SQLite-backed application instance until migrating to a shared transactional database.
 
 ## Configuration
 
-Copy `.env.example` to private deployment configuration. Populate secrets through the host's secret manager.
+Set `ADMIN_TOKEN` to a private secret of at least 32 characters.
 
-The service does not automatically load `.env` files.
+`PLATFORM_AGREEMENTS_VERIFIED=true` records approval of the platform transaction structure and agreements.
 
-`DEALER_VERIFIED=true` requires documented licensing confirmation for the actual entity and premises.
+It does not assert that the platform owns a dealership or eliminate any applicable legal requirements.
 
-`DEALER_LICENSE_EVIDENCE` identifies the retained verification. `SUPPORTED_STATES` lists approved destination states.
+Set approved `SUPPORTED_STATES`, Stripe platform credentials, and a connected-account webhook secret.
 
-`CHECKOUT_ENABLED=true` also requires Stripe credentials and a webhook secret. Live keys require an HTTPS public origin.
+`CHECKOUT_ENABLED` stays false until actual partner/account sandbox verification is complete.
 
-The code checks configuration and evidence references. It cannot independently authenticate a license or inspect a vehicle.
+Do not place secrets or supplier snapshots in the public repository.
 
-## Operator access
+## Private supplier data
 
-The API uses `Authorization: Bearer <ADMIN_TOKEN>`. Never put the token in a URL.
+`SOURCING_JSON` defaults to `.data/source_snapshot.json`.
+
+The builder and collectors read/write private supplier inputs there. The public catalog contains an explicit customer-field allowlist.
+
+`GET /api/admin/sourcing` requires operator authentication. It exposes supplier names, listing links, and raw prices only to operators.
+
+Previously committed supplier data remains in Git history. This change removes it from the current tree and public-serving paths; it cannot revoke historical exposure.
+
+VINs and approved photographs can still identify a vehicle externally. Confirm media permissions and use approved branded media when available.
+
+## Enroll dealers
+
+Authenticated `PUT /api/admin/dealers/{id}` stores:
+
+- Dealer ID, legal name, license number, address, and supported states.
+- Connected Stripe account.
+- License evidence and signed agreement reference.
+- Operator verification status.
+
+Only an approved dealer can fulfill a quote. Checkout verifies the connected account can accept charges.
+
+Order records snapshot the seller and payment account. Account changes cannot silently redirect an existing checkout or refund.
+
+## Quotes
+
+All monetary values use integer cents. `app/models.py` is the schema contract.
+
+Set the fulfilling dealer, agreed dealer vehicle net, customer vehicle price, taxes, title, documentation, and delivery charges.
+
+Record platform-borne demand, service, payment, reserve, and other costs.
+
+Provide supplier commitment, spread agreement, hold expiry, title/lien, inspection, equipment, recall, tax, and carrier evidence.
+
+Customer terms need accessible HTTPS documents. The quote exposes the legal seller, total price, and terms before acceptance.
+
+Quotes cannot outlive supplier holds. Checkout requires at least 32 minutes remaining.
+
+## Deposits and money ownership
+
+The adapter creates card deposits on the fulfilling dealer's connected account using `stripe_account`.
+
+It takes no platform application fee from the refundable $250 deposit.
+
+Register the webhook to receive connected-account events. The signed event's account must match the stored order before payment lookup.
+
+Subscribe to checkout completion/expiry, refund creation/update, and dispute creation events.
+
+Verify amount, currency, quote version, order, account, and live/test mode against the retrieved session.
+
+Refunds use the original dealer account, even if its onboarding status later changes.
+
+Late payments and revoked dealer commitments enter refund review. Payment redirects never establish payment.
+
+The dealer or its provider receives the balance. `dealer_funded` requires that evidence; it does not represent platform acquisition funding.
+
+## Fulfillment and settlement
+
+`requested → quoted → checkout_pending → deposit_paid → dealer_confirmed → dealer_funded → in_transit → delivered → settlement_pending → completed`
+
+Transitions require evidence named in `TRANSITIONS`. No vehicle ownership transfers to the platform.
+
+Dealer commitments must remain valid through dealer funding and dispatch. Renew with `/api/admin/orders/{id}/hold`.
+
+Completion requires `/api/admin/orders/{id}/settle`, a dealer statement, receipt, actual platform costs, and reconciliation to the agreed spread.
+
+Settlement is an operator-confirmed external receipt. The endpoint does not move cash.
+
+Record fee clawbacks through `/api/admin/orders/{id}/settlement-reversal`. Duplicate references do not duplicate deductions.
+
+`GET /api/admin/economics` reports collected spread, reversals, and actual contribution by demand channel.
+
+Vehicle GMV, deposits, and expected price gaps are excluded from collected platform revenue.
+
+## Operator commands
+
+Use environment credentials, never command-line secrets.
 
 ```sh
 python3 -m tools.dealer_ops orders
-python3 -m tools.dealer_ops outbox
+python3 -m tools.dealer_ops sourcing
+python3 -m tools.dealer_ops dealers
+python3 -m tools.dealer_ops economics
 python3 -m tools.dealer_ops quote --id ORDER_ID --file private-quote.json
 python3 -m tools.dealer_ops transition --id ORDER_ID --file private-transition.json
+python3 -m tools.dealer_ops settle --id ORDER_ID --file private-settlement.json
+python3 -m tools.dealer_ops settlement-reversal --id ORDER_ID --file private-reversal.json
 python3 -m tools.dealer_ops refund --id ORDER_ID
-python3 -m tools.dealer_ops ack --id OUTBOX_EVENT_ID
-python3 -m tools.dealer_ops privacy-purge
+python3 -m tools.dealer_ops outbox
 ```
 
-Store customer quote files outside the public repository.
+## Exceptions, privacy, and legacy data
 
-## Quote fields
+Legacy resale quotes/orders enter `model_review`. They are not reinterpreted as dealer-owned fulfillment or silently refunded through a different account.
 
-All money uses integer cents. Model definitions in `app/models.py` are the API contract.
+Retain their payment and original quote evidence for manual reconciliation.
 
-Required cost inputs:
+Customer cases, private access receipts, verified operator recovery, and the notification outbox remain available.
 
-- Acquisition and customer vehicle price.
-- Sales tax and title/registration.
-- Documentation and customer delivery charges.
-- Actual carrier cost, inspection/reconditioning, marketing, reserves, and other costs.
+Assign operators and connect monitored notification delivery before accepting public demand.
 
-Required evidence:
+Keep evidence in restricted storage. Schedule inactive-lead anonymization and apply a reviewed paid-transaction retention policy.
 
-- Source hold reference and expiry.
-- Title history and lien disposition.
-- Inspection, equipment, and recall disposition.
-- Tax and carrier quotes.
-- Applicable Buyers Guide or documented exemption basis.
-- Accessible warranty, return, and deposit terms.
-
-Customer-visible terms require HTTPS URLs. Do not use internal file paths for those links.
-
-The quote cannot outlive the source hold. Checkout needs at least 32 minutes of remaining validity.
-
-The default minimum contribution is $1,000. This is provisional and requires owner approval.
-
-Taxes and registration do not count as revenue. No assumed lender reserve is included.
-
-## Customer access
-
-`POST /api/requests` requires a unique `Idempotency-Key` and explicit request consent.
-
-The response returns the order ID and a private access token. The browser retains only that pair in sessionStorage.
-
-Customer name, email, state, and ZIP are stored server-side. They are not stored in localStorage or payment redirect parameters.
-
-`GET /api/orders/{id}` requires the customer bearer token.
-
-`POST /api/orders/{id}/checkout` requires the current quote version and explicit terms acceptance.
-
-This release uses guest access with a downloadable private receipt. Customers can restore access with the request ID and access code. Lost receipts require an operator-verified recovery process; never reset access from an unauthenticated email claim.
-
-## Payment verification
-
-Register `/api/stripe/webhook` with the dealer's own Stripe account.
-
-Subscribe to:
-
-- `checkout.session.completed`
-- `checkout.session.async_payment_succeeded`
-- `checkout.session.expired`
-- `refund.created`
-- `refund.updated`
-- `charge.dispute.created`
-
-The handler verifies the raw-body signature and retrieves the checkout session.
-
-It matches order, quote version, amount, currency, payment status, and live/test mode.
-
-Event IDs prevent duplicate handling. Checkout and refund calls use stable provider idempotency keys.
-
-Late payments enter `refund_pending`. They cannot displace another customer's VIN hold.
-
-Refund completion requires provider success. Unexpected refunds or disputes freeze fulfillment in `payment_review`.
-
-## Order states
-
-`requested → quoted → checkout_pending → deposit_paid → contracted → funded → purchased → in_transit → delivered → completed`
-
-Exception states: `quote_expired`, `cancelled`, `refund_pending`, `refunded`, `payment_review`.
-
-Each forward transition requires named evidence. See `TRANSITIONS` in `app/main.py`.
-
-Before contracting, funding, or purchasing, the source-dealer hold must remain valid.
-
-Renew a paid order's source hold with authenticated `POST /api/admin/orders/{id}/hold` and a new evidence reference.
-
-A paid hold does not automatically expire into resale. An operator must resolve payment and ownership first.
-
-Reserved or purchased vehicles disappear from the API-served catalog. New requests for held VINs are rejected.
-
-## Customer cases
-
-Customers can open return, warranty, transport-damage, title-delay, or general cases.
-
-`GET /api/admin/cases` returns unresolved cases. Each has a review deadline.
-
-`POST /api/admin/cases/{case_id}` requires an owner and resolution evidence.
-
-Opening a return case does not promise eligibility or automatically refund a vehicle purchase.
-
-Vehicle purchase balances are outside the card-deposit subsystem. Reconcile full-price refunds through the actual settlement rails and signed terms.
-
-## Notifications and exceptions
-
-The outbox is durable. It is not an email-delivery service.
-
-Assign a human owner before accepting public requests. Connect monitored delivery before claiming notifications.
-
-Acknowledge events only after handling them or delivering them to the responsible operator.
-
-Review overdue `action_due_at` orders, refund exceptions, unresolved cases, and provider failures each business day.
-
-## Retention and recovery
-
-Run the authenticated privacy purge on a daily operations schedule. It anonymizes inactive unpaid leads after the configured retention interval.
-
-It preserves paid transaction records. Establish the applicable legal retention schedule before production.
-
-Handle explicit privacy requests from the outbox. Resolve legal-hold and transaction obligations before deletion.
-
-Back up SQLite using its backup API or an application-consistent snapshot. Encrypt backups and test restoration.
-
-Store all retained evidence in restricted storage with stable references. Do not upload identity or financial documents into the public repository.
-
-## Production boundaries
-
-- One instance with a persistent private volume; no ephemeral serverless SQLite.
-- HTTPS, a trusted reverse proxy, request-size limits, and rate-limit policy.
-- Managed operator identity and role separation before broad staff access.
-- Real provider sandbox verification and webhook retry testing.
-- Notifications, account recovery, retention scheduling, backups, and restore drills.
-- Dealership authority, merchant acceptance, financing arrangements, and written customer terms.
-
-These integrations require actual accounts and business decisions. Passing mocked regression tests does not establish production operation.
+Use encrypted backups and test restores. Confirm dealer support, returns, title, tax, insurance, and settlement responsibilities before enabling payments.

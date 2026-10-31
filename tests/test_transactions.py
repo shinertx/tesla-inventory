@@ -15,9 +15,12 @@ class Payments:
         if self.fail:raise RuntimeError('network')
         self.session_calls+=1
         sid='cs_test_'+order['id']
-        session=dict(id=sid,url='https://checkout.stripe.com/c/pay/'+sid,status='open',payment_status='unpaid',amount_total=25000,currency='usd',mode='payment',livemode=False,payment_intent='pi_'+order['id'],metadata={'order_id':order['id'],'quote_version':str(order['quote_version'])})
+        session=dict(account=order['payment_account'],id=sid,url='https://checkout.stripe.com/c/pay/'+sid,status='open',payment_status='unpaid',amount_total=25000,currency='usd',mode='payment',livemode=False,payment_intent='pi_'+order['id'],metadata={'order_id':order['id'],'quote_version':str(order['quote_version'])})
         self.sessions[sid]=session;return session
-    def retrieve_checkout(self,sid):return self.sessions[sid]
+    def retrieve_checkout(self,sid,account):
+        assert self.sessions[sid]['account']==account
+        return self.sessions[sid]
+    def dealer_can_charge(self,account):return account=='acct_fixtureDealer'
     def verify_event(self,raw,signature):
         if signature!='valid-test-signature':raise ValueError('bad signature')
         return json.loads(raw)
@@ -29,8 +32,10 @@ class Payments:
 def setup(tmp_path):
     inv=tmp_path/'inventory.json';inv.write_text(json.dumps({'items':[{'vin':VIN}]}))
     settings=Settings(db_path=tmp_path/'orders.db',inventory_path=inv,admin_token=TOKEN,
-        dealer_name='TEST FIXTURE DEALER',dealer_gdn='TEST-ONLY',dealer_address='TEST ONLY',dealer_license_evidence='fixture:test',dealer_verified=True,supported_states=('TX',),checkout_enabled=True,stripe_key='sk_test_fixture',webhook_secret='whsec_fixture')
+        platform_agreements_verified=True,supported_states=('TX',),checkout_enabled=True,stripe_key='sk_test_fixture',webhook_secret='whsec_fixture')
     payments=Payments();app=create_app(settings,payments)
+    profile=dict(id='fixture-dealer',legal_name='FIXTURE FULFILLING DEALER',license_number='TEST-LICENSE',address='TEST ADDRESS',supported_states=['TX'],stripe_account='acct_fixtureDealer',agreement_reference='agreement:fixture',license_evidence='license:fixture',verified=True)
+    with app.state.store.transaction() as db:db.execute('INSERT INTO dealers VALUES(?,?,?)',(profile['id'],json.dumps(profile),int(time.time())))
     return TestClient(app),settings,payments,app.state.store
 
 def customer(vin=VIN):return dict(vin=vin,name='Test Buyer',email='buyer@example.test',state='TX',zip='78201',consent=True)
@@ -39,9 +44,9 @@ def request(client,key=None,body=None):
 def auth(order):return {'Authorization':'Bearer '+order['access_token']}
 def admin():return {'Authorization':'Bearer '+TOKEN}
 def quote_body(**changes):
-    refs={key:'evidence:test-document' for key in ['seller_hold_reference','title_history_reference','lien_payoff_reference','inspection_reference','equipment_reference','recall_reference','tax_quote_reference','carrier_quote_reference']}
+    refs={key:'evidence:test-document' for key in ['supplier_commitment_reference','spread_agreement_reference','seller_hold_reference','title_history_reference','lien_payoff_reference','inspection_reference','equipment_reference','recall_reference','tax_quote_reference','carrier_quote_reference']}
     refs.update({key:'https://example.test/terms/'+key for key in ['buyers_guide_reference','warranty_terms_reference','return_terms_reference','deposit_terms_reference']})
-    body=dict(acquisition_cents=2500000,vehicle_price_cents=2900000,tax_cents=181250,title_registration_cents=15000,documentation_cents=0,delivery_charge_cents=60000,transport_cost_cents=60000,inspection_recon_cents=35000,warranty_return_reserve_cents=50000,acquisition_marketing_cents=30000,other_cost_cents=15000,seller_hold_until=int(time.time())+7200,valid_until=int(time.time())+3600,title_status='clean_verified',condition_status='accepted',recall_disposition='clear',**refs)
+    body=dict(dealer_id="fixture-dealer",dealer_vehicle_net_cents=2500000,vehicle_price_cents=2900000,tax_cents=181250,title_registration_cents=15000,documentation_cents=0,delivery_charge_cents=60000,demand_cost_cents=30000,platform_service_cost_cents=35000,platform_risk_reserve_cents=50000,platform_payment_cost_cents=15000,other_platform_cost_cents=0,seller_hold_until=int(time.time())+7200,valid_until=int(time.time())+3600,title_status='clean_verified',condition_status='accepted',recall_disposition='clear',**refs)
     return {**body,**changes}
 def approve(client,order,**changes):
     r=client.post(f"/api/admin/orders/{order['id']}/quote",json=quote_body(**changes),headers=admin());assert r.status_code==200,r.text;return r.json()
@@ -50,12 +55,12 @@ def checkout(client,order,version=1):
 def event(client,payments,order,**changes):
     session=next(s for s in payments.sessions.values() if s['metadata']['order_id']==order['id'])
     session.update(payment_status='paid',status='complete',**changes)
-    return client.post('/api/stripe/webhook',json={'id':'evt_'+str(uuid.uuid4()),'type':'checkout.session.completed','data':{'object':{'id':session['id']}}},headers={'Stripe-Signature':'valid-test-signature'})
+    return client.post('/api/stripe/webhook',json={'id':'evt_'+str(uuid.uuid4()),'type':'checkout.session.completed','account':session['account'],'data':{'object':{'id':session['id']}}},headers={'Stripe-Signature':'valid-test-signature'})
 def status(client,order):return client.get(f"/api/orders/{order['id']}",headers=auth(order)).json()['state']
 
-def test_pending_license_collects_requests_but_blocks_quotes_and_payment(setup):
-    _,s,p,_=setup;c=TestClient(create_app(replace(s,dealer_verified=False),p));o=request(c)
-    assert c.get('/api/config').json()['license_status']=='pending'
+def test_pending_platform_agreements_collect_requests_but_block_transactions(setup):
+    _,s,p,_=setup;c=TestClient(create_app(replace(s,platform_agreements_verified=False),p));o=request(c)
+    assert c.get('/api/config').json()['partner_onboarding_status']=='pending'
     assert c.post(f"/api/admin/orders/{o['id']}/quote",json=quote_body(),headers=admin()).status_code==409
     assert checkout(c,o).status_code==409
 
@@ -81,7 +86,7 @@ def test_forged_success_url_never_pays(setup):
 def test_quote_requires_documents_supported_state_and_real_margin(setup):
     c,_,_,_=setup;o=request(c)
     assert c.post(f"/api/admin/orders/{o['id']}/quote",json=quote_body(inspection_reference=''),headers=admin()).status_code==422
-    assert c.post(f"/api/admin/orders/{o['id']}/quote",json=quote_body(acquisition_cents=2950000),headers=admin()).status_code==409
+    assert c.post(f"/api/admin/orders/{o['id']}/quote",json=quote_body(dealer_vehicle_net_cents=2850000),headers=admin()).status_code==409
     other=request(c,body={**customer(),'state':'CA'})
     assert c.post(f"/api/admin/orders/{other['id']}/quote",json=quote_body(),headers=admin()).status_code==409
     assert c.post(f"/api/admin/orders/{o['id']}/quote",json=quote_body(return_terms_reference='internal:file'),headers=admin()).status_code==422
@@ -149,6 +154,9 @@ def test_full_fulfillment_requires_evidence_in_order(setup):
         path=f"/api/admin/orders/{o['id']}/transition"
         assert c.post(path,json={'state':state,'evidence':{'none':'missing'}},headers=admin()).status_code==409
         assert c.post(path,json={'state':state,'evidence':{k:'verified:fixture' for k in keys}},headers=admin()).status_code==200
+    assert status(c,o)=='settlement_pending'
+    settlement=dict(received_cents=400000,adjustment_cents=0,actual_platform_cost_cents=100000,dealer_statement_reference='dealer:statement',receipt_reference='bank:receipt',adjustment_reference='adjustment:none')
+    assert c.post(f"/api/admin/orders/{o['id']}/settle",json=settlement,headers=admin()).status_code==200
     assert status(c,o)=='completed'
 
 def test_origin_protection_and_notification_outbox(setup):
@@ -213,3 +221,105 @@ def test_payment_after_checkout_is_disabled_enters_refund_queue(setup):
 def test_webhook_cannot_run_without_configured_verification_secret(setup):
     _,s,p,_=setup;c=TestClient(create_app(replace(s,webhook_secret=''),p))
     assert c.post('/api/stripe/webhook',json={'id':'event','type':'ping','data':{'object':{}}},headers={'Stripe-Signature':'valid-test-signature'}).status_code==503
+
+def test_dealer_owns_inventory_and_appears_only_on_accepted_quote(setup):
+    c,s,p,_=setup;o=request(c)
+    assert not hasattr(s,'dealer_gdn')
+    assert c.get('/api/config').json()['mode']=='dealer_fulfillment'
+    approved=approve(c,o)
+    assert approved['quote']['seller']['legal_name']=='FIXTURE FULFILLING DEALER'
+    assert approved['quote']['inventory_owner']=='fulfilling_dealer'
+    assert 'dealer_vehicle_net_cents' not in approved['quote']
+    assert checkout(c,o).status_code==200
+    assert next(iter(p.sessions.values()))['account']=='acct_fixtureDealer'
+
+
+def test_quote_requires_approved_specific_fulfilling_dealer(setup):
+    c,_,_,store=setup;o=request(c)
+    assert c.post(f"/api/admin/orders/{o['id']}/quote",json=quote_body(dealer_id='missing-dealer'),headers=admin()).status_code==409
+    with store.transaction() as db:
+        profile=json.loads(db.execute('SELECT profile FROM dealers').fetchone()[0]);profile['verified']=False
+        db.execute('UPDATE dealers SET profile=?',(json.dumps(profile),))
+    assert c.post(f"/api/admin/orders/{o['id']}/quote",json=quote_body(),headers=admin()).status_code==409
+
+
+def test_other_dealer_webhook_cannot_confirm_or_expire_order(setup):
+    c,_,p,_=setup;o=request(c);approve(c,o);checkout(c,o);session=next(iter(p.sessions.values()))
+    for kind in ('checkout.session.completed','checkout.session.expired'):
+        response=c.post('/api/stripe/webhook',json={'id':'event-'+kind,'type':kind,'account':'acct_other','data':{'object':{'id':session['id']}}},headers={'Stripe-Signature':'valid-test-signature'})
+        assert response.status_code==409
+    assert status(c,o)=='checkout_pending'
+
+
+def test_spread_is_not_earned_from_deposit_and_requires_settlement(setup):
+    c,_,p,_=setup;o=request(c,body={**customer(),'demand_channel':'search','campaign_id':'tesla-y'});approve(c,o);checkout(c,o);event(c,p,o)
+    assert c.get('/api/admin/economics',headers=admin()).json()['channels']=={}
+    settlement=dict(received_cents=400000,adjustment_cents=0,actual_platform_cost_cents=125000,dealer_statement_reference='dealer:statement',receipt_reference='bank:receipt',adjustment_reference='adjustment:none')
+    path=f"/api/admin/orders/{o['id']}/settle"
+    assert c.post(path,json=settlement,headers=admin()).status_code==409
+    for _,(state,keys) in TRANSITIONS.items():assert c.post(f"/api/admin/orders/{o['id']}/transition",json={'state':state,'evidence':{key:'evidence:dealer' for key in keys}},headers=admin()).status_code==200
+    assert c.post(path,json={**settlement,'received_cents':399999},headers=admin()).status_code==409
+    assert c.post(path,json=settlement,headers=admin()).status_code==200
+    assert c.post(path,json=settlement,headers=admin()).status_code==200
+    stats=c.get('/api/admin/economics',headers=admin()).json()['channels']['search'];assert stats['contribution_cents']==275000
+    reversal={'amount_cents':100000,'reference':'return:clawback-1'}
+    for _ in range(2):assert c.post(f"/api/admin/orders/{o['id']}/settlement-reversal",json=reversal,headers=admin()).status_code==200
+    stats=c.get('/api/admin/economics',headers=admin()).json()['channels']['search'];assert stats['net_spread_cents']==300000 and stats['contribution_cents']==175000
+
+
+def test_old_resale_order_is_quarantined_without_becoming_dealer_owned(setup):
+    c,s,p,store=setup;o=request(c)
+    with store.transaction() as db:
+        db.execute("UPDATE orders SET workflow_model='legacy_resale',state='purchased',quote=? WHERE id=?",(json.dumps({'acquisition_cents':2500000}),o['id']))
+    migrated=TestClient(create_app(s,p))
+    r=migrated.get('/api/orders/'+o['id'],headers=auth(o)).json()
+    assert r['state']=='model_review' and r['quote'] is None
+    assert migrated.post(f"/api/admin/orders/{o['id']}/refund",json={},headers=admin()).status_code==409
+
+
+def test_private_supplier_terms_need_operator_auth(setup):
+    c,s,_,_=setup
+    s.sourcing_path.parent.mkdir(exist_ok=True)
+    # This fixture uses a private temporary file, not the actual source snapshot.
+    from dataclasses import replace
+    path=s.db_path.parent/'suppliers.json';path.write_text(json.dumps({'items':[{'vin':VIN,'dealer_name':'Private Dealer','asking_price':25000,'source_url':'https://private.test/car'}]}))
+    private=TestClient(create_app(replace(s,sourcing_path=path)))
+    assert private.get('/api/admin/sourcing').status_code==401
+    assert private.get('/api/admin/sourcing',headers=admin()).json()['items'][0]['asking_price']==25000
+    assert private.get('/data/source_snapshot.json').status_code==404
+    assert private.get('/.data/source_snapshot.json').status_code==404
+
+
+def test_real_payment_adapter_scopes_deposit_and_refund_to_dealer(setup,monkeypatch):
+    _,s,_,_=setup;provider=StripePayments(s);calls=[]
+    import stripe
+    monkeypatch.setattr(stripe.checkout.Session,'create',lambda **kw:calls.append(kw) or {'id':'cs_fixture'})
+    order={'id':'fixture-order','vin':VIN,'quote_version':1,'payment_account':'acct_fixtureDealer','payment_id':'pi_fixture'}
+    provider.create_checkout(order,quote_body(),int(time.time())+1800)
+    assert calls[0]['stripe_account']=='acct_fixtureDealer'
+    assert 'application_fee_amount' not in calls[0].get('payment_intent_data',{})
+    monkeypatch.setattr(stripe.Refund,'create',lambda **kw:calls.append(kw) or {'id':'re_fixture'})
+    provider.refund(order);assert calls[-1]['stripe_account']=='acct_fixtureDealer'
+
+def test_dealer_revocation_routes_late_deposit_to_refund_review(setup):
+    c,_,p,store=setup;o=request(c);approve(c,o);checkout(c,o)
+    with store.transaction() as db:
+        profile=json.loads(db.execute('SELECT profile FROM dealers').fetchone()[0]);profile['verified']=False
+        db.execute('UPDATE dealers SET profile=?',(json.dumps(profile),))
+    assert event(c,p,o).status_code==200
+    assert status(c,o)=='refund_pending'
+
+
+def test_provider_capability_is_checked_before_dealer_deposit(setup):
+    c,_,p,store=setup;o=request(c);approve(c,o)
+    p.dealer_can_charge=lambda account:False
+    assert checkout(c,o).status_code==409
+    with store.connect() as db:assert db.execute('SELECT count(*) FROM holds').fetchone()[0]==0
+
+@pytest.mark.parametrize('change',[{'supported_states':['CA']},{'legal_name':'DIFFERENT LEGAL SELLER'}])
+def test_checkout_cannot_ignore_changed_seller_or_destination_authority(setup,change):
+    c,_,_,store=setup;o=request(c);approve(c,o)
+    with store.transaction() as db:
+        profile=json.loads(db.execute('SELECT profile FROM dealers').fetchone()[0]);profile.update(change)
+        db.execute('UPDATE dealers SET profile=?',(json.dumps(profile),))
+    assert checkout(c,o).status_code==409

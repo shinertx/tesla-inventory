@@ -73,7 +73,7 @@ def source_url(source,model,year,page):
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--source',choices=['autolist','cargurus','truecar','carvana'],required=True)
     parser.add_argument('--model',choices=['Model 3','Model Y','Model S','Model X','Cybertruck'],required=True);parser.add_argument('--year',type=int,required=True)
-    parser.add_argument('--pages',type=int,default=1);parser.add_argument('--db',type=Path,default=ROOT/'.data/inventory.db');parser.add_argument('--output',type=Path,default=ROOT/'data/source_snapshot.json')
+    parser.add_argument('--pages',type=int,default=1);parser.add_argument('--db',type=Path,default=ROOT/'.data/inventory.db');parser.add_argument('--output',type=Path,default=ROOT/'.data/source_snapshot.json')
     args=parser.parse_args()
     if not 1<=args.pages<=10:parser.error('Use 1–10 pages per bounded run')
     if not 2012<=args.year<=datetime.now(timezone.utc).year+1:parser.error('Unsupported model year')
