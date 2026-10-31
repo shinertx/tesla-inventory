@@ -86,14 +86,20 @@ def build(source=None,output=ROOT,now=None,gallery_source=None):
         observed=timestamp(x.get('observed_at'))
         # A live source observation is still not an exclusive dealer hold.
         source_recent=bool(observed and observed>=now-timedelta(hours=48))
+        hold_until=x.get('seller_hold_until')
+        hold_ts=hold_until if isinstance(hold_until,int) else (int(timestamp(hold_until).timestamp()) if timestamp(hold_until) else 0)
+        hold_active=hold_ts>int(now.timestamp())+1800
+        reservable=bool(x.get('agreed_dealer_net_cents') and x.get('supplier_commitment_reference') and x.get('configuration_evidence_reference') and hold_active and x.get('title_status')=='clean_verified')
         photos=normalize_photos(galleries.get(vin,[]) or x.get('photos',[]))
         items.append({'vin':vin,'model':x['model'],'year':x['year'],
             'trim':customer_trim(x.get('dealer_trim'),x['model']),'mileage':mileage,'display_price':price,
             'stock_number':'TSL-'+vin[-6:],'pricing_status':'estimate','city':x.get('city') or '',
             'state':x.get('state') or 'US','photo':photos[0]['url'] if photos else photo_url(x.get('photo_url')),'photos':photos,
             'fulfillment':'dealer_owned','source_observed_at':x.get('observed_at'),
-            'expires_at':(age+timedelta(days=7)).isoformat(),'availability':'source_observed' if source_recent else 'unverified','title_status':'unverified',
-            'inspection_status':'not_verified','reference_price':None,'reference_sample':0,
+            'expires_at':(age+timedelta(days=7)).isoformat(),'reservable':reservable,
+            'availability':'seller_approved' if reservable else ('source_observed' if source_recent else 'unverified'),
+            'title_status':'clean_verified' if reservable else 'unverified',
+            'inspection_status':'verified' if (reservable and x.get('inspection_reference')) else 'not_verified','reference_price':None,'reference_sample':0,
             'location_center':city_centers.get(str(x.get('city') or '').casefold().replace(' ','')+'|'+str(x.get('state') or '')),**vehicle_features(x)})
     groups=collections.defaultdict(list)
     for x in items:
@@ -138,7 +144,7 @@ def build(source=None,output=ROOT,now=None,gallery_source=None):
     private=output/'.data';private.mkdir(parents=True,exist_ok=True,mode=0o700)
     (private/'arbitrage_opportunities.json').write_text(json.dumps({'basis':'Proposals; asking-price comparisons do not prove achievable sales or collected profit.','items':opportunities},separators=(',',':')))
     items.sort(key=lambda x:(x['display_price'],x['vin']))
-    payload={'meta':{'built_at':now.isoformat(),'count':len(items),'mode':'dealer_fulfillment',
+    payload={'meta':{'built_at':now.isoformat(),'count':len(items),'reservable_count':sum(1 for x in items if x.get('reservable')),'mode':'dealer_fulfillment',
         'partner_onboarding_status':'pending','excluded':dict(excluded),'availability_note':'Listings require seller, title, condition, and price verification.'},'items':items}
     output.mkdir(parents=True,exist_ok=True)
     # Keep the first customer download small. Fetch only the selected gallery shard.

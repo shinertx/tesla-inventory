@@ -18,7 +18,8 @@ class Settings:
     webhook_secret: str = ''
     stripe_publishable_key: str = ''
     checkout_ui_mode: str = 'embedded_page'
-    payment_method_types: tuple[str, ...] = ('card', 'us_bank_account')
+    payment_method_types: tuple[str, ...] = ('card',)
+    balance_payment_method_types: tuple[str, ...] = ('us_bank_account',)
     min_contribution_cents: int = 100000
     retention_days: int = 90
 
@@ -28,13 +29,14 @@ class Settings:
                     and self.stripe_key.startswith(('sk_test_','sk_live_'))
                     and self.checkout_ui_mode in ('embedded_page','hosted_page')
                     and self.payment_method_types and set(self.payment_method_types)<={'card','us_bank_account'}
+                    and self.balance_payment_method_types and set(self.balance_payment_method_types)<={'us_bank_account'}
                     and (self.checkout_ui_mode=='hosted_page' or (
                         self.stripe_publishable_key.startswith('pk_live_' if self.stripe_key.startswith('sk_live_') else 'pk_test_')))
                     and (not self.stripe_key.startswith('sk_live_') or self.origin.startswith('https://')))
 
     @classmethod
     def from_env(cls):
-        methods = tuple(x.strip() for x in os.getenv('STRIPE_PAYMENT_METHODS', 'card,us_bank_account').split(',') if x.strip())
+        methods = tuple(x.strip() for x in os.getenv('STRIPE_PAYMENT_METHODS', 'card').split(',') if x.strip())
         return cls(
             db_path=Path(os.getenv('ORDERS_DB', str(ROOT / '.data/orders.db'))),
             inventory_path=Path(os.getenv('INVENTORY_JSON', str(ROOT / 'inventory.json'))),
@@ -47,7 +49,7 @@ class Settings:
             stripe_key=os.getenv('STRIPE_SECRET_KEY', ''), webhook_secret=os.getenv('STRIPE_WEBHOOK_SECRET', ''),
             stripe_publishable_key=os.getenv('STRIPE_PUBLISHABLE_KEY',''),
             checkout_ui_mode=os.getenv('CHECKOUT_UI_MODE','embedded_page'),
-            payment_method_types=methods or ('card', 'us_bank_account'),
+            payment_method_types=methods or ('card',),
             min_contribution_cents=int(os.getenv('MIN_CONTRIBUTION_CENTS', '100000')),
             retention_days=int(os.getenv('REQUEST_RETENTION_DAYS', '90')),
         )

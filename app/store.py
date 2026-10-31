@@ -45,7 +45,20 @@ class Store:
         with self.connect() as c:
             c.executescript(SCHEMA)
             columns={r[1] for r in c.execute('PRAGMA table_info(orders)')}
-            for name,definition in [('workflow_model',"TEXT NOT NULL DEFAULT 'legacy_resale'"),('dealer_id','TEXT'),('payment_account','TEXT'),('dealer_profile','TEXT')]:
+            for name,definition in [
+                ('workflow_model',"TEXT NOT NULL DEFAULT 'legacy_resale'"),
+                ('dealer_id','TEXT'),
+                ('payment_account','TEXT'),
+                ('dealer_profile','TEXT'),
+                ('balance_checkout_id','TEXT'),
+                ('balance_payment_id','TEXT'),
+                ('balance_payment_state',"TEXT NOT NULL DEFAULT 'unpaid'"),
+                ('payment_preference',"TEXT NOT NULL DEFAULT 'cash'"),
+                ('financing_state',"TEXT NOT NULL DEFAULT 'not_requested'"),
+                ('financing_detail','TEXT'),
+                ('transport_state',"TEXT NOT NULL DEFAULT 'unquoted'"),
+                ('transport_detail','TEXT'),
+            ]:
                 if name not in columns:c.execute(f'ALTER TABLE orders ADD COLUMN {name} {definition}')
             legacy=c.execute("SELECT id,state,quote FROM orders WHERE workflow_model='legacy_resale' AND quote IS NOT NULL AND state NOT IN ('model_review','cancelled','refunded')").fetchall()
             for row in legacy:

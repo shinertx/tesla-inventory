@@ -13,6 +13,7 @@ class PurchaseRequest(StrictModel):
     zip: str = Field(pattern=r'^\d{5}$')
     demand_channel: str = Field(default="direct",pattern=r"^[a-z0-9_-]{1,60}$")
     campaign_id: str = Field(default="",max_length=100)
+    payment_preference: Literal['cash','partner_financing'] = 'cash'
     consent: Literal[True]
 
     @field_validator('email')
@@ -145,3 +146,56 @@ class OnlineAction(StrictModel):
     kind: Literal['sign_contract','pay_balance','submit_title_documents','track_delivery']
     url: str = Field(min_length=10,max_length=2048)
     evidence_reference: str = Field(min_length=5,max_length=500)
+
+class PaymentPreferenceUpdate(StrictModel):
+    payment_preference: Literal['cash','partner_financing']
+
+class BalanceCheckoutAcceptance(StrictModel):
+    quote_version: int = Field(ge=1)
+    ach_authorization_accepted: bool = False
+    terms_accepted: bool = False
+
+    @model_validator(mode='after')
+    def check_accepted(self):
+        if not (self.ach_authorization_accepted or self.terms_accepted):
+            raise ValueError('Explicit ACH authorization or terms acceptance is required')
+        return self
+
+class FinancingUpdate(StrictModel):
+    state: Literal['prequalified','conditional_approval','contract_signed','lender_funded','declined']
+    provider: str = Field(min_length=2,max_length=80)
+    reference: str = Field(min_length=5,max_length=500)
+    approved_amount_cents: int = Field(default=0,ge=0,le=100_000_000)
+    funded_amount_cents: int = Field(default=0,ge=0,le=100_000_000)
+    stipulations: list[str] = Field(default_factory=list,max_length=20)
+
+    @model_validator(mode='after')
+    def check_funding(self):
+        if self.state=='lender_funded' and self.funded_amount_cents<=0:
+            raise ValueError('Lender-funded state requires positive funded_amount_cents')
+        return self
+
+class TransportUpdate(StrictModel):
+    state: Literal['quoted','carrier_accepted','dispatched','delivered','exception']
+    provider: str = Field(min_length=2,max_length=80)
+    quote_reference: str = Field(min_length=5,max_length=500)
+    rate_cents: int = Field(ge=0,le=2_000_000)
+    quote_expires_at: int
+    pickup_window_start: int | None = None
+    pickup_window_end: int | None = None
+    delivery_window_start: int | None = None
+    delivery_window_end: int | None = None
+    carrier_acceptance_reference: str = Field(default='',max_length=500)
+    bol_reference: str = Field(default='',max_length=500)
+    notes: str = Field(default='',max_length=500)
+
+    @model_validator(mode='after')
+    def check_carrier_progression(self):
+        if self.state in ('carrier_accepted','dispatched','delivered'):
+            if len(self.carrier_acceptance_reference)<5:
+                raise ValueError('Carrier acceptance requires carrier_acceptance_reference')
+            if not self.pickup_window_start or not self.pickup_window_end or self.pickup_window_end<self.pickup_window_start:
+                raise ValueError('Carrier acceptance requires a valid pickup window')
+        if self.state in ('dispatched','delivered') and len(self.bol_reference)<5:
+            raise ValueError('Dispatch and delivery require electronic bill of lading reference')
+        return self

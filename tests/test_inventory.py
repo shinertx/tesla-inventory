@@ -147,3 +147,32 @@ def test_seo_schema_jsonld_cname_and_indexnow_are_built(tmp_path):
     from tools.indexnow import build_indexnow_payload
     payload=build_indexnow_payload(['https://voltsandvins.com/'])
     assert payload['host']=='voltsandvins.com' and payload['urlList']==['https://voltsandvins.com/']
+
+
+def test_reservable_stock_separation_requires_seller_hold_and_clean_title(tmp_path):
+    now=datetime.now(timezone.utc)
+    discovery_row=candidate()
+    approved_vin='5YJ3E1EA1LF654321'
+    # Compute valid VIN check digit for 5YJ3E1EA_LF654321
+    for d in '0123456789X':
+        cand='5YJ3E1EA'+d+'LF654321'
+        if valid_vin(cand):
+            approved_vin=cand;break
+    approved_row={
+        **candidate(),
+        'vin':approved_vin,
+        'model':'Model 3',
+        'year':2020,
+        'agreed_dealer_net_cents':1900000,
+        'supplier_commitment_reference':'commitment:fixture',
+        'configuration_evidence_reference':'equipment:fixture',
+        'seller_hold_until':(now+timedelta(hours=4)).isoformat(),
+        'title_status':'clean_verified',
+    }
+    result=build(write_source(tmp_path,[discovery_row,approved_row]),tmp_path,now)
+    items={x['vin']:x for x in result['items']}
+    assert items[VIN]['reservable'] is False
+    assert items[VIN]['availability']=='unverified'
+    assert items[approved_vin]['reservable'] is True
+    assert items[approved_vin]['availability']=='seller_approved'
+    assert result['meta']['reservable_count']==1

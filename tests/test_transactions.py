@@ -10,12 +10,19 @@ VIN='7G2CEHED5RA040513'
 TOKEN='operator-test-only-'+'x'*40
 
 class Payments:
-    def __init__(self):self.sessions={};self.refunds=0;self.session_calls=0;self.fail=False
+    def __init__(self):self.sessions={};self.refunds=0;self.session_calls=0;self.balance_calls=0;self.fail=False
     def create_checkout(self,order,quote,expires_at):
         if self.fail:raise RuntimeError('network')
         self.session_calls+=1
         sid='cs_test_'+order['id']
-        session=dict(account=order['payment_account'],id=sid,client_secret=sid+'_secret_fixture',url='https://checkout.stripe.com/c/pay/'+sid,status='open',payment_status='unpaid',amount_total=25000,currency='usd',mode='payment',livemode=False,payment_intent='pi_'+order['id'],metadata={'order_id':order['id'],'quote_version':str(order['quote_version'])})
+        session=dict(account=order['payment_account'],id=sid,client_secret=sid+'_secret_fixture',url='https://checkout.stripe.com/c/pay/'+sid,status='open',payment_status='unpaid',amount_total=25000,currency='usd',mode='payment',livemode=False,payment_intent='pi_'+order['id'],metadata={'order_id':order['id'],'quote_version':str(order['quote_version']),'payment_stage':'deposit'})
+        self.sessions[sid]=session;return session
+    def create_balance_ach_checkout(self,order,quote,expires_at):
+        if self.fail:raise RuntimeError('network')
+        self.balance_calls+=1
+        sid='cs_bal_'+order['id']+'_'+str(self.balance_calls)
+        balance_cents=max(0,quote.total_cents-25000)
+        session=dict(account=order['payment_account'],id=sid,client_secret=sid+'_secret_fixture',url='https://checkout.stripe.com/c/pay/'+sid,status='open',payment_status='unpaid',amount_total=balance_cents,currency='usd',mode='payment',livemode=False,payment_intent='pi_bal_'+order['id']+'_'+str(self.balance_calls),metadata={'order_id':order['id'],'quote_version':str(order['quote_version']),'payment_stage':'balance_ach'})
         self.sessions[sid]=session;return session
     def retrieve_checkout(self,sid,account):
         assert self.sessions[sid]['account']==account
@@ -383,16 +390,108 @@ def test_stripe_ach_and_card_payment_methods_and_balance_ach(setup,monkeypatch):
     order={'id':'fixture','vin':VIN,'quote_version':1,'payment_account':'acct_fixtureDealer'}
     q=quote_body()
     provider.create_checkout(order,q,int(time.time())+1800)
-    assert calls[0]['payment_method_types']==['card','us_bank_account']
-    assert calls[0]['payment_method_options']['us_bank_account']['financial_connections']['permissions']==['payment_method']
+    assert calls[0]['payment_method_types']==['card']
+    assert 'payment_method_options' not in calls[0]
+    ach_provider=StripePayments(replace(settings,payment_method_types=('card','us_bank_account')))
+    ach_provider.create_checkout(order,q,int(time.time())+1800)
+    assert calls[1]['payment_method_types']==['card','us_bank_account']
+    assert calls[1]['payment_method_options']['us_bank_account']['financial_connections']['permissions']==['payment_method']
     from app.models import Quote
     parsed_q=Quote.model_validate(q)
     provider.create_balance_ach_checkout(order,parsed_q,int(time.time())+1800)
-    assert calls[1]['payment_method_types']==['us_bank_account']
-    assert calls[1]['line_items'][0]['price_data']['unit_amount']==parsed_q.total_cents-25000
+    assert calls[2]['payment_method_types']==['us_bank_account']
+    assert calls[2]['line_items'][0]['price_data']['unit_amount']==parsed_q.total_cents-25000
     cfg=client.get('/api/config').json()
-    assert cfg['ach_enabled'] is True and 'us_bank_account' in cfg['payment_methods']
+    assert cfg['ach_enabled'] is True and cfg['payment_methods']==['card'] and cfg['balance_payment_methods']==['us_bank_account']
     o=request(client);approve(client,o);checkout(client,o)
     session=next(s for s in payments.sessions.values() if s['metadata']['order_id']==o['id'])
     res=client.post('/api/stripe/webhook',json={'id':'evt_ach_fail','type':'checkout.session.async_payment_failed','account':session['account'],'data':{'object':{'id':session['id']}}},headers={'Stripe-Signature':'valid-test-signature'})
     assert res.status_code==200 and status(client,o)=='quote_expired'
+
+
+def t_body(old):
+    state,keys=TRANSITIONS[old]
+    return {'state':state,'evidence':{k:'verified:fixture' for k in keys}}
+
+
+def test_delayed_bank_deposit_processing_and_settlement(setup):
+    client,_,payments,_=setup
+    o=request(client);approve(client,o);checkout(client,o)
+    session=next(s for s in payments.sessions.values() if s['metadata']['order_id']==o['id'])
+    session.update(status='complete',payment_status='unpaid')
+    res=client.post('/api/stripe/webhook',json={'id':'evt_dep_pending','type':'checkout.session.completed','account':session['account'],'data':{'object':{'id':session['id']}}},headers={'Stripe-Signature':'valid-test-signature'})
+    assert res.status_code==200 and status(client,o)=='deposit_processing'
+    # Cannot transition to dealer_confirmed while deposit is still processing
+    assert client.post(f"/api/admin/orders/{o['id']}/transition",json=t_body('deposit_paid'),headers=admin()).status_code==409
+    session.update(status='complete',payment_status='paid')
+    res2=client.post('/api/stripe/webhook',json={'id':'evt_dep_paid','type':'checkout.session.async_payment_succeeded','account':session['account'],'data':{'object':{'id':session['id']}}},headers={'Stripe-Signature':'valid-test-signature'})
+    assert res2.status_code==200 and status(client,o)=='deposit_paid'
+
+
+def test_balance_ach_checkout_idempotency_delayed_settlement_and_guards(setup):
+    client,_,payments,_=setup
+    o=request(client);approve(client,o);checkout(client,o);event(client,payments,o)
+    assert status(client,o)=='deposit_paid'
+    # Balance checkout not allowed before dealer_confirmed
+    assert client.post(f"/api/orders/{o['id']}/balance-checkout",json={'quote_version':1,'terms_accepted':True},headers=auth(o)).status_code==409
+    assert client.post(f"/api/admin/orders/{o['id']}/transition",json=t_body('deposit_paid'),headers=admin()).status_code==200
+    b1=client.post(f"/api/orders/{o['id']}/balance-checkout",json={'quote_version':1,'terms_accepted':True},headers=auth(o))
+    b2=client.post(f"/api/orders/{o['id']}/balance-checkout",json={'quote_version':1,'terms_accepted':True},headers=auth(o))
+    assert b1.status_code==b2.status_code==200 and b1.json()==b2.json() and payments.balance_calls==1
+    pub=client.get(f"/api/orders/{o['id']}",headers=auth(o)).json()
+    assert pub['balance_payment_state']=='checkout_open'
+    bal_session=payments.sessions['cs_bal_'+o['id']+'_1']
+    # Bank linked, ACH initiated (payment_status == 'unpaid'): must NOT release vehicle or allow dealer_funded
+    bal_session.update(status='complete',payment_status='unpaid')
+    w1=client.post('/api/stripe/webhook',json={'id':'evt_bal_pending','type':'checkout.session.completed','account':bal_session['account'],'data':{'object':{'id':bal_session['id']}}},headers={'Stripe-Signature':'valid-test-signature'})
+    assert w1.status_code==200
+    assert client.get(f"/api/orders/{o['id']}",headers=auth(o)).json()['balance_payment_state']=='ach_processing'
+    assert client.post(f"/api/admin/orders/{o['id']}/transition",json=t_body('dealer_confirmed'),headers=admin()).status_code==409
+    # Simulate ACH failure -> resets balance_checkout_id so buyer can retry
+    w_fail=client.post('/api/stripe/webhook',json={'id':'evt_bal_fail','type':'checkout.session.async_payment_failed','account':bal_session['account'],'data':{'object':{'id':bal_session['id']}}},headers={'Stripe-Signature':'valid-test-signature'})
+    assert w_fail.status_code==200
+    assert client.get(f"/api/orders/{o['id']}",headers=auth(o)).json()['balance_payment_state']=='failed'
+    b3=client.post(f"/api/orders/{o['id']}/balance-checkout",json={'quote_version':1,'terms_accepted':True},headers=auth(o))
+    assert b3.status_code==200 and payments.balance_calls==2
+    bal_session_2=payments.sessions['cs_bal_'+o['id']+'_2']
+    bal_session_2.update(status='complete',payment_status='paid')
+    w_paid=client.post('/api/stripe/webhook',json={'id':'evt_bal_paid','type':'checkout.session.async_payment_succeeded','account':bal_session_2['account'],'data':{'object':{'id':bal_session_2['id']}}},headers={'Stripe-Signature':'valid-test-signature'})
+    assert w_paid.status_code==200
+    assert client.get(f"/api/orders/{o['id']}",headers=auth(o)).json()['balance_payment_state']=='paid'
+    assert client.post(f"/api/admin/orders/{o['id']}/transition",json=t_body('dealer_confirmed'),headers=admin()).status_code==200
+
+
+def test_partner_financing_prequalification_cannot_unlock_dealer_funded(setup):
+    client,_,payments,_=setup
+    o=request(client,body={**customer(),'payment_preference':'partner_financing'})
+    assert o['payment_preference']=='partner_financing'
+    approve(client,o);checkout(client,o);event(client,payments,o)
+    assert client.post(f"/api/admin/orders/{o['id']}/transition",json=t_body('deposit_paid'),headers=admin()).status_code==200
+    # Prequalified is NOT funded proceeds
+    r_pre=client.post(f"/api/admin/orders/{o['id']}/financing",json={'state':'prequalified','provider':'Partner Credit Union','reference':'evidence:prequal','approved_amount_cents':2875000},headers=admin())
+    assert r_pre.status_code==200 and r_pre.json()['financing']['state']=='prequalified'
+    assert client.post(f"/api/admin/orders/{o['id']}/transition",json=t_body('dealer_confirmed'),headers=admin()).status_code==409
+    # Conditional approval is NOT funded proceeds
+    r_cond=client.post(f"/api/admin/orders/{o['id']}/financing",json={'state':'conditional_approval','provider':'Partner Credit Union','reference':'evidence:cond','stipulations':['proof_of_income']},headers=admin())
+    assert r_cond.status_code==200
+    assert client.post(f"/api/admin/orders/{o['id']}/transition",json=t_body('dealer_confirmed'),headers=admin()).status_code==409
+    # Lender funded requires funded_amount_cents > 0 and unlocks dealer_funded
+    r_funded=client.post(f"/api/admin/orders/{o['id']}/financing",json={'state':'lender_funded','provider':'Partner Credit Union','reference':'evidence:wire-settled','funded_amount_cents':2875000},headers=admin())
+    assert r_funded.status_code==200 and r_funded.json()['financing']['state']=='lender_funded'
+    assert client.post(f"/api/admin/orders/{o['id']}/transition",json=t_body('dealer_confirmed'),headers=admin()).status_code==200
+
+
+def test_transport_rate_quote_cannot_unlock_in_transit(setup):
+    client,_,payments,_=setup
+    o=request(client);approve(client,o);checkout(client,o);event(client,payments,o)
+    assert client.post(f"/api/admin/orders/{o['id']}/transition",json=t_body('deposit_paid'),headers=admin()).status_code==200
+    assert client.post(f"/api/admin/orders/{o['id']}/transition",json=t_body('dealer_confirmed'),headers=admin()).status_code==200
+    now=int(time.time())
+    # Carrier rate quote alone cannot unlock in_transit
+    r_quote=client.post(f"/api/admin/orders/{o['id']}/transport",json={'state':'quoted','provider':'Montway Auto Transport','quote_reference':'evidence:rate-quote','rate_cents':60000,'quote_expires_at':now+86400},headers=admin())
+    assert r_quote.status_code==200 and r_quote.json()['transport']['state']=='quoted'
+    assert client.post(f"/api/admin/orders/{o['id']}/transition",json=t_body('dealer_funded'),headers=admin()).status_code==409
+    # Carrier acceptance requires carrier_acceptance_reference + pickup window, and unlocks in_transit
+    r_accept=client.post(f"/api/admin/orders/{o['id']}/transport",json={'state':'carrier_accepted','provider':'Montway Auto Transport','quote_reference':'evidence:rate-quote','rate_cents':60000,'quote_expires_at':now+86400,'pickup_window_start':now+3600,'pickup_window_end':now+86400,'delivery_window_start':now+86400,'delivery_window_end':now+172800,'carrier_acceptance_reference':'dispatch:montway-123'},headers=admin())
+    assert r_accept.status_code==200 and r_accept.json()['transport']['state']=='carrier_accepted'
+    assert client.post(f"/api/admin/orders/{o['id']}/transition",json=t_body('dealer_funded'),headers=admin()).status_code==200

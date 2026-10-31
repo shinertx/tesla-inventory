@@ -7,7 +7,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from .config import Settings, ROOT
-from .models import PurchaseRequest, Quote, Transition, Cancellation, CheckoutAcceptance, SellerHold, CustomerCase, CaseResolution, AccessRecovery, Dealer, Settlement, SettlementReversal, OnlineAction
+from .models import PurchaseRequest, Quote, Transition, Cancellation, CheckoutAcceptance, BalanceCheckoutAcceptance, PaymentPreferenceUpdate, FinancingUpdate, TransportUpdate, SellerHold, CustomerCase, CaseResolution, AccessRecovery, Dealer, Settlement, SettlementReversal, OnlineAction
 from .store import Store
 from .payments import StripePayments
 from .media import VehicleMedia
@@ -119,8 +119,12 @@ def create_app(settings=None, payments=None):
             summary.update(total_cents=parsed.total_cents,deposit_cents=DEPOSIT,
                 balance_after_deposit_cents=parsed.total_cents-DEPOSIT,
                 terms={k:q[k] for k in ['buyers_guide_reference','warranty_terms_reference','return_terms_reference','deposit_terms_reference']})
+        financing=json.loads(row['financing_detail']) if row['financing_detail'] else {'state':row['financing_state']}
+        transport=json.loads(row['transport_detail']) if row['transport_detail'] else {'state':row['transport_state']}
         return {'id':row['id'],'vin':row['vin'],'state':row['state'],'quote':summary,
-                'quote_version':row['quote_version'],'action_due_at':row['action_due_at']}
+                'quote_version':row['quote_version'],'action_due_at':row['action_due_at'],
+                'payment_preference':row['payment_preference'],'balance_payment_state':row['balance_payment_state'],
+                'financing':financing,'transport':transport}
 
     @app.get('/api/config')
     def config():
@@ -128,8 +132,8 @@ def create_app(settings=None, payments=None):
             approved=sum(bool(json.loads(r['profile']).get('verified')) for r in c.execute('SELECT profile FROM dealers'))
         return {'mode':'dealer_fulfillment','partner_onboarding_status':'ready' if approved and settings.platform_agreements_verified else 'pending',
             'supported_states':settings.supported_states,'payments_enabled':bool(settings.payments_ready and approved),
-            'payment_methods':list(settings.payment_method_types),'ach_enabled':'us_bank_account' in settings.payment_method_types,
-            'balance_payment_method':'us_bank_account','deposit_cents':DEPOSIT,'requests_enabled':True,'inventory_owner':'fulfilling_dealer'}
+            'payment_methods':list(settings.payment_method_types),'ach_enabled':'us_bank_account' in settings.balance_payment_method_types or 'us_bank_account' in settings.payment_method_types,
+            'balance_payment_methods':list(settings.balance_payment_method_types),'balance_payment_method':'us_bank_account','deposit_cents':DEPOSIT,'requests_enabled':True,'inventory_owner':'fulfilling_dealer'}
 
     @app.put('/api/admin/dealers/{dealer_id}',dependencies=[Depends(admin)])
     def onboard_dealer(dealer_id:str,body:Dealer):
@@ -185,10 +189,10 @@ def create_app(settings=None, payments=None):
             if c.execute('SELECT 1 FROM holds WHERE vin=?',(body.vin,)).fetchone():
                 raise HTTPException(409,'This vehicle is already reserved or sold. Choose another listing.')
             order_id=str(uuid.uuid4())
-            c.execute('INSERT INTO orders(id,access_hash,request_key,request_hash,vin,customer,state,created_at,updated_at,action_due_at) '
-                'VALUES(?,?,?,?,?,?,?,?,?,?)',(order_id,digest(token),digest(idempotency_key),request_hash,body.vin,raw,'requested',now,now,now+86400))
+            c.execute('INSERT INTO orders(id,access_hash,request_key,request_hash,vin,customer,state,created_at,updated_at,action_due_at,payment_preference) '
+                'VALUES(?,?,?,?,?,?,?,?,?,?,?)',(order_id,digest(token),digest(idempotency_key),request_hash,body.vin,raw,'requested',now,now,now+86400,body.payment_preference))
             c.execute("UPDATE orders SET workflow_model='dealer_fulfillment' WHERE id=?",(order_id,))
-            store.event(c,order_id,'request_received',{'vin':body.vin,'demand_channel':body.demand_channel,'campaign_id':body.campaign_id},True)
+            store.event(c,order_id,'request_received',{'vin':body.vin,'demand_channel':body.demand_channel,'campaign_id':body.campaign_id,'payment_preference':body.payment_preference},True)
             return {**public(get_order(c,order_id)),'access_token':token}
 
     @app.get('/api/orders/{order_id}')
@@ -282,6 +286,52 @@ def create_app(settings=None, payments=None):
             store.event(c,order_id,'checkout_created',{'session_id':session['id'],'accepted_quote_version':body.quote_version,'terms_accepted_at':now})
             return checkout_presentation(session,row['payment_account'])
 
+    @app.post('/api/orders/{order_id}/payment-preference')
+    def set_payment_preference(order_id:str,body:PaymentPreferenceUpdate,authorization:Annotated[str|None,Header()]=None):
+        now=int(time.time())
+        with store.transaction() as c:
+            row=order_access(c,order_id,authorization)
+            if row['state'] not in ('requested','quoted','checkout_pending','deposit_paid','dealer_confirmed'):
+                raise HTTPException(409,'Payment preference cannot be changed at this stage')
+            if row['balance_payment_state'] in ('ach_processing','paid'):
+                raise HTTPException(409,'Balance payment is already processing or settled')
+            c.execute('UPDATE orders SET payment_preference=?,updated_at=? WHERE id=?',(body.payment_preference,now,order_id))
+            store.event(c,order_id,'payment_preference_updated',{'payment_preference':body.payment_preference},True)
+            return public(get_order(c,order_id))
+
+    @app.post('/api/orders/{order_id}/balance-checkout')
+    def balance_checkout(order_id:str,body:BalanceCheckoutAcceptance,authorization:Annotated[str|None,Header()]=None):
+        if not settings.payments_ready:raise HTTPException(409,'Partner checkout is not yet configured')
+        now=int(time.time())
+        with store.transaction() as c:
+            row=order_access(c,order_id,authorization)
+            if row['state']!='dealer_confirmed':raise HTTPException(409,'Dealer order acceptance and signed contract are required before balance payment')
+            if row['payment_preference']=='partner_financing' and row['financing_state']!='declined':
+                raise HTTPException(409,'Order is set to partner financing; switch to cash/ACH or complete lender funding')
+            if row['balance_payment_state'] in ('ach_processing','paid'):
+                raise HTTPException(409,'Balance payment is already processing or settled')
+            dealer=dealer_for_order(c,row)
+            destination=json.loads(row['customer']).get('state')
+            if destination not in dealer.supported_states or destination not in settings.supported_states:
+                raise HTTPException(409,'Destination is no longer supported')
+            try:capable=payments.dealer_can_charge(row['payment_account'])
+            except Exception:raise HTTPException(503,'Dealer payment capability could not be verified')
+            if not capable:raise HTTPException(409,'Dealer payment account cannot accept charges')
+            q=Quote.model_validate_json(row['quote'])
+            if body.quote_version!=row['quote_version']:raise HTTPException(409,'Quote changed; review the current quote')
+            hold=c.execute('SELECT expires_at FROM source_holds WHERE order_id=?',(order_id,)).fetchone()
+            if not hold or hold['expires_at']<=now:raise HTTPException(409,'Source dealer hold expired; reconfirm before paying balance')
+            if row['balance_checkout_id'] and row['balance_payment_state']=='checkout_open':
+                try:session=payments.retrieve_checkout(row['balance_checkout_id'],row['payment_account'])
+                except Exception:raise HTTPException(503,'Payment provider unavailable; retry safely')
+                if session.get('status')=='open':
+                    return checkout_presentation(session,row['payment_account'])
+            try:session=payments.create_balance_ach_checkout(dict(row),q,now+86400)
+            except Exception:raise HTTPException(503,'Payment provider unavailable; retry safely')
+            c.execute("UPDATE orders SET balance_checkout_id=?,balance_payment_state='checkout_open',updated_at=?,action_due_at=? WHERE id=?",(session['id'],now,now+86400,order_id))
+            store.event(c,order_id,'balance_checkout_created',{'session_id':session['id'],'quote_version':body.quote_version,'balance_cents':q.total_cents-DEPOSIT},True)
+            return checkout_presentation(session,row['payment_account'])
+
     @app.post('/api/stripe/webhook')
     async def webhook(request:Request):
         if not settings.webhook_secret:raise HTTPException(503,'Webhook verification is not configured')
@@ -291,49 +341,84 @@ def create_app(settings=None, payments=None):
         except Exception:raise HTTPException(400,'Invalid webhook signature')
         kind=event['type'];obj=event['data']['object'];now=int(time.time())
         # Fetch canonical provider data; URL parameters never mutate payment state.
-        session=None
+        session=None;is_balance=False
         if kind in ('checkout.session.completed','checkout.session.async_payment_succeeded'):
             with store.connect() as lookup:
-                bound=lookup.execute('SELECT payment_account FROM orders WHERE checkout_id=?',(obj['id'],)).fetchone()
+                bound=lookup.execute('SELECT payment_account,checkout_id,balance_checkout_id FROM orders WHERE checkout_id=? OR balance_checkout_id=?',(obj['id'],obj['id'])).fetchone()
             if not bound or not event.get('account') or event['account']!=bound['payment_account']:
                 raise HTTPException(409,'Webhook account does not match the fulfilling dealer')
+            is_balance=(bound['balance_checkout_id']==obj['id'])
             try:session=payments.retrieve_checkout(obj['id'],bound['payment_account'])
             except Exception:raise HTTPException(503,'Payment verification unavailable')
         with store.transaction() as c:
             if c.execute('SELECT 1 FROM stripe_events WHERE id=?',(event['id'],)).fetchone():return {'received':True}
-            if session:
+            if session and not is_balance:
                 row=c.execute('SELECT * FROM orders WHERE checkout_id=?',(session['id'],)).fetchone()
                 if not row:raise HTTPException(409,'Unknown checkout session')
                 meta=session.get('metadata',{})
-                valid=(session.get('payment_status')=='paid' and session.get('amount_total')==DEPOSIT
+                base_valid=(session.get('amount_total')==DEPOSIT
                     and session.get('currency')=='usd' and session.get('mode')=='payment'
                     and meta.get('order_id')==row['id'] and meta.get('quote_version')==str(row['quote_version'])
                     and bool(session.get('livemode'))==settings.stripe_key.startswith('sk_live_') and session.get('payment_intent'))
-                if not valid:raise HTTPException(409,'Payment does not match this order')
-                if row['payment_id']:
-                    if row['payment_id']!=session['payment_intent']:raise HTTPException(409,'Different payment already recorded')
+                if not base_valid:raise HTTPException(409,'Payment does not match this order')
+                if kind=='checkout.session.completed' and session.get('payment_status')=='unpaid':
+                    if row['payment_id'] and row['payment_id']!=session['payment_intent']:raise HTTPException(409,'Different payment already recorded')
+                    if row['state']=='checkout_pending':
+                        c.execute("UPDATE orders SET state='deposit_processing',payment_id=?,updated_at=?,action_due_at=? WHERE id=?",(session['payment_intent'],now,now+5*86400,row['id']))
+                        c.execute('UPDATE holds SET expires_at=? WHERE order_id=?',(now+5*86400,row['id']))
+                        store.event(c,row['id'],'deposit_processing',{'payment_id':session['payment_intent']},True)
                 else:
-                    q=Quote.model_validate_json(row['quote']);hold=c.execute('SELECT * FROM holds WHERE order_id=?',(row['id'],)).fetchone()
-                    partner=c.execute('SELECT profile FROM dealers WHERE id=?',(row['dealer_id'],)).fetchone()
-                    partner_valid=bool(partner and json.loads(partner['profile']).get('verified') and json.loads(partner['profile']).get('stripe_account')==row['payment_account'])
-                    usable=(partner_valid and settings.payments_ready and row['state']=='checkout_pending' and hold and hold['expires_at']>now
-                        and min(q.valid_until,q.seller_hold_until)>now)
-                    state='deposit_paid' if usable else 'refund_pending'
-                    c.execute('UPDATE orders SET state=?,payment_id=?,updated_at=?,action_due_at=? WHERE id=?',(state,session['payment_intent'],now,now+86400,row['id']))
-                    if usable:c.execute('UPDATE holds SET expires_at=NULL WHERE order_id=?',(row['id'],))
-                    else:c.execute('DELETE FROM holds WHERE order_id=?',(row['id'],))
-                    store.event(c,row['id'],state,{'payment_id':session['payment_intent']},True)
+                    if session.get('payment_status')!='paid':raise HTTPException(409,'Payment does not match this order')
+                    if row['payment_id'] and row['payment_id']!=session['payment_intent']:
+                        raise HTTPException(409,'Different payment already recorded')
+                    if row['state']!='deposit_paid':
+                        q=Quote.model_validate_json(row['quote']);hold=c.execute('SELECT * FROM holds WHERE order_id=?',(row['id'],)).fetchone()
+                        partner=c.execute('SELECT profile FROM dealers WHERE id=?',(row['dealer_id'],)).fetchone()
+                        partner_valid=bool(partner and json.loads(partner['profile']).get('verified') and json.loads(partner['profile']).get('stripe_account')==row['payment_account'])
+                        usable=(partner_valid and settings.payments_ready and row['state'] in ('checkout_pending','deposit_processing') and hold and (hold['expires_at'] is None or hold['expires_at']>now)
+                            and min(q.valid_until,q.seller_hold_until)>now)
+                        state='deposit_paid' if usable else 'refund_pending'
+                        c.execute('UPDATE orders SET state=?,payment_id=?,updated_at=?,action_due_at=? WHERE id=?',(state,session['payment_intent'],now,now+86400,row['id']))
+                        if usable:c.execute('UPDATE holds SET expires_at=NULL WHERE order_id=?',(row['id'],))
+                        else:c.execute('DELETE FROM holds WHERE order_id=?',(row['id'],))
+                        store.event(c,row['id'],state,{'payment_id':session['payment_intent']},True)
+            elif session and is_balance:
+                row=c.execute('SELECT * FROM orders WHERE balance_checkout_id=?',(session['id'],)).fetchone()
+                if not row:raise HTTPException(409,'Unknown balance checkout session')
+                q=Quote.model_validate_json(row['quote'])
+                meta=session.get('metadata',{})
+                base_valid=(session.get('amount_total')==q.total_cents-DEPOSIT
+                    and session.get('currency')=='usd' and session.get('mode')=='payment'
+                    and meta.get('order_id')==row['id'] and meta.get('quote_version')==str(row['quote_version'])
+                    and meta.get('payment_stage')=='balance_ach'
+                    and bool(session.get('livemode'))==settings.stripe_key.startswith('sk_live_') and session.get('payment_intent'))
+                if not base_valid:raise HTTPException(409,'Balance payment does not match this order')
+                if row['balance_payment_id'] and row['balance_payment_id']!=session['payment_intent']:
+                    raise HTTPException(409,'Different balance payment already recorded')
+                if kind=='checkout.session.completed' and session.get('payment_status')=='unpaid':
+                    c.execute("UPDATE orders SET balance_payment_state='ach_processing',balance_payment_id=?,updated_at=?,action_due_at=? WHERE id=?",(session['payment_intent'],now,now+5*86400,row['id']))
+                    store.event(c,row['id'],'balance_ach_processing',{'balance_payment_id':session['payment_intent'],'amount_cents':session['amount_total']},True)
+                elif session.get('payment_status')=='paid':
+                    c.execute("UPDATE orders SET balance_payment_state='paid',balance_payment_id=?,updated_at=?,action_due_at=? WHERE id=?",(session['payment_intent'],now,now+86400,row['id']))
+                    store.event(c,row['id'],'balance_payment_settled',{'balance_payment_id':session['payment_intent'],'amount_cents':session['amount_total']},True)
+                else:
+                    raise HTTPException(409,'Balance payment status is not valid')
             elif kind in ('checkout.session.expired','checkout.session.async_payment_failed'):
-                row=c.execute('SELECT * FROM orders WHERE checkout_id=?',(obj['id'],)).fetchone()
+                row=c.execute('SELECT * FROM orders WHERE checkout_id=? OR balance_checkout_id=?',(obj['id'],obj['id'])).fetchone()
                 if row and row['payment_account']!=event.get('account'):raise HTTPException(409,'Webhook account mismatch')
-                if row and row['state']=='checkout_pending':
+                if row and row['checkout_id']==obj['id'] and row['state'] in ('checkout_pending','deposit_processing'):
                     c.execute("UPDATE orders SET state='quote_expired',updated_at=? WHERE id=?",(now,row['id']))
                     c.execute('DELETE FROM holds WHERE order_id=?',(row['id'],))
                     store.event(c,row['id'],'async_payment_failed' if kind.endswith('failed') else 'checkout_expired',{},True)
+                elif row and row['balance_checkout_id']==obj['id']:
+                    bstate='failed' if kind.endswith('failed') else 'expired'
+                    c.execute('UPDATE orders SET balance_payment_state=?,balance_checkout_id=NULL,balance_payment_id=NULL,updated_at=? WHERE id=?',(bstate,now,row['id']))
+                    store.event(c,row['id'],'balance_payment_failed' if kind.endswith('failed') else 'balance_checkout_expired',{},True)
             elif kind in ('refund.updated','refund.created'):
-                row=c.execute('SELECT * FROM orders WHERE payment_id=?',(obj.get('payment_intent',''),)).fetchone()
+                pi=obj.get('payment_intent','')
+                row=c.execute('SELECT * FROM orders WHERE payment_id=? OR balance_payment_id=?',(pi,pi)).fetchone()
                 if row and row['payment_account']!=event.get('account'):raise HTTPException(409,'Webhook account mismatch')
-                if row and obj.get('amount')==DEPOSIT and obj.get('status')=='succeeded':
+                if row and row['payment_id']==pi and obj.get('amount')==DEPOSIT and obj.get('status')=='succeeded':
                     if row['state']=='refund_pending':
                         c.execute("UPDATE orders SET state='refunded',updated_at=? WHERE id=?",(now,row['id']))
                         c.execute('DELETE FROM holds WHERE order_id=?',(row['id'],))
@@ -341,11 +426,18 @@ def create_app(settings=None, payments=None):
                     elif row['state']!='refunded':
                         c.execute("UPDATE orders SET state='payment_review',updated_at=? WHERE id=?",(now,row['id']))
                         store.event(c,row['id'],'unexpected_refund',{'refund_id':obj['id']},True)
+                elif row and row['balance_payment_id']==pi and obj.get('status')=='succeeded':
+                    c.execute("UPDATE orders SET state='payment_review',balance_payment_state='payment_review',updated_at=? WHERE id=?",(now,row['id']))
+                    store.event(c,row['id'],'balance_refund_recorded',{'refund_id':obj['id'],'amount':obj.get('amount')},True)
             elif kind=='charge.dispute.created':
-                row=c.execute('SELECT * FROM orders WHERE payment_id=?',(obj.get('payment_intent',''),)).fetchone()
+                pi=obj.get('payment_intent','')
+                row=c.execute('SELECT * FROM orders WHERE payment_id=? OR balance_payment_id=?',(pi,pi)).fetchone()
                 if row and row['payment_account']!=event.get('account'):raise HTTPException(409,'Webhook account mismatch')
                 if row:
-                    c.execute("UPDATE orders SET state='payment_review',updated_at=? WHERE id=?",(now,row['id']))
+                    if row['balance_payment_id']==pi:
+                        c.execute("UPDATE orders SET state='payment_review',balance_payment_state='payment_review',updated_at=? WHERE id=?",(now,row['id']))
+                    else:
+                        c.execute("UPDATE orders SET state='payment_review',updated_at=? WHERE id=?",(now,row['id']))
                     store.event(c,row['id'],'dispute_received',{'dispute_id':obj['id']},True)
             c.execute('INSERT INTO stripe_events VALUES(?,?)',(event['id'],now))
         return {'received':True}
@@ -359,13 +451,37 @@ def create_app(settings=None, payments=None):
             if row['state'] in TRANSITIONS and row['state']!='deposit_paid':
                 store.event(c,order_id,'cancellation_review_requested',{'reason':body.reason},True)
                 return {'state':row['state'],'message':'Cancellation requires review of the signed purchase terms.'}
-            if row['state'] not in ('requested','quoted','quote_expired','checkout_pending','deposit_paid'):
+            if row['state'] not in ('requested','quoted','quote_expired','checkout_pending','deposit_processing','deposit_paid'):
                 raise HTTPException(409,'Contact the dealership to resolve this order')
             state='refund_pending' if row['payment_id'] else 'cancelled'
             c.execute('UPDATE orders SET state=?,updated_at=? WHERE id=?',(state,now,order_id))
             # Keep unpaid checkout lock until provider expiration; late payments trigger refund_pending.
-            if not row['checkout_id'] or row['payment_id']:c.execute('DELETE FROM holds WHERE order_id=?',(order_id,))
+            if not row['checkout_id'] or (row['payment_id'] and row['state']=='deposit_paid'):c.execute('DELETE FROM holds WHERE order_id=?',(order_id,))
             store.event(c,order_id,'cancellation_requested',{'reason':body.reason,'state':state},True)
+            return public(get_order(c,order_id))
+
+    @app.post('/api/admin/orders/{order_id}/financing',dependencies=[Depends(admin)])
+    def update_financing(order_id:str,body:FinancingUpdate):
+        now=int(time.time())
+        with store.transaction() as c:
+            row=get_order(c,order_id);dealer_for_order(c,row)
+            if row['state'] in ('cancelled','refunded','completed'):
+                raise HTTPException(409,'Order is closed')
+            c.execute('UPDATE orders SET financing_state=?,financing_detail=?,updated_at=? WHERE id=?',(body.state,body.model_dump_json(),now,order_id))
+            store.event(c,order_id,'financing_'+body.state,body.model_dump(),True)
+            return public(get_order(c,order_id))
+
+    @app.post('/api/admin/orders/{order_id}/transport',dependencies=[Depends(admin)])
+    def update_transport(order_id:str,body:TransportUpdate):
+        now=int(time.time())
+        if body.state in ('quoted','carrier_accepted') and body.quote_expires_at<=now:
+            raise HTTPException(409,'Transport quote is already expired')
+        with store.transaction() as c:
+            row=get_order(c,order_id);dealer_for_order(c,row)
+            if row['state'] in ('cancelled','refunded','completed'):
+                raise HTTPException(409,'Order is closed')
+            c.execute('UPDATE orders SET transport_state=?,transport_detail=?,updated_at=? WHERE id=?',(body.state,body.model_dump_json(),now,order_id))
+            store.event(c,order_id,'transport_'+body.state,body.model_dump(),True)
             return public(get_order(c,order_id))
 
     @app.post('/api/admin/orders/{order_id}/refund',dependencies=[Depends(admin)])
@@ -388,15 +504,28 @@ def create_app(settings=None, payments=None):
     @app.post('/api/admin/orders/{order_id}/transition',dependencies=[Depends(admin)])
     def transition(order_id:str,body:Transition):
         if not settings.platform_agreements_verified:raise HTTPException(409,'Platform transaction agreements are pending')
+        now=int(time.time())
         with store.transaction() as c:
             row=get_order(c,order_id);dealer_for_order(c,row);rule=TRANSITIONS.get(row['state'])
             if not rule or body.state!=rule[0]:raise HTTPException(409,'Invalid order transition')
             if body.state in ('dealer_confirmed','dealer_funded','in_transit'):
                 hold=c.execute('SELECT expires_at FROM source_holds WHERE order_id=?',(order_id,)).fetchone()
-                if not hold or hold['expires_at']<=int(time.time()):raise HTTPException(409,'Source dealer hold expired; reconfirm before proceeding')
+                if not hold or hold['expires_at']<=now:raise HTTPException(409,'Source dealer hold expired; reconfirm before proceeding')
+            if body.state=='dealer_funded':
+                if row['payment_preference']=='partner_financing' and row['financing_state']!='lender_funded':
+                    raise HTTPException(409,'Financing prequalification or approval is not funded proceeds; lender_funded is required')
+                if row['balance_payment_state'] in ('checkout_open','ach_processing','failed','payment_review'):
+                    raise HTTPException(409,'Balance ACH payment has not settled; cannot mark dealer_funded while unpaid or processing')
+            if body.state=='in_transit':
+                if row['transport_state'] in ('quoted','exception'):
+                    raise HTTPException(409,'Carrier acceptance is required before dispatch; a rate quote alone cannot release the vehicle')
+                if row['transport_detail']:
+                    td=json.loads(row['transport_detail'])
+                    if td.get('quote_expires_at',now+1)<=now and row['transport_state']!='carrier_accepted':
+                        raise HTTPException(409,'Transport quote expired before carrier acceptance')
             if any(len(body.evidence.get(key,'').strip())<5 for key in rule[1]):
                 raise HTTPException(409,'Required transaction evidence is missing')
-            c.execute('UPDATE orders SET state=?,updated_at=?,action_due_at=? WHERE id=?',(body.state,int(time.time()),int(time.time())+86400,order_id))
+            c.execute('UPDATE orders SET state=?,updated_at=?,action_due_at=? WHERE id=?',(body.state,now,now+86400,order_id))
             store.event(c,order_id,body.state,body.evidence,True)
             return public(get_order(c,order_id))
 
