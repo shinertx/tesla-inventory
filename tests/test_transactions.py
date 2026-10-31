@@ -209,3 +209,7 @@ def test_payment_after_checkout_is_disabled_enters_refund_queue(setup):
     closed=TestClient(create_app(replace(s,checkout_enabled=False),p))
     assert event(closed,p,o).status_code==200
     assert status(closed,o)=='refund_pending'
+
+def test_webhook_cannot_run_without_configured_verification_secret(setup):
+    _,s,p,_=setup;c=TestClient(create_app(replace(s,webhook_secret=''),p))
+    assert c.post('/api/stripe/webhook',json={'id':'event','type':'ping','data':{'object':{}}},headers={'Stripe-Signature':'valid-test-signature'}).status_code==503

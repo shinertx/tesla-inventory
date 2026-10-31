@@ -188,6 +188,7 @@ def create_app(settings=None, payments=None):
 
     @app.post('/api/stripe/webhook')
     async def webhook(request:Request):
+        if not settings.webhook_secret:raise HTTPException(503,'Webhook verification is not configured')
         raw=await request.body()
         if len(raw)>65536:raise HTTPException(413,'Request too large')
         try:event=payments.verify_event(raw,request.headers.get('stripe-signature',''))
