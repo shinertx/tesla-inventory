@@ -111,6 +111,10 @@ def create_app(settings=None, payments=None):
     def public(row):
         q=json.loads(row['quote']) if row['quote'] and row['workflow_model']=='dealer_fulfillment' else None
         summary=None
+        v=vehicles.get(row['vin'],{})
+        ref_price=v.get('reference_price')
+        ref_sample=int(v.get('reference_sample') or 0)
+        ref_cents=int(round(ref_price*100)) if ref_price and ref_sample>=5 else None
         if q:
             parsed=Quote.model_validate(q)
             summary={k:q[k] for k in ['vehicle_price_cents','tax_cents','title_registration_cents',
@@ -118,10 +122,6 @@ def create_app(settings=None, payments=None):
             profile=json.loads(row['dealer_profile'])
             summary['seller']={k:profile[k] for k in ('legal_name','license_number','address')}
             summary['inventory_owner']='fulfilling_dealer'
-            v=vehicles.get(row['vin'],{})
-            ref_price=v.get('reference_price')
-            ref_sample=int(v.get('reference_sample') or 0)
-            ref_cents=int(round(ref_price*100)) if ref_price and ref_sample>=5 else None
             summary.update(total_cents=parsed.total_cents,deposit_cents=DEPOSIT,
                 balance_after_deposit_cents=parsed.total_cents-DEPOSIT,
                 reference_price_cents=ref_cents,
@@ -129,12 +129,44 @@ def create_app(settings=None, payments=None):
                 benchmark_date=v.get('benchmark_date'),
                 vehicle_savings_cents=max(0,ref_cents-parsed.vehicle_price_cents) if ref_cents else 0,
                 terms={k:q[k] for k in ['buyers_guide_reference','warranty_terms_reference','return_terms_reference','deposit_terms_reference']})
+        vehicle_summary={'vin':row['vin'],'year':v.get('year'),'model':v.get('model'),'trim':v.get('trim'),
+            'mileage':v.get('mileage'),'display_price':v.get('display_price'),
+            'reference_price':ref_price if ref_cents else None,'reference_sample':ref_sample if ref_cents else 0,
+            'benchmark_date':v.get('benchmark_date'),'photo':v.get('photo'),'city':v.get('city'),'state':v.get('state')} if v and v.get('model') else None
         financing=json.loads(row['financing_detail']) if row['financing_detail'] else {'state':row['financing_state']}
         transport=json.loads(row['transport_detail']) if row['transport_detail'] else {'state':row['transport_state']}
         return {'id':row['id'],'vin':row['vin'],'state':row['state'],'quote':summary,
+                'vehicle':vehicle_summary,'refund_submitted':bool(row['refund_id']),
                 'quote_version':row['quote_version'],'action_due_at':row['action_due_at'],
                 'payment_preference':row['payment_preference'],'balance_payment_state':row['balance_payment_state'],
                 'financing':financing,'transport':transport}
+
+    def _execute_deposit_refund(c,row,strict=True):
+        if row['state']=='refunded':return row
+        if row['workflow_model']!='dealer_fulfillment' or not row['payment_account']:
+            if strict:raise HTTPException(409,'Legacy payment requires manual review')
+            return row
+        if row['state']!='refund_pending' or not row['payment_id']:
+            if strict:raise HTTPException(409,'No pending deposit refund')
+            return row
+        if row['refund_id']:return row
+        try:result=payments.refund(dict(row))
+        except Exception:
+            if strict:raise HTTPException(503,'Refund failed; retry with the same order')
+            store.event(c,row['id'],'refund_retry_scheduled',{'reason':'provider_unavailable'},True)
+            return get_order(c,row['id'])
+        if result.get('amount')!=DEPOSIT or result.get('payment_intent')!=row['payment_id']:
+            if strict:raise HTTPException(409,'Refund does not match payment')
+            store.event(c,row['id'],'refund_mismatch',{'refund_id':result.get('id','')},True)
+            return get_order(c,row['id'])
+        now=int(time.time())
+        if result.get('status')=='succeeded':
+            c.execute("UPDATE orders SET state='refunded',refund_id=?,updated_at=? WHERE id=?",(result['id'],now,row['id']))
+        else:
+            c.execute("UPDATE orders SET state='refund_pending',refund_id=?,updated_at=? WHERE id=?",(result['id'],now,row['id']))
+        c.execute('DELETE FROM holds WHERE order_id=?',(row['id'],))
+        store.event(c,row['id'],'refund_submitted',{'refund_id':result['id'],'status':result['status']},True)
+        return get_order(c,row['id'])
 
     @app.get('/api/config')
     def config():
@@ -399,6 +431,8 @@ def create_app(settings=None, payments=None):
                         if usable:c.execute('UPDATE holds SET expires_at=NULL WHERE order_id=?',(row['id'],))
                         else:c.execute('DELETE FROM holds WHERE order_id=?',(row['id'],))
                         store.event(c,row['id'],state,{'payment_id':session['payment_intent']},True)
+                        if state=='refund_pending' and settings.auto_refund_enabled and settings.payments_ready:
+                            _execute_deposit_refund(c,get_order(c,row['id']),strict=False)
             elif session and is_balance:
                 row=c.execute('SELECT * FROM orders WHERE balance_checkout_id=?',(session['id'],)).fetchone()
                 if not row:raise HTTPException(409,'Unknown balance checkout session')
@@ -437,7 +471,7 @@ def create_app(settings=None, payments=None):
                 if row and row['payment_account']!=event.get('account'):raise HTTPException(409,'Webhook account mismatch')
                 if row and row['payment_id']==pi and obj.get('amount')==DEPOSIT and obj.get('status')=='succeeded':
                     if row['state']=='refund_pending':
-                        c.execute("UPDATE orders SET state='refunded',updated_at=? WHERE id=?",(now,row['id']))
+                        c.execute("UPDATE orders SET state='refunded',refund_id=COALESCE(refund_id,?),updated_at=? WHERE id=?",(obj['id'],now,row['id']))
                         c.execute('DELETE FROM holds WHERE order_id=?',(row['id'],))
                         store.event(c,row['id'],'refund_completed',{'refund_id':obj['id']},True)
                     elif row['state']!='refunded':
@@ -475,6 +509,8 @@ def create_app(settings=None, payments=None):
             # Keep unpaid checkout lock until provider expiration; late payments trigger refund_pending.
             if not row['checkout_id'] or (row['payment_id'] and row['state']=='deposit_paid'):c.execute('DELETE FROM holds WHERE order_id=?',(order_id,))
             store.event(c,order_id,'cancellation_requested',{'reason':body.reason,'state':state},True)
+            if state=='refund_pending' and settings.auto_refund_enabled and settings.payments_ready:
+                _execute_deposit_refund(c,get_order(c,order_id),strict=False)
             return public(get_order(c,order_id))
 
     @app.post('/api/admin/orders/{order_id}/financing',dependencies=[Depends(admin)])
@@ -505,18 +541,19 @@ def create_app(settings=None, payments=None):
     def refund(order_id:str):
         with store.transaction() as c:
             row=get_order(c,order_id)
-            if row['state']=='refunded':return public(row)
-            if row['workflow_model']!='dealer_fulfillment' or not row['payment_account']:raise HTTPException(409,'Legacy payment requires manual review')
-            if row['state']!='refund_pending' or not row['payment_id']:raise HTTPException(409,'No pending deposit refund')
-            try:result=payments.refund(dict(row))
-            except Exception:raise HTTPException(503,'Refund failed; retry with the same order')
-            if result.get('amount')!=DEPOSIT or result.get('payment_intent')!=row['payment_id']:
-                raise HTTPException(409,'Refund does not match payment')
-            if result['status']=='succeeded':
-                c.execute("UPDATE orders SET state='refunded',updated_at=? WHERE id=?",(int(time.time()),order_id))
-                c.execute('DELETE FROM holds WHERE order_id=?',(order_id,))
-            store.event(c,order_id,'refund_submitted',{'refund_id':result['id'],'status':result['status']},True)
-            return public(get_order(c,order_id))
+            return public(_execute_deposit_refund(c,row,strict=True))
+
+    @app.post('/api/admin/refunds/process',dependencies=[Depends(admin)])
+    def process_refunds():
+        refunded=[];pending=[];retry=[]
+        with store.transaction() as c:
+            rows=c.execute("SELECT * FROM orders WHERE state='refund_pending' AND workflow_model='dealer_fulfillment' AND payment_id IS NOT NULL AND payment_account IS NOT NULL AND refund_id IS NULL ORDER BY updated_at ASC LIMIT 50").fetchall()
+            for r in rows:
+                updated=_execute_deposit_refund(c,r,strict=False)
+                if updated['state']=='refunded':refunded.append(updated['id'])
+                elif updated['refund_id']:pending.append(updated['id'])
+                else:retry.append(updated['id'])
+        return {'processed':len(rows),'refunded':refunded,'pending':pending,'retry_scheduled':retry}
 
     @app.post('/api/admin/orders/{order_id}/transition',dependencies=[Depends(admin)])
     def transition(order_id:str,body:Transition):

@@ -560,3 +560,70 @@ def test_first_paid_event_after_processing_expiry_still_requires_refund(setup):
     assert status(client,order)=='refund_pending'
     with store.connect() as db:
         assert db.execute("SELECT COUNT(*) FROM events WHERE order_id=? AND kind='deposit_paid'",(order['id'],)).fetchone()[0]==0
+
+
+def test_auto_refund_on_cancel_and_durable_refund_worker_with_pending_webhook(tmp_path):
+    inv=tmp_path/'inventory.json'
+    inv.write_text(json.dumps({'items':[{'vin':VIN,'year':2023,'model':'Model Y','trim':'Long Range AWD','mileage':18500,'display_price':29000,'reference_price':30200,'reference_sample':8,'benchmark_date':'2026-10-31','photo':'https://example.test/car.jpg','city':'Austin','state':'TX'}]}))
+    settings=Settings(db_path=tmp_path/'orders.db',inventory_path=inv,admin_token=TOKEN,
+        platform_agreements_verified=True,supported_states=('TX',),checkout_enabled=True,
+        stripe_key='sk_test_fixture',stripe_publishable_key='pk_test_fixture',webhook_secret='whsec_fixture',
+        auto_refund_enabled=True)
+    payments=Payments()
+    app=create_app(settings,payments)
+    profile=dict(id='fixture-dealer',legal_name='FIXTURE FULFILLING DEALER',license_number='TEST-LICENSE',
+        address='TEST ADDRESS',supported_states=['TX'],stripe_account='acct_fixtureDealer',
+        agreement_reference='agreement:fixture',license_evidence='license:fixture',verified=True)
+    with app.state.store.transaction() as db:
+        db.execute('INSERT INTO dealers VALUES(?,?,?)',(profile['id'],json.dumps(profile),int(time.time())))
+    client=TestClient(app)
+
+    # Case 1: Immediate succeeded refund on customer cancel
+    o1=request(client);q1=approve(client,o1);checkout(client,o1);assert event(client,payments,o1).status_code==200
+    assert q1['vehicle']['model']=='Model Y'
+    assert q1['quote']['vehicle_savings_cents']==120000
+    assert q1['quote']['balance_after_deposit_cents']==q1['quote']['total_cents']-25000
+    c1=client.post(f"/api/orders/{o1['id']}/cancel",json={'reason':'Immediate auto refund'},headers=auth(o1))
+    assert c1.status_code==200 and c1.json()['state']=='refunded' and c1.json()['refund_submitted'] is True
+
+    # Case 2: Transient provider failure on cancel stays refund_pending, then durable worker retries; pending status waits for webhook
+    o2=request(client);approve(client,o2);checkout(client,o2);assert event(client,payments,o2).status_code==200
+    def fail_refund(order):raise RuntimeError('provider timeout')
+    payments.refund=fail_refund
+    c2=client.post(f"/api/orders/{o2['id']}/cancel",json={'reason':'Transient failure'},headers=auth(o2))
+    assert c2.status_code==200 and c2.json()['state']=='refund_pending' and c2.json()['refund_submitted'] is False
+
+    # Worker retries when provider returns status='pending': stores refund_id, keeps refund_pending, does not double-submit
+    pending_calls=[]
+    def pending_refund(order):
+        pending_calls.append(order['id'])
+        return {'id':'re_pending_'+order['id'],'amount':25000,'payment_intent':order['payment_id'],'status':'pending'}
+    payments.refund=pending_refund
+    w1=client.post('/api/admin/refunds/process',json={},headers=admin())
+    assert w1.status_code==200 and w1.json()['pending']==[o2['id']]
+    assert status(client,o2)=='refund_pending'
+    assert client.get(f"/api/orders/{o2['id']}",headers=auth(o2)).json()['refund_submitted'] is True
+    # Calling admin refund or worker again while refund_id is already pending does not create a duplicate refund
+    assert client.post(f"/api/admin/orders/{o2['id']}/refund",json={},headers=admin()).status_code==200
+    assert client.post('/api/admin/refunds/process',json={},headers=admin()).json()['processed']==0
+    assert len(pending_calls)==1
+
+    # Webhook refund.updated marks order refunded
+    pi='pi_'+o2['id']
+    rw=client.post('/api/stripe/webhook',json={'id':'evt_refund_settled','type':'refund.updated','account':'acct_fixtureDealer',
+        'data':{'object':{'id':'re_pending_'+o2['id'],'payment_intent':pi,'amount':25000,'status':'succeeded'}}},
+        headers={'Stripe-Signature':'valid-test-signature'})
+    assert rw.status_code==200 and status(client,o2)=='refunded'
+
+
+def test_financing_application_url_and_transport_tracking_url_require_https(setup):
+    client,_,payments,_=setup
+    o=request(client,body={**customer(),'payment_preference':'partner_financing'})
+    approve(client,o);checkout(client,o);event(client,payments,o)
+    assert client.post(f"/api/admin/orders/{o['id']}/financing",json={'state':'prequalified','provider':'Partner Credit Union','reference':'evidence:prequal','approved_amount_cents':2875000,'application_url':'http://insecure.example.test/apply'},headers=admin()).status_code==422
+    r_fin=client.post(f"/api/admin/orders/{o['id']}/financing",json={'state':'prequalified','provider':'Partner Credit Union','reference':'evidence:prequal','approved_amount_cents':2875000,'application_url':'https://lender.example.test/apply/123'},headers=admin())
+    assert r_fin.status_code==200 and r_fin.json()['financing']['application_url']=='https://lender.example.test/apply/123'
+    now=int(time.time())
+    assert client.post(f"/api/admin/orders/{o['id']}/transport",json={'state':'quoted','provider':'Montway','quote_reference':'evidence:rate','rate_cents':60000,'quote_expires_at':now+86400,'tracking_url':'http://insecure.example.test/track'},headers=admin()).status_code==422
+    r_tr=client.post(f"/api/admin/orders/{o['id']}/transport",json={'state':'quoted','provider':'Montway','quote_reference':'evidence:rate','rate_cents':60000,'quote_expires_at':now+86400,'tracking_url':'https://carrier.example.test/track/123'},headers=admin())
+    assert r_tr.status_code==200 and r_tr.json()['transport']['tracking_url']=='https://carrier.example.test/track/123'

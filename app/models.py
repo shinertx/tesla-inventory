@@ -168,6 +168,16 @@ class FinancingUpdate(StrictModel):
     approved_amount_cents: int = Field(default=0,ge=0,le=100_000_000)
     funded_amount_cents: int = Field(default=0,ge=0,le=100_000_000)
     stipulations: list[str] = Field(default_factory=list,max_length=20)
+    application_url: str = Field(default='',max_length=2048)
+
+    @field_validator('application_url')
+    @classmethod
+    def check_app_url(cls,value):
+        if not value:return value
+        from urllib.parse import urlsplit
+        p=urlsplit(value)
+        if p.scheme!='https' or not p.hostname or p.username or p.password:raise ValueError('Financing application URL requires HTTPS')
+        return value
 
     @model_validator(mode='after')
     def check_funding(self):
@@ -187,7 +197,17 @@ class TransportUpdate(StrictModel):
     delivery_window_end: int | None = None
     carrier_acceptance_reference: str = Field(default='',max_length=500)
     bol_reference: str = Field(default='',max_length=500)
+    tracking_url: str = Field(default='',max_length=2048)
     notes: str = Field(default='',max_length=500)
+
+    @field_validator('tracking_url')
+    @classmethod
+    def check_tracking_url(cls,value):
+        if not value:return value
+        from urllib.parse import urlsplit
+        p=urlsplit(value)
+        if p.scheme!='https' or not p.hostname or p.username or p.password:raise ValueError('Carrier tracking URL requires HTTPS')
+        return value
 
     @model_validator(mode='after')
     def check_carrier_progression(self):

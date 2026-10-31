@@ -23,6 +23,7 @@ class Settings:
     min_contribution_cents: int = 100000
     retention_days: int = 90
     sandbox_mode: bool = False
+    auto_refund_enabled: bool = False
 
     @property
     def is_test_sandbox(self):
@@ -62,4 +63,5 @@ class Settings:
             min_contribution_cents=int(os.getenv('MIN_CONTRIBUTION_CENTS', '100000')),
             retention_days=int(os.getenv('REQUEST_RETENTION_DAYS', '90')),
             sandbox_mode=os.getenv('SANDBOX_MODE', '').lower() == 'true',
+            auto_refund_enabled=os.getenv('AUTO_REFUND_ENABLED', 'true').lower() == 'true',
         )

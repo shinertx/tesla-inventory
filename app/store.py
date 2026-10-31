@@ -58,6 +58,7 @@ class Store:
                 ('financing_detail','TEXT'),
                 ('transport_state',"TEXT NOT NULL DEFAULT 'unquoted'"),
                 ('transport_detail','TEXT'),
+                ('refund_id','TEXT'),
             ]:
                 if name not in columns:c.execute(f'ALTER TABLE orders ADD COLUMN {name} {definition}')
             legacy=c.execute("SELECT id,state,quote FROM orders WHERE workflow_model='legacy_resale' AND quote IS NOT NULL AND state NOT IN ('model_review','cancelled','refunded')").fetchall()

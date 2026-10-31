@@ -33,8 +33,11 @@ def main():
                 page.evaluate('sessionStorage.setItem("marketplace_order",JSON.stringify({id:"fixture-order",token:"fixture-access"}))')
                 page.locator('#order-button').click();page.locator('#order-dialog[open]').wait_for()
                 assert 'FIXTURE SELLING DEALER' in page.locator('#order-content').inner_text()
+                assert '-$250.00' in page.locator('#order-content').inner_text()
+                assert '$31,312.50' in page.locator('#order-content').inner_text()
                 page.locator('#pay-deposit').click();page.get_by_text('Review and accept the quote and linked terms first.').wait_for();assert not calls
-                page.locator('#accept-quote').check();page.locator('#pay-deposit').click();page.get_by_text('FIXTURE SECURE PAYMENT FORM').wait_for()
+                page.locator('#accept-quote').check();assert page.locator('#order-error').inner_text()==''
+                page.locator('#pay-deposit').click();page.get_by_text('FIXTURE SECURE PAYMENT FORM').wait_for()
                 assert page.url==base
                 assert page.evaluate('window.fixtureStripe.account.stripeAccount')=='acct_fixtureDealer'
                 assert page.evaluate('window.fixtureStripe.secret')=='fixture_secret'
