@@ -373,3 +373,26 @@ def test_embedded_provider_does_not_redirect_or_charge_spread_on_deposit(setup,m
     assert 'success_url' not in params and 'cancel_url' not in params
     assert params['line_items'][0]['price_data']['unit_amount']==25000
     assert 'application_fee_amount' not in params.get('payment_intent_data',{})
+
+
+def test_stripe_ach_and_card_payment_methods_and_balance_ach(setup,monkeypatch):
+    client,settings,payments,_=setup;calls=[]
+    import stripe
+    monkeypatch.setattr(stripe.checkout.Session,'create',lambda **kw:calls.append(kw) or {'id':'cs_fixture'})
+    provider=StripePayments(settings)
+    order={'id':'fixture','vin':VIN,'quote_version':1,'payment_account':'acct_fixtureDealer'}
+    q=quote_body()
+    provider.create_checkout(order,q,int(time.time())+1800)
+    assert calls[0]['payment_method_types']==['card','us_bank_account']
+    assert calls[0]['payment_method_options']['us_bank_account']['financial_connections']['permissions']==['payment_method']
+    from app.models import Quote
+    parsed_q=Quote.model_validate(q)
+    provider.create_balance_ach_checkout(order,parsed_q,int(time.time())+1800)
+    assert calls[1]['payment_method_types']==['us_bank_account']
+    assert calls[1]['line_items'][0]['price_data']['unit_amount']==parsed_q.total_cents-25000
+    cfg=client.get('/api/config').json()
+    assert cfg['ach_enabled'] is True and 'us_bank_account' in cfg['payment_methods']
+    o=request(client);approve(client,o);checkout(client,o)
+    session=next(s for s in payments.sessions.values() if s['metadata']['order_id']==o['id'])
+    res=client.post('/api/stripe/webhook',json={'id':'evt_ach_fail','type':'checkout.session.async_payment_failed','account':session['account'],'data':{'object':{'id':session['id']}}},headers={'Stripe-Signature':'valid-test-signature'})
+    assert res.status_code==200 and status(client,o)=='quote_expired'

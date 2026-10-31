@@ -12,8 +12,26 @@ from app.catalog import public_catalog
 from tools.media import photo_url,normalize_photos
 from tools.features import vehicle_features
 from tools.pricing import PricingPolicy,propose_price,mileage_reference
-BASE='https://shinertx.github.io/tesla-inventory'
+BASE=os.getenv('PUBLIC_BASE_URL','https://voltsandvins.com').rstrip('/')
+INDEXNOW_KEY='7f9a2d4c8e1b6a3f5c0d9e8b7a6f5e4d'
 PRICING_POLICY=PricingPolicy(buyer_savings_cents=int(os.getenv('BUYER_SAVINGS_CENTS','0')))
+
+def schema_script(page_url, page_name, subset):
+    graph=[
+        {'@type':'Organization','@id':BASE+'/#organization','name':'Volts & VINs','url':BASE},
+        {'@type':'WebSite','@id':BASE+'/#website','url':BASE,'name':'Volts & VINs'},
+        {'@type':'ItemList','name':page_name,'url':page_url,'numberOfItems':len(subset),'itemListElement':[
+            {'@type':'ListItem','position':i+1,'item':{
+                '@type':'Car','name':f"{x['year']} Tesla {x['model']} {x['trim']}",
+                'brand':{'@type':'Brand','name':'Tesla'},'model':x['model'],'vehicleModelDate':str(x['year']),
+                'vehicleIdentificationNumber':x['vin'],'itemCondition':'https://schema.org/UsedCondition',
+                'mileageFromOdometer':{'@type':'QuantitativeValue','value':x['mileage'],'unitCode':'SMI'},
+                **({'image':x['photo']} if x.get('photo') else {}),
+                'url':f"{BASE}/?vin={x['vin']}"
+            }} for i,x in enumerate(subset[:24])
+        ]}
+    ]
+    return '<script type="application/ld+json">'+json.dumps({'@context':'https://schema.org','@graph':graph},separators=(',',':'))+'</script>'
 
 
 def safe_url(value):
@@ -142,13 +160,18 @@ def build(source=None,output=ROOT,now=None,gallery_source=None):
     for asset in ('app.js','styles.css'):
         version=hashlib.sha256((ROOT/'web'/asset).read_bytes()).hexdigest()[:12]
         template=template.replace('web/'+asset,'web/'+asset+'?v='+version)
-    (output/'index.html').write_text(template)
     # Category pages use the same shopping application with an explicit preset.
     # Only category pages enter the sitemap; VIN queries are application detail links.
     entries=[BASE+'/']
     categories=[('models',x.lower().replace(' ','-'),x,'model') for x in sorted({x['model'] for x in items})]
     categories += [('years',str(x),str(x),'year') for x in sorted({x['year'] for x in items})]
     categories += [('states',x.lower(),x,'state') for x in sorted({x['state'] for x in items}) if x!='US']
+    def nav_links(prefix):
+        links=[f'<a href="{prefix}{g}/{s}.html">{html.escape(l)} Tesla</a>' for g,s,l,_ in categories if g in ('models','years')][:18]
+        links+=[f'<a href="{prefix}{g}/{s}.html">Used Tesla {html.escape(l)}</a>' for g,s,l,_ in categories if g=='states'][:16]
+        return '<nav class="seo-links" aria-label="Browse Used Tesla inventory by model, year, and state">'+''.join(links)+'</nav>'
+    root_html=template.replace('<!-- STRUCTURED_DATA -->',schema_script(BASE+'/','Volts & VINs Used Tesla Inventory',items)).replace('<!-- SEO_INTERNAL_LINKS -->',nav_links(''))
+    (output/'index.html').write_text(root_html)
     for group in ('models','years','states'):
         folder=output/group;folder.mkdir(exist_ok=True)
         for obsolete in folder.glob('*.html'):obsolete.unlink()
@@ -156,10 +179,12 @@ def build(source=None,output=ROOT,now=None,gallery_source=None):
         subset=[x for x in items if str(x[field])==label]
         href=f'{BASE}/{group}/{slug}.html'
         cards=''.join(f'<li><a href="../?vin={x["vin"]}">{html.escape(str(x["year"])+" "+x["model"]+" "+x["trim"])}</a> — ${x["display_price"]:,.0f}, estimated vehicle price; tax, title and delivery quoted separately.</li>' for x in subset[:24])
-        text=template.replace('href="web/', 'href="../web/').replace('src="web/','src="../web/')
+        text=template.replace('href="web/', 'href="../web/').replace('src="web/','src="../web/').replace('href="inventory.json"','href="../inventory.json"')
         text=text.replace('data-preset=""',f'data-preset="{field}:{html.escape(label,quote=True)}"')
-        text=text.replace('<title>Used EV Direct | Used Tesla Storefront</title>',f'<title>{html.escape(label)} Used Tesla listings | Used EV Direct</title>')
+        text=text.replace('<title>Volts &amp; VINs | Used Tesla Inventory, Verified VINs &amp; Price Finds</title>',f'<title>{html.escape(label)} Used Tesla listings ({len(subset):,}) | Volts &amp; VINs</title>')
         text=text.replace('<link rel="canonical" href="'+BASE+'/">','<link rel="canonical" href="'+href+'">')
+        text=text.replace('<!-- STRUCTURED_DATA -->',schema_script(href,f'{label} Used Tesla listings | Volts & VINs',subset))
+        text=text.replace('<!-- SEO_INTERNAL_LINKS -->',nav_links('../'))
         text=text.replace('<!-- CATEGORY_CONTENT -->',f'<section class="category-intro"><h1>{html.escape(label)} Tesla listings</h1><p>{len(subset):,} vehicles to explore. Dealer confirmation is required before reservation.</p><details><summary>Featured vehicles</summary><ul>{cards}</ul></details></section>')
         (output/group/(slug+'.html')).write_text(text)
         entries.append(href)
@@ -169,6 +194,8 @@ def build(source=None,output=ROOT,now=None,gallery_source=None):
     for url in entries:ET.SubElement(ET.SubElement(tree,ns+'url'),ns+'loc').text=url
     ET.ElementTree(tree).write(output/'sitemap.xml',encoding='utf-8',xml_declaration=True)
     (output/'robots.txt').write_text(f'User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: {BASE}/sitemap.xml\n')
+    (output/'CNAME').write_text('voltsandvins.com\n')
+    (output/'voltsandvins-indexnow-key.txt').write_text(INDEXNOW_KEY+'\n')
     print(json.dumps({'published':len(items),'excluded':dict(excluded),'category_pages':len(categories),'sitemap_urls':len(entries)}))
     return payload
 

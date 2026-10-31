@@ -3,6 +3,7 @@ from typing import Annotated
 import hashlib, hmac, json, secrets, sqlite3, time, uuid
 from datetime import datetime, timezone
 from fastapi import FastAPI, Depends, Header, HTTPException, Request
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from .config import Settings, ROOT
@@ -46,7 +47,8 @@ def create_app(settings=None, payments=None):
     store=Store(settings.db_path)
     payments=payments or StripePayments(settings)
     inventory,vehicles=_load_inventory(settings.inventory_path)
-    app=FastAPI(title='Used EV Direct',docs_url=None,redoc_url=None)
+    app=FastAPI(title='Volts & VINs',docs_url=None,redoc_url=None)
+    app.add_middleware(GZipMiddleware,minimum_size=500)
     app.state.store=store
     media=VehicleMedia(store,settings.sourcing_path)
 
@@ -126,7 +128,8 @@ def create_app(settings=None, payments=None):
             approved=sum(bool(json.loads(r['profile']).get('verified')) for r in c.execute('SELECT profile FROM dealers'))
         return {'mode':'dealer_fulfillment','partner_onboarding_status':'ready' if approved and settings.platform_agreements_verified else 'pending',
             'supported_states':settings.supported_states,'payments_enabled':bool(settings.payments_ready and approved),
-            'deposit_cents':DEPOSIT,'requests_enabled':True,'inventory_owner':'fulfilling_dealer'}
+            'payment_methods':list(settings.payment_method_types),'ach_enabled':'us_bank_account' in settings.payment_method_types,
+            'balance_payment_method':'us_bank_account','deposit_cents':DEPOSIT,'requests_enabled':True,'inventory_owner':'fulfilling_dealer'}
 
     @app.put('/api/admin/dealers/{dealer_id}',dependencies=[Depends(admin)])
     def onboard_dealer(dealer_id:str,body:Dealer):
@@ -320,13 +323,13 @@ def create_app(settings=None, payments=None):
                     if usable:c.execute('UPDATE holds SET expires_at=NULL WHERE order_id=?',(row['id'],))
                     else:c.execute('DELETE FROM holds WHERE order_id=?',(row['id'],))
                     store.event(c,row['id'],state,{'payment_id':session['payment_intent']},True)
-            elif kind=='checkout.session.expired':
+            elif kind in ('checkout.session.expired','checkout.session.async_payment_failed'):
                 row=c.execute('SELECT * FROM orders WHERE checkout_id=?',(obj['id'],)).fetchone()
                 if row and row['payment_account']!=event.get('account'):raise HTTPException(409,'Webhook account mismatch')
                 if row and row['state']=='checkout_pending':
                     c.execute("UPDATE orders SET state='quote_expired',updated_at=? WHERE id=?",(now,row['id']))
                     c.execute('DELETE FROM holds WHERE order_id=?',(row['id'],))
-                    store.event(c,row['id'],'checkout_expired',{},True)
+                    store.event(c,row['id'],'async_payment_failed' if kind.endswith('failed') else 'checkout_expired',{},True)
             elif kind in ('refund.updated','refund.created'):
                 row=c.execute('SELECT * FROM orders WHERE payment_id=?',(obj.get('payment_intent',''),)).fetchone()
                 if row and row['payment_account']!=event.get('account'):raise HTTPException(409,'Webhook account mismatch')
@@ -533,6 +536,10 @@ def create_app(settings=None, payments=None):
     def sitemap():return FileResponse(ROOT/'sitemap.xml',media_type='application/xml')
     @app.get('/robots.txt')
     def robots():return FileResponse(ROOT/'robots.txt',media_type='text/plain')
+    @app.get('/CNAME')
+    def cname():return FileResponse(ROOT/'CNAME',media_type='text/plain')
+    @app.get('/voltsandvins-indexnow-key.txt')
+    def indexnow_key():return FileResponse(ROOT/'voltsandvins-indexnow-key.txt',media_type='text/plain')
     @app.get('/')
     def home():return FileResponse(ROOT/'index.html')
     @app.get('/{group}/{slug}.html')

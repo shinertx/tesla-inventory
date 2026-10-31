@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 Disallow: /api/
-Sitemap: https://shinertx.github.io/tesla-inventory/sitemap.xml
+Sitemap: https://voltsandvins.com/sitemap.xml

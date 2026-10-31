@@ -135,3 +135,15 @@ def test_confirmed_configuration_and_dealer_net_allow_uncapped_public_repricing(
     assert public['display_price']==40000
     assert private['modeled_gross_spread_cents']==2100000
     assert private['dealer_net_basis']=='agreed_commitment'
+
+
+def test_seo_schema_jsonld_cname_and_indexnow_are_built(tmp_path):
+    build(write_source(tmp_path,[candidate()]),tmp_path)
+    home=(tmp_path/'index.html').read_text()
+    assert 'Volts &amp; VINs' in home
+    assert 'application/ld+json' in home and VIN in home
+    assert (tmp_path/'CNAME').read_text().strip()=='voltsandvins.com'
+    assert len((tmp_path/'voltsandvins-indexnow-key.txt').read_text().strip())==32
+    from tools.indexnow import build_indexnow_payload
+    payload=build_indexnow_payload(['https://voltsandvins.com/'])
+    assert payload['host']=='voltsandvins.com' and payload['urlList']==['https://voltsandvins.com/']
