@@ -36,9 +36,13 @@ def parse_source(source,response,model=None,year=None):
     rows=[]
     if source=='autolist':
         data=response.json()
-        if not isinstance(data,dict) or not isinstance(data.get('search_results'),list):raise SourceError('Autolist response shape changed')
-        for x in data['search_results']:
-            rows.append(normalized(x.get('vin'),x.get('model'),x.get('year'),x.get('trim'),x.get('price_unformatted'),x.get('mileage_unformatted'),x.get('dealer_name'),x.get('city'),x.get('state'),x.get('primary_photo_url'),urljoin('https://www.autolist.com',x.get('url') or x.get('listing_url') or ''),bool(x.get('salvage') or x.get('is_salvage'))))
+        items=data.get('records') if isinstance(data,dict) and isinstance(data.get('records'),list) else data.get('search_results') if isinstance(data,dict) else None
+        if not isinstance(items,list):raise SourceError('Autolist response shape changed')
+        for x in items:
+            vin=x.get('vin')
+            photos=x.get('photo_urls') if isinstance(x.get('photo_urls'),list) and x.get('photo_urls') else x.get('primary_photo_url')
+            link=x.get('url') or x.get('listing_url') or (f'/api/vehicles/{vin}' if vin else '')
+            rows.append(normalized(vin,x.get('model') or x.get('model_name'),x.get('year'),x.get('trim'),x.get('price_unformatted') if x.get('price_unformatted') is not None else x.get('price'),x.get('mileage_unformatted') if x.get('mileage_unformatted') is not None else x.get('mileage'),x.get('dealer_name'),x.get('city'),x.get('state'),photos,urljoin('https://www.autolist.com',link),bool(x.get('salvage') or x.get('is_salvage'))))
     elif source=='cargurus':
         data=response.json()
         if not isinstance(data,list):raise SourceError('CarGurus response shape changed')
@@ -69,7 +73,7 @@ def parse_source(source,response,model=None,year=None):
 
 def source_url(source,model,year,page):
     if source=='autolist':
-        return 'https://www.autolist.com/api/cwv/seo/listings?'+urlencode(dict(make='Tesla',model=model,year_min=year,year_max=year,latitude=39.8283,longitude=-98.5795,radius='all',page=page,limit=100,sort_filter='price:asc'))
+        return 'https://www.autolist.com/api/v2/search?'+urlencode(dict(make='Tesla',model=model,year_min=year,year_max=year,latitude=39.8283,longitude=-98.5795,radius='all',page=page,limit=100,sort_filter='price:asc'))
     if source=='cargurus':
         entities={'Model 3':'d2475','Model Y':'d3044','Model S':'d2039','Model X':'d2132','Cybertruck':'d3353'}
         return 'https://www.cargurus.com/Cars/searchResults.action?'+urlencode({'zip':'78201','distance':50000,'entitySelectingHelper.selectedEntity':entities[model],'startYear':year,'endYear':year,'offset':(page-1)*48,'maxResults':48,'sortType':'PRICE','sortDir':'ASC'})

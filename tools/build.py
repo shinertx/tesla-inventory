@@ -33,11 +33,20 @@ def timestamp(value):
     try:return datetime.fromisoformat(value.replace('Z','+00:00')).astimezone(timezone.utc)
     except (ValueError,AttributeError,TypeError):return None
 
+_GALLERY_CACHE={}
+def _load_galleries(gallery_file):
+    if not gallery_file.exists():return {}
+    stat=gallery_file.stat()
+    key=(str(gallery_file),stat.st_mtime_ns,stat.st_size)
+    if _GALLERY_CACHE.get('key')!=key:
+        _GALLERY_CACHE['key']=key
+        _GALLERY_CACHE['data']=json.loads(gallery_file.read_text())
+    return _GALLERY_CACHE['data']
+
 def build(source=None,output=ROOT,now=None):
     output=Path(output);now=now or datetime.now(timezone.utc)
     source=Path(source or ROOT/'.data/source_snapshot.json')
-    gallery_file=ROOT/'data/vehicle_photos.json'
-    galleries=json.loads(gallery_file.read_text()) if gallery_file.exists() else {}
+    galleries=_load_galleries(ROOT/'data/vehicle_photos.json')
     raw=json.loads(source.read_text());items=[];seen=set();excluded=collections.Counter();supplier_rows={};source_prices={}
     blocked=json.loads((ROOT/'data/exclusions.json').read_text())
     for x in raw['items']:
@@ -56,7 +65,7 @@ def build(source=None,output=ROOT,now=None):
         observed=timestamp(x.get('observed_at'))
         # A live source observation is still not an exclusive dealer hold.
         source_recent=bool(observed and observed>=now-timedelta(hours=48))
-        photos=normalize_photos(galleries.get(vin,[])+x.get('photos',[]))
+        photos=normalize_photos(galleries.get(vin,[]) or x.get('photos',[]))
         items.append({'vin':vin,'model':x['model'],'year':x['year'],
             'trim':customer_trim(x.get('dealer_trim'),x['model']),'mileage':mileage,'display_price':price,
             'stock_number':'TSL-'+vin[-6:],'pricing_status':'estimate','city':x.get('city') or '',

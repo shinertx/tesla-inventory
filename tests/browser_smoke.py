@@ -59,7 +59,12 @@ def main():
                 gallery=context.new_page();gallery.goto(base+'/?vin=5YJ3E1EA8KF413066');gallery.wait_for_selector('#gallery-thumbs .gallery-thumb')
                 assert gallery.locator('.gallery-thumb').count()>=43
                 gallery.locator('#gallery-next').click();assert gallery.locator('#gallery-count').inner_text().startswith('2 /')
-                gallery.locator('#photo-expand').click();assert gallery.locator('#photo-dialog').evaluate('(x)=>x.open');results['full_vehicle_gallery']=True
+                gallery.locator('#photo-expand').click();assert gallery.locator('#photo-dialog').evaluate('(x)=>x.open');results['full_vehicle_gallery']=True;gallery.close()
+                for named_vin,expected_min in [('5YJ3E1EA8SF921313',30),('7SAYGDED1RF039277',45)]:
+                    vp=context.new_page();vp.goto(base+f'/?vin={named_vin}');vp.wait_for_selector('#gallery-thumbs .gallery-thumb')
+                    assert vp.locator('.gallery-thumb').count()>=expected_min
+                    vp.close()
+                results['named_vin_galleries']=True
                 forged=context.new_page();forged.goto(base+'/?reservation=success&vin=7G2CEHED5RA040513&test_mode=true');forged.wait_for_selector('.card')
                 assert forged.evaluate('localStorage.getItem("tesla_reservations")') is None
                 assert forged.locator('#order-dialog[open]').count()==0

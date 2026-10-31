@@ -10,6 +10,7 @@ def photo_url(value):
     except ValueError:return ''
     if p.scheme!='https' or not p.hostname or p.username or p.password:return ''
     if any(x in p.path.lower() for x in ('_default.','stockimages/','generic-features/','placeholder','no-image')):return ''
+    if p.hostname=='static.cargurus.com' and 'width=320' in p.query:return f'https://{p.hostname}{p.path}'
     return value
 
 
@@ -22,8 +23,12 @@ def walk(value):
 
 
 def extract_gallery(html,vin):
-    """Supports JSON-LD and Next.js Flight data, binding photos to the requested VIN."""
+    """Supports JSON-LD, Next.js Flight data, and JSON APIs, binding photos to the requested VIN."""
     objects=[];flight=[]
+    stripped=html.strip()
+    if stripped.startswith(('{','[')):
+        try:objects.append(json.loads(stripped))
+        except (ValueError,TypeError):pass
     for attrs,body in re.findall(r'<script([^>]*)>(.*?)</script>',html,re.S|re.I):
         if 'application/ld+json' in attrs or 'application/json' in attrs:
             try:objects.append(json.loads(body))

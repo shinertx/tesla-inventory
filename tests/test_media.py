@@ -99,3 +99,20 @@ def test_backfill_stops_blocked_hosts_and_preserves_supplier_feed(tmp_path,monke
     out=tmp_path/'photos.json';result=enrich_photos.collect(source,out,tmp_path/'report.json',feed,pause=0)
     assert len(calls)==1 and result['blocked_hosts']==['www.carvana.com']
     assert len(json.loads(out.read_text())['7SAYGDED1RF039277'])==2
+
+
+def test_raw_json_api_gallery_binds_to_requested_vin():
+    payload=json.dumps({'records':[
+        {'vin':VIN,'photo_urls':[
+            'https://static.cargurus.com/images/forsale/car-pic-1-1024x768.jpeg?io=true&width=320&format=jpeg',
+            'https://static.cargurus.com/images/forsale/car-pic-1-1024x768.jpeg',
+            'https://static.cargurus.com/images/forsale/car-pic-2-1024x768.jpeg?io=true&width=320&format=jpeg',
+            '/assets/listings/wagon_default.jpg',
+        ]},
+        {'vin':'WRONGVIN000000000','photo_urls':['https://example.test/wrong.jpg']},
+    ]})
+    photos=extract_gallery(payload,VIN)
+    assert [p['url'] for p in photos]==[
+        'https://static.cargurus.com/images/forsale/car-pic-1-1024x768.jpeg',
+        'https://static.cargurus.com/images/forsale/car-pic-2-1024x768.jpeg',
+    ]

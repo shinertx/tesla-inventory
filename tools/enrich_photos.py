@@ -21,7 +21,8 @@ def collect(source,output,report,feed=None,pause=.5):
         url=row.get('source_url','');p=urlsplit(url)
         allowed=p.scheme=='https' and not p.username and not p.password and (
             p.hostname=='www.carvana.com' and re.fullmatch(r'/vehicle/\d+',p.path) or
-            p.hostname=='www.truecar.com' and re.fullmatch(r'/used-cars-for-sale/listing/[A-Z0-9]{17}/?',p.path))
+            p.hostname=='www.truecar.com' and re.fullmatch(r'/used-cars-for-sale/listing/[A-Z0-9]{17}/?',p.path) or
+            p.hostname=='www.autolist.com' and re.fullmatch(r'/api/vehicles/[A-Z0-9]{17}',p.path))
         if len(photos)<2 and allowed and p.hostname not in blocked:
             try:
                 r=requests.get(url,impersonate='chrome120',timeout=12,allow_redirects=False)
@@ -33,7 +34,7 @@ def collect(source,output,report,feed=None,pause=.5):
         if not photos:photos=normalize_photos([row.get('photo_url','')])
         if photos:galleries[vin]=photos
         stats['multiple' if len(photos)>1 else 'single' if photos else 'missing']+=1
-        if index%25==0:
+        if index%2500==0:
             output.parent.mkdir(parents=True,exist_ok=True);output.write_text(json.dumps(galleries,separators=(',',':')))
             print(json.dumps({'processed':index+1,**stats}),flush=True)
     stats['blocked_hosts']=sorted(blocked)

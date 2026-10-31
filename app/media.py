@@ -15,7 +15,8 @@ class VehicleMedia:
 
     def gallery(self,vin,primary='',published=None):
         if published and len(published)>1:
-            photos=normalize_photos(published)
+            extra=self.source(vin).get('photos',[]) if self.path.is_file() else []
+            photos=normalize_photos(list(published)+list(extra))
             return {'vin':vin,'photos':photos,'count':len(photos),'status':'ready'}
         now=int(time.time())
         with self.store.connect() as c:cached=c.execute('SELECT * FROM vehicle_media WHERE vin=?',(vin,)).fetchone()
@@ -25,7 +26,8 @@ class VehicleMedia:
             url=row.get('source_url','');p=urlsplit(url)
             allowed=(p.scheme=='https' and not p.username and not p.password and
                 ((p.hostname=='www.carvana.com' and re_path(p.path,r'/vehicle/\d+')) or
-                 (p.hostname=='www.truecar.com' and re_path(p.path,r'/used-cars-for-sale/listing/[A-Z0-9]{17}/?'))))
+                 (p.hostname=='www.truecar.com' and re_path(p.path,r'/used-cars-for-sale/listing/[A-Z0-9]{17}/?')) or
+                 (p.hostname=='www.autolist.com' and re_path(p.path,r'/api/vehicles/[A-Z0-9]{17}'))))
             # CarGurus detail requests are blocked. Keep its known primary photo; do not retry blocked pages.
             if allowed:
                 try:

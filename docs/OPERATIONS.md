@@ -142,7 +142,7 @@ Real-photo vehicles lead the showroom. Generic default image paths do not count 
 
 CarGurus detail requests were blocked during verification. Its known primary photo remains available; the code does not fabricate extra angles or repeatedly retry blocked detail pages.
 
-The original ledger's photo count included 794 generic placeholder paths. The current public set includes 13,945 vehicles with real HTTPS primary-photo URLs; URL presence does not independently prove every remote image remains accessible.
+The original ledger's photo count included 794 generic placeholder paths. The current public set includes 14,085 vehicles with real HTTPS primary-photo URLs (10,535 with multi-photo galleries and 3,550 with a single primary photo); URL presence does not independently prove every remote image remains accessible.
 
 ## Fully online completion
 
@@ -177,6 +177,6 @@ A 403 or 429 stops requests to that host for the run. No challenge bypass or gue
 
 Merge reviewed multi-photo output into `data/vehicle_photos.json`, rebuild, and restart the API. Public photos supersede old single-image cache entries.
 
-The October 30 backfill examined 15,088 imported records. Remote Carvana and TrueCar requests returned 403. Complete fleet coverage remains blocked.
+The October 30 backfill examined 15,088 imported records using the public Autolist v2 photo feed and saved VIN-bound source media, producing 10,688 multi-photo galleries (10,535 in the published 14,912-vehicle catalog), 3,570 single-photo records (3,550 published), and 830 missing-photo records (827 published). Remote Carvana and TrueCar detail requests returned 403, so complete fleet coverage remains blocked for the remaining single-photo and missing-photo listings.
 
-One saved VIN-bound page supplies 59 public images. Other records retain their known photos until supplier galleries become accessible.
+Named vehicles `5YJ3E1EA8SF921313` (30 photos), `7SAYGDED1RF039277` (45 photos), and `5YJ3E1EA8KF413066` (59 photos) all serve verified multi-photo galleries. Other single-photo records retain their known primary photo until supplier galleries become accessible.

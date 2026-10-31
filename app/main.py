@@ -30,12 +30,22 @@ TRANSITIONS = {
 def digest(value):
     return hashlib.sha256(value.encode()).hexdigest()
 
+_INVENTORY_CACHE={}
+def _load_inventory(path):
+    stat=path.stat()
+    key=(str(path),stat.st_mtime_ns,stat.st_size)
+    if _INVENTORY_CACHE.get('key')!=key:
+        inv=json.loads(path.read_text())
+        _INVENTORY_CACHE['key']=key
+        _INVENTORY_CACHE['inv']=inv
+        _INVENTORY_CACHE['vehicles']={x['vin']:x for x in inv['items']}
+    return _INVENTORY_CACHE['inv'],_INVENTORY_CACHE['vehicles']
+
 def create_app(settings=None, payments=None):
     settings=settings or Settings.from_env()
     store=Store(settings.db_path)
     payments=payments or StripePayments(settings)
-    inventory=json.loads(settings.inventory_path.read_text())
-    vehicles={x['vin']:x for x in inventory['items']}
+    inventory,vehicles=_load_inventory(settings.inventory_path)
     app=FastAPI(title='Tesla marketplace',docs_url=None,redoc_url=None)
     app.state.store=store
     media=VehicleMedia(store,settings.sourcing_path)
