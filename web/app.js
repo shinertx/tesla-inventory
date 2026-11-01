@@ -531,7 +531,7 @@
   }
   purchaseAvailability();
   api('config').then(c=>{config=c;apiReady=!!c.requests_enabled;purchaseAvailability();}).catch(()=>{apiReady=false;purchaseAvailability();}).finally(()=>{if(restoredPrivateLink)refreshOrder();else if(privateLinkError){renderRecoverOrder(privateLinkError);open('order-dialog');}});
-  fetch(new URL('inventory.json?v='+(new URL(scriptURL).searchParams.get('v')||'current'),rootURL)).then(r=>{if(!r.ok)throw new Error('Inventory unavailable');return r.json();}).then(payload=>{
+  fetch(new URL('inventory.json?v='+(document.querySelector('meta[name="volts-catalog-version"]')?.content||new URL(scriptURL).searchParams.get('v')||'current'),rootURL)).then(r=>{if(!r.ok)throw new Error('Inventory unavailable');return r.json();}).then(payload=>{
     mediaVersion=payload.meta?.media_version||'';snapshotDate=payload.meta?.built_at||'';
     items=payload.items.filter(x=>!x.expires_at||new Date(x.expires_at).getTime()>Date.now());byVIN=new Map(items.map(x=>[x.vin,x]));
     const reservableCount=items.filter(x=>x.reservable).length;

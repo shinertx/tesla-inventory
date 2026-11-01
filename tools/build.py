@@ -199,10 +199,20 @@ def build(source=None,output=ROOT,now=None,gallery_source=None):
     index=public_catalog(payload)
     for item in index['items']:item.pop('photos',None)
     (output/'inventory.json').write_text(json.dumps(index,separators=(',',':')))
+    render_public_pages(index,output,excluded=excluded)
+    return payload
+
+def render_public_pages(catalog,output=ROOT,*,excluded=None):
+    """Refresh discovery pages from published data without repricing or fetching sources."""
+    output=Path(output);output.mkdir(parents=True,exist_ok=True)
+    catalog=public_catalog(catalog)
+    items=catalog['items']
     template=(ROOT/'web/index.html').read_text()
     for asset in ('app.js','styles.css'):
         version=hashlib.sha256((ROOT/'web'/asset).read_bytes()).hexdigest()[:12]
         template=template.replace('web/'+asset,'web/'+asset+'?v='+version)
+    catalog_version=hashlib.sha256(json.dumps(catalog,separators=(',',':')).encode()).hexdigest()[:12]
+    template=template.replace('<!-- CATALOG_VERSION -->',f'<meta name="volts-catalog-version" content="{catalog_version}">')
     # Category pages use the same shopping application with an explicit preset.
     # Only category pages enter the sitemap; VIN queries are application detail links.
     entries=[BASE+'/']
@@ -242,7 +252,7 @@ def build(source=None,output=ROOT,now=None,gallery_source=None):
         links+=[f'<a href="{prefix}{g}/{s}.html">{html.escape(l)}</a>' for g,s,l,_,_ in categories if g=='states'][:18]
         return '<nav class="seo-links" aria-label="Browse Used Tesla inventory by deal, model, year, and state">'+''.join(links)+'</nav>'
     home_finds=sum(1 for x in items if x.get('savings_amount',0)>=500 and x.get('reference_sample',0)>=5)
-    home_desc=f"Compare {len(items):,} VIN-verified used Tesla Model Y, Model 3, Model S, Model X, and Cybertruck listings ({home_finds:,} priced $500+ below mileage-adjusted peer benchmarks) on Volts & VINs."
+    home_desc=f"Compare {len(items):,} VIN-decoded used Tesla Model Y, Model 3, Model S, Model X, and Cybertruck listings ({home_finds:,} priced $500+ below mileage-adjusted peer benchmarks) on Volts & VINs."
     root_html=template.replace('<!-- STRUCTURED_DATA -->',schema_script(BASE+'/','Volts & VINs Used Tesla Inventory',items,home_desc)).replace('<!-- SEO_INTERNAL_LINKS -->',nav_links(''))
     (output/'index.html').write_text(root_html)
     for group in ('models','years','states','deals'):
@@ -309,7 +319,7 @@ def build(source=None,output=ROOT,now=None,gallery_source=None):
         f'> Volts & VINs is a public used-Tesla marketplace and VIN-level price benchmark index covering {len(items):,} active used Tesla listings across the United States ({home_finds:,} priced $500+ below mileage-adjusted peer asking benchmarks).',
         '',
         '## Key Marketplace Facts',
-        f'- **Published VIN-Verified Catalog**: {len(items):,} used Tesla vehicles (Model Y, Model 3, Model S, Model X, Cybertruck)',
+        f'- **Published VIN-Decoded Catalog**: {len(items):,} used Tesla vehicles (Model Y, Model 3, Model S, Model X, Cybertruck)',
         f'- **Peer-Benchmarked Price Finds**: {home_finds:,} listings priced `$500+` below mileage-adjusted peer asking prices (minimum 5 comparable peers in the same model, year, trim, drivetrain, and mileage band)',
         '- **VIN-Decoded Specifications**: Every listing includes 17-character ISO 3779 VIN validation, VIN-derived build factory (Austin vs. Fremont), drivetrain (AWD vs. RWD), mileage, and location',
         '- **Purchase & Reservation Model**: Online deal builder with ZIP delivery distance estimation; `$250` refundable reservation deposit after licensed selling dealer confirmation and written hold (`dealer_fulfillment`)',
@@ -339,8 +349,11 @@ def build(source=None,output=ROOT,now=None,gallery_source=None):
         '## All Indexed Category, Model-Year & State Pages',
         *[f'- [{label} ({len(sub):,})]({BASE}/{g}/{s}.html)' for g,s,label,_,sub in categories],
     ])+'\n')
-    print(json.dumps({'published':len(items),'excluded':dict(excluded),'category_pages':len(categories),'sitemap_urls':len(entries)}))
-    return payload
+    result={'published':len(items),'excluded':dict(excluded or {}),'category_pages':len(categories),'sitemap_urls':len(entries)}
+    print(json.dumps(result))
+    return result
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser();parser.add_argument('--source',type=Path);args=parser.parse_args();build(args.source)
+    parser=argparse.ArgumentParser();group=parser.add_mutually_exclusive_group();group.add_argument('--source',type=Path);group.add_argument('--public-catalog',type=Path);parser.add_argument('--output',type=Path,default=ROOT);args=parser.parse_args()
+    if args.public_catalog:render_public_pages(json.loads(args.public_catalog.read_text()),args.output)
+    else:build(args.source,output=args.output)
