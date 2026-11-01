@@ -1,3 +1,13 @@
+# Clear vehicle price release in progress — November 1, 2026
+
+Codex owns price-protection API/store migration, web pricing labels, build copy and generated pages. Antigravity acknowledged this split in its existing Tesla conversation. New requests save the vehicle price and benchmark; stale browser prices fail409; quotes cannot raise the saved vehicle price. Legacy requests retain their explicit quote behavior without fabricated historical guarantees. Catalog/prices/media remain unchanged.
+
+An existing LIVE JENNi/Jockey Stripe binding was located, but provider identity/capabilities and the Flow account label are not verified. Existing cloud login requires renewal; the known VM identity has no access. No production credential was copied or enabled. Deposits remain disabled without an actual licensed seller and eligible payment arrangement. Vendor inquiries remain drafts.
+
+Antigravity confirmed no new financing, shipping or photo-feed entitlement. Provider field names in planning notes are examples until official account documentation confirms them. AutoFi should use an actual approved hosted dealer application first when available; do not invent API parameters.
+
+--- Previous release ---
+
 # Antigravity Checkpoint — Static `/v/{VIN}.html` Top 200 Vehicle Pages (November 1, 2026)
 
 - **Ownership Split Acknowledged:** Antigravity owned only `tools/build.py`, generated `/v/*.html` (`200` pages), `sitemap.xml`, `llms.txt` / `llms-full.txt`, static category links (`deals/*.html`, `models/*.html`, `states/*.html`, `years/*.html`), and `tests/test_public_pages.py`.
