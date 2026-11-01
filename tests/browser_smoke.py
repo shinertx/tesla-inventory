@@ -73,7 +73,7 @@ def main():
                 page.locator('#cancel-order').click();page.get_by_role('heading',name='Request cancelled').wait_for();results['cancellation']=True
                 page.locator('[data-close=order-dialog]').click()
                 page.locator('.save').nth(1).click();page.locator('#saved-button').click();assert page.locator('.shortlist-car').count()==2
-                page.locator('#compare-saved').click();assert page.locator('.comparison-grid article').count()==2;results['shortlist_comparison']=True
+                page.locator('[data-compare-select]').nth(0).check();page.locator('[data-compare-select]').nth(1).check();page.locator('#compare-saved').click();assert page.locator('.comparison-grid article').count()==2;results['shortlist_comparison']=True
                 page.locator('[data-close=compare-dialog]').click()
                 # A failed config request previously suppressed photo discovery entirely.
                 race=context.new_page();race.route('**/api/config',lambda r:r.abort())

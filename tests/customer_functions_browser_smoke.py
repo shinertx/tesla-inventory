@@ -62,7 +62,7 @@ def main():
                 assert not page.locator('#hardware').is_visible() and not page.locator('#reservable-only').is_visible()
                 page.locator('#saved-button').click();assert page.locator('.shortlist-unavailable').count()==1
                 page.locator('[data-remove-unavailable]').click();assert page.locator('#saved-count').inner_text()=='3'
-                page.locator('#compare-saved').click();text=page.locator('#compare-content').inner_text()
+                page.locator('[data-compare-select]').nth(0).check();page.locator('[data-compare-select]').nth(1).check();page.locator('[data-compare-select]').nth(2).check();page.locator('#compare-saved').click();text=page.locator('#compare-content').inner_text()
                 assert 'Comparison unavailable' in text and '$1,000 above the $19,000 peer reference' in text and 'At the $20,000 peer reference' in text,text
                 assert 'At market reference' not in text
                 results[f'comparison_and_stale_favorites_{width}']=True

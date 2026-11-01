@@ -48,7 +48,8 @@ def main(out):
             page.locator('#reset').click();page.select_option('#trim-family','Performance');assert page.locator('.card').count()>0
             assert all('performance' in x.lower() for x in page.locator('.card .trim').all_text_contents());result['trim_filter']=True
             page.locator('#reset').click();page.select_option('#factory','Austin');page.locator('.card-main').first.click()
-            assert 'Austin' in page.locator('.summary-facts').inner_text();assert not page.locator('.verification-details').get_attribute('open')
+            assert 'Built in Austin' in page.locator('.card-specs').first.inner_text();
+            assert 'Build factory' in page.locator('#vehicle-panel').inner_text() and 'Vehicle location' in page.locator('#vehicle-panel').inner_text();assert not page.locator('.verification-details').get_attribute('open')
             page.locator('.verification-details summary').click();assert 'No inspection report on file' in page.locator('.verification-details').inner_text()
             page.locator('[data-close=vehicle-dialog]').click();page.locator('#reset').click();result['factory_filter_and_verification_disclosure']=True
             assert page.locator('#hardware option[value=HW4]').evaluate('(x)=>x.disabled');result['hardware_requires_evidence']=True

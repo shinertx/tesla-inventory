@@ -154,7 +154,7 @@ def main():
                 assert page.locator('#vehicle-dialog[open]').count()==1
                 assert rows[1]['vin'] in page.url
                 page.locator('[data-close=vehicle-dialog]').click();checks['shortlist_vehicle_open']=True
-                page.locator('#saved-button').click();page.locator('#compare-saved').click()
+                page.locator('#saved-button').click();page.locator('[data-compare-select]').nth(0).check();page.locator('[data-compare-select]').nth(1).check();page.locator('#compare-saved').click()
                 page.locator(f'[data-compare-open="{rows[0]["vin"]}"]').click()
                 assert page.locator('#compare-dialog[open]').count()==0
                 assert page.locator('#vehicle-dialog[open]').count()==1

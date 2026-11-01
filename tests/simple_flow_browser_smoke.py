@@ -122,8 +122,10 @@ def main():
                 page.locator('#deal-scroll').evaluate('(el)=>el.scrollTop=el.scrollHeight')
                 visible_button(page, '#deal-continue')
                 page.locator('#deal-continue').click(); page.locator('#request-dialog[open]').wait_for()
-                assert page.locator('#request-dialog h2').inner_text() == 'Your final price'
+                assert page.locator('#request-dialog h2').inner_text() == 'Request your final price'
                 visible_button(page, '#submit-request')
+                assert '$21,735' in page.locator('#request-estimate').inner_text()
+                assert '$3,000' in page.locator('#request-estimate').inner_text()
                 assert page.locator('#submit-request').inner_text() == 'Request final price · $0 today'
                 page.locator('[name=name]').fill('Fixture Buyer'); page.locator('[name=email]').fill('fixture@example.test')
                 page.locator('[name=zip]').fill('78701'); page.locator('[name=payment_preference]').select_option('partner_financing')
