@@ -19,6 +19,8 @@ import sqlite3
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -255,6 +257,66 @@ def job_publish_and_index(
     return result
 
 
+def send_deal_alert_email(
+    packet: dict,
+    *,
+    to_email: str = os.getenv("ALERT_EMAIL_TO", "ben@jockeyvc.com"),
+    from_email: str = os.getenv("ALERT_EMAIL_FROM", "ben@jockeyvc.com"),
+    sendgrid_key: str | None = None,
+) -> bool:
+    """Send an instant dealer-arbitrage alert email via SendGrid v3 API when a customer requests a VIN."""
+    api_key = (sendgrid_key if sendgrid_key is not None else os.getenv("SENDGRID_API_KEY", "")).strip()
+    if not api_key:
+        return False
+    vin = packet.get("vin", "")
+    vehicle = packet.get("vehicle") or f"Tesla ({vin})"
+    spread = packet.get("volts_upfront_spread")
+    profit_4 = packet.get("volts_4layer_profit_est")
+    src_price = packet.get("source_dealer_price")
+    vv_price = packet.get("volts_retail_price")
+    savings = packet.get("buyer_savings_badge") or 0
+    src_url = packet.get("source_url") or "https://voltsandvins.com/?vin=" + vin
+    subject = f"[Volts & VINs Deal Alert] {vehicle} ({vin}) — Est. +${profit_4:,} Profit" if profit_4 else f"[Volts & VINs Order Request] {vehicle} ({vin})"
+    text_body = (
+        f"New Customer Reservation Request on Volts & VINs\n"
+        f"=================================================\n"
+        f"Order ID: {packet.get('order_id')}\n"
+        f"Buyer: {packet.get('buyer_name')} | {packet.get('buyer_email')} | {packet.get('buyer_phone')} | ZIP {packet.get('buyer_zip')}\n\n"
+        f"Vehicle: {vehicle}\n"
+        f"VIN: {vin}\n"
+        f"Volts & VINs URL: https://voltsandvins.com/?vin={vin}\n\n"
+        f"Arbitrage Economics:\n"
+        f"- Source Dealer: {packet.get('source_dealer') or 'See source link'}\n"
+        f"- Source Dealer Ask: ${src_price:,}\n" if src_price else ""
+    ) + (
+        f"- Volts & VINs Retail Price: ${vv_price:,} (Buyer Badge: Save ${savings:,})\n" if vv_price else ""
+    ) + (
+        f"- Upfront Arbitrage Spread: +${spread:,}\n"
+        f"- Est. 4-Layer Total Profit: +${profit_4:,}\n" if spread else ""
+    ) + f"- Direct Source Listing Link: {src_url}\n"
+
+    payload = json.dumps({
+        "personalizations": [{"to": [{"email": to_email}]}],
+        "from": {"email": from_email, "name": "Volts & VINs Deal Desk"},
+        "subject": subject,
+        "content": [{"type": "text/plain", "value": text_body}],
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        "https://api.sendgrid.com/v3/mail/send",
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return 200 <= resp.status < 300
+    except Exception:
+        return False
+
+
 def job_match_customer_orders(
     *,
     orders_db: Path = Path(os.getenv("ORDERS_DB", str(ROOT / ".data/orders.db"))),
@@ -262,10 +324,11 @@ def job_match_customer_orders(
     inv_path: Path = ROOT / "inventory.json",
     packets_out: Path = ROOT / ".data/deal_packets.json",
     status_file: Path = ROOT / ".data/jobs_status.json",
+    alert_email: str = os.getenv("ALERT_EMAIL_TO", "ben@jockeyvc.com"),
 ) -> dict:
     """Job 5: Real-time (60s) matcher pairing customer VIN reservation requests with private source dealer links & spreads."""
     if not orders_db.exists():
-        res = {"ok": True, "orders_scanned": 0, "matched_packets": 0}
+        res = {"ok": True, "orders_scanned": 0, "matched_packets": 0, "emails_sent": 0}
         _write_job_status(status_file, "5_match_customer_orders", res)
         return res
 
@@ -288,8 +351,15 @@ def job_match_customer_orders(
             pass
 
     packets = []
+    emails_sent = 0
     with sqlite3.connect(orders_db) as conn:
         conn.row_factory = sqlite3.Row
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS order_alerts_sent (order_id TEXT PRIMARY KEY, recipient TEXT NOT NULL, sent_at INTEGER NOT NULL)"
+        )
+        already_sent = {
+            r[0] for r in conn.execute("SELECT order_id FROM order_alerts_sent").fetchall()
+        }
         tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
         if "orders" in tables:
             rows = conn.execute(
@@ -306,7 +376,7 @@ def job_match_customer_orders(
                 source_cents = arb.get("source_asking_cents") or 0
                 opt_cents = arb.get("proposed_retail_cents") or ((inv.get("display_price") or 0) * 100)
                 spread_cents = arb.get("modeled_gross_spread_cents") or max(0, opt_cents - source_cents)
-                packets.append({
+                packet = {
                     "order_id": r["id"],
                     "vin": vin,
                     "order_state": r["state"],
@@ -323,13 +393,24 @@ def job_match_customer_orders(
                     "volts_upfront_spread": round(spread_cents / 100) if spread_cents else None,
                     "volts_4layer_profit_est": (round(spread_cents / 100) + 2000) if spread_cents else None,
                     "source_url": arb.get("source_url") or "",
-                })
+                }
+                packets.append(packet)
+                if r["id"] not in already_sent:
+                    if send_deal_alert_email(packet, to_email=alert_email):
+                        conn.execute(
+                            "INSERT OR IGNORE INTO order_alerts_sent (order_id, recipient, sent_at) VALUES (?, ?, ?)",
+                            (r["id"], alert_email, int(time.time())),
+                        )
+                        conn.commit()
+                        emails_sent += 1
     packets_out.parent.mkdir(parents=True, exist_ok=True)
     packets_out.write_text(json.dumps({"updated_at": _utc_now(), "packets": packets}, indent=2))
     result = {
         "ok": True,
         "orders_scanned": len(packets),
         "matched_with_arbitrage": sum(1 for p in packets if p.get("volts_upfront_spread")),
+        "alert_recipient": alert_email,
+        "emails_sent_this_run": emails_sent,
     }
     _write_job_status(status_file, "5_match_customer_orders", result)
     return result
