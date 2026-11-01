@@ -6,7 +6,7 @@ The new ledger records observations only. It moves no money, expires no provider
 
 Shipping rules reject impossible/incomplete windows and lifecycle regressions. Recorded accepted bookings remain valid after their original rate quote expires. Customer UI shows settled reservation, loan and cash credits separately and keeps closed records free of collection actions.
 
-Core implementation 194b1b5 passed 380 Python tests. All eight browser suites passed, including mobile funding cases. Final review follow-ups cover closure flags, preservation of older loan contexts, and normalized references before publishing. Source catalog, prices, media and exclusion data remain unchanged.
+Core implementation and follow-up 822200f pass 393 Python tests. All eight browser suites pass, including mobile funding cases. Review fixes separate completed versus cancelled money, preserve legacy prior-context loan amounts, and normalize remittance IDs before validation and hashing. Source catalog, prices, media and exclusion data remain unchanged.
 
 Ben later asked to sign into Stripe. Sign-in completed in the existing JENNi account after his authenticator entry. No account, credential, gateway or provider settings changed; the restricted-key branch remains unmerged.
 
