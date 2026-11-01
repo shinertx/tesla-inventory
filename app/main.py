@@ -732,9 +732,9 @@ def create_app(settings=None, payments=None, shipping=None):
             row=get_order(c,order_id);dealer_for_order(c,row)
             if row['state'] in ('cancelled','refunded','completed'):
                 raise HTTPException(409,'Order is closed')
-            if body.state=='dispatched':
+            if body.state in ('dispatched','delivered'):
                 if row['state'] not in ('dealer_funded','in_transit','delivered','settlement_pending'):
-                    raise HTTPException(409,'Dealer funding must be confirmed before vehicle dispatch')
+                    raise HTTPException(409,'Dealer funding must be confirmed before vehicle dispatch or delivery')
                 require_financing_coverage(row)
             c.execute('UPDATE orders SET transport_state=?,transport_detail=?,updated_at=? WHERE id=?',(body.state,body.model_dump_json(),now,order_id))
             store.event(c,order_id,'transport_'+body.state,body.model_dump(),True)

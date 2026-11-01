@@ -66,7 +66,8 @@ def test_conditional_approval_is_not_settled_money(setup):
     assert advance(client, order, 'dealer_confirmed').status_code == 409
 
 
-def test_legacy_funded_state_and_direct_dispatch_cannot_skip_coverage(setup):
+@pytest.mark.parametrize('marker', ['dispatched', 'delivered'])
+def test_legacy_funded_state_and_carrier_markers_cannot_skip_coverage(setup, marker):
     client, _, store, order, quote = prepared(setup)
     record_funding(client, order, quote['balance_after_deposit_cents']-1)
     # Simulate an older release state accepted before the coverage check existed.
@@ -74,15 +75,17 @@ def test_legacy_funded_state_and_direct_dispatch_cannot_skip_coverage(setup):
         db.execute("UPDATE orders SET state='dealer_funded' WHERE id=?", (order['id'],))
     assert advance(client, order, 'dealer_funded').status_code == 409
     endpoint = '/api/admin/orders/' + order['id'] + '/transport'
-    assert client.post(endpoint, json=dispatch_body(), headers=admin()).status_code == 409
+    body = {**dispatch_body(), 'state': marker}
+    assert client.post(endpoint, json=body, headers=admin()).status_code == 409
     record_funding(client, order, quote['balance_after_deposit_cents'])
-    assert client.post(endpoint, json=dispatch_body(), headers=admin()).status_code == 200
+    assert client.post(endpoint, json=body, headers=admin()).status_code == 200
     assert advance(client, order, 'dealer_funded').status_code == 200
 
 
-def test_dispatch_requires_order_funding_before_release_marker(setup):
+@pytest.mark.parametrize('marker', ['dispatched', 'delivered'])
+def test_carrier_release_marker_requires_order_funding(setup, marker):
     client, _, _, order, _ = prepared(setup, financed=False)
-    result = client.post('/api/admin/orders/' + order['id'] + '/transport', json=dispatch_body(), headers=admin())
+    result = client.post('/api/admin/orders/' + order['id'] + '/transport', json={**dispatch_body(), 'state': marker}, headers=admin())
     assert result.status_code == 409 and 'funding must be confirmed' in result.json()['detail']
 
 
