@@ -116,3 +116,19 @@ def test_raw_json_api_gallery_binds_to_requested_vin():
         'https://static.cargurus.com/images/forsale/car-pic-1-1024x768.jpeg',
         'https://static.cargurus.com/images/forsale/car-pic-2-1024x768.jpeg',
     ]
+
+
+def test_generic_truecar_render_is_not_vin_photography():
+    from tools.media import photo_url, normalize_photos
+    stock = 'https://static.tcimg.net/vehicles/primary/example/2023-Tesla-Model_3-black-full_color-driver_side_front_quarter.png'
+    actual = 'https://listings-prod.tcimg.net/listings/16761/34/05/5YJ3E1EA0KF410534/001_2026080706.jpg'
+    assert photo_url(stock) == ''
+    assert photo_url(actual) == actual
+    assert [x['url'] for x in normalize_photos([stock, actual])] == [actual]
+
+
+def test_observed_unavailable_photos_are_not_published():
+    from tools.media import photo_url, EXCLUDED_PHOTO_URLS
+    assert EXCLUDED_PHOTO_URLS
+    for url in EXCLUDED_PHOTO_URLS:
+        assert photo_url(url) == ''
