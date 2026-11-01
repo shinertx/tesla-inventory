@@ -2,7 +2,9 @@
 
 CSV columns: vin,url,title,category (last two optional). JSON: {VIN: [URL or photo]}.
 Default is offline review with an empty delta. --verify explicitly permits bounded
-image downloads from exact --allow-host names. An authorization reference records
+image downloads from exact --allow-host names. DNS uses the OS resolver without an
+independent deadline; the timeout bounds connection, TLS, and HTTP transfer after
+resolution. An authorization reference records
 operator input; neither that reference nor a host allowlist proves display rights.
 """
 import argparse
@@ -12,6 +14,8 @@ import http.client
 import io
 import ipaddress
 import json
+import os
+import stat
 from pathlib import Path
 import socket
 import ssl
@@ -199,6 +203,55 @@ def review_feed(feed, catalog, retained, *, allowed_hosts, authorization_referen
         'dedupe_scope': 'Exact URL and exact bytes only; distinct-angle review is still required.'}
 
 
+REVIEW_DIRECTORY = Path('.data/dealer-photo-reviews')
+
+
+def write_review_outputs(root, outputs, values):
+    """Create new 0600 receipts only in a pinned, private review directory."""
+    root = Path(root)
+    if root.is_symlink(): raise ValueError('Review root cannot be a symlink')
+    root = root.resolve()
+    directory = root / REVIEW_DIRECTORY
+    targets = []
+    for output in outputs:
+        output = Path(output)
+        if '..' in output.parts: raise ValueError('Output traversal is not allowed')
+        target = output if output.is_absolute() else root / output
+        if target.parent != directory or target.suffix != '.json':
+            raise ValueError('Outputs must be JSON files directly inside .data/dealer-photo-reviews')
+        targets.append(target)
+    if len(targets) != len(set(targets)): raise ValueError('Outputs must be separate files')
+    # Pin each directory using openat/O_NOFOLLOW; a renamed symlink cannot redirect writes.
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    root_fd = os.open(root, flags)
+    directory_fds = [root_fd]
+    created = []
+    try:
+        fd = root_fd
+        for component in REVIEW_DIRECTORY.parts:
+            try: os.mkdir(component, mode=0o700, dir_fd=fd)
+            except FileExistsError: pass
+            fd = os.open(component, flags, dir_fd=fd)
+            directory_fds.append(fd)
+        if stat.S_IMODE(os.fstat(fd).st_mode) & 0o077:
+            raise ValueError('Review directory must have private permissions')
+        for target in targets:
+            try: os.stat(target.name, dir_fd=fd, follow_symlinks=False)
+            except FileNotFoundError: pass
+            else: raise ValueError('Review outputs must not already exist')
+        try:
+            for target, value in zip(targets, values):
+                output_fd = os.open(target.name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=fd)
+                created.append(target.name)
+                with os.fdopen(output_fd, 'w') as stream:
+                    stream.write(json.dumps(value, indent=2)+'\n')
+        except Exception:
+            for name in created: os.unlink(name, dir_fd=fd)
+            raise
+    finally:
+        for fd in reversed(directory_fds): os.close(fd)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--feed', type=Path, required=True)
@@ -206,12 +259,9 @@ def main():
     parser.add_argument('--allow-host', action='append', required=True)
     parser.add_argument('--authorization-reference', required=True)
     parser.add_argument('--verify', action='store_true', help='Allow bounded image downloads; default makes no network calls')
-    parser.add_argument('--delta-out', type=Path, default=Path('.data/dealer-photo-delta.json'))
-    parser.add_argument('--report-out', type=Path, default=Path('.data/dealer-photo-review.json'))
-    args = parser.parse_args(); root = args.root.resolve(); catalog_path = root / 'inventory.json'; media = root / 'media'
-    outputs = [args.delta_out.resolve(), args.report_out.resolve()]
-    if len(set(outputs)) != 2 or any(p in {catalog_path.resolve(), args.feed.resolve()} or media.resolve() in p.parents for p in outputs):
-        parser.error('Outputs must be separate review files, not feed/catalog/media inputs')
+    parser.add_argument('--delta-out', type=Path, default=REVIEW_DIRECTORY / 'delta.json')
+    parser.add_argument('--report-out', type=Path, default=REVIEW_DIRECTORY / 'reconciliation.json')
+    args = parser.parse_args(); root = args.root; catalog_path = root / 'inventory.json'; media = root / 'media'
     catalog = json.loads(catalog_path.read_text()); retained = {}
     for p in media.glob('*.json'): retained.update(json.loads(p.read_text()))
     for row in catalog['items']:
@@ -220,8 +270,8 @@ def main():
     exclusions = json.loads(exclusions_path.read_text()) if exclusions_path.exists() else {}
     delta, report = review_feed(read_feed(args.feed), catalog, retained, allowed_hosts=args.allow_host,
         authorization_reference=args.authorization_reference, verify=args.verify, excluded_vins=exclusions)
-    for path, value in zip(outputs, (delta, report)):
-        path.parent.mkdir(parents=True, exist_ok=True); path.write_text(json.dumps(value, indent=2)+'\n')
+    try: write_review_outputs(root, [args.delta_out, args.report_out], [delta, report])
+    except (ValueError, OSError) as exc: parser.error(str(exc))
     print(json.dumps({'accepted_vins': report['accepted_vins'], 'accepted_photos': report['accepted_photos'], 'network_enabled': args.verify}))
 
 

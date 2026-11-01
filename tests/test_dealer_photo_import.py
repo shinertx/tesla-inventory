@@ -144,3 +144,55 @@ def test_no_url_rewriting_or_silent_malformed_entries():
     assert delta == {} and report['input_photo_entries'] == 3
     assert len(report['receipts']) == 3
     assert all(row['result'] == 'invalid_or_rewritten_photo_url' for row in report['receipts'])
+
+
+def test_outputs_exclusive_private_and_catalog_untouched(tmp_path):
+    import os
+    private = tmp_path/'.data/source_snapshot.json'; private.parent.mkdir(); private.write_text('private source')
+    catalog = tmp_path/'inventory.json'; catalog.write_text('catalog')
+    outputs = [importer.REVIEW_DIRECTORY/'delta.json', importer.REVIEW_DIRECTORY/'report.json']
+    importer.write_review_outputs(tmp_path, outputs, [{}, {'ok': True}])
+    assert (tmp_path/outputs[0]).read_text() == '{}\n'
+    assert os.stat(tmp_path/outputs[0]).st_mode & 0o777 == 0o600
+    assert os.stat(tmp_path/importer.REVIEW_DIRECTORY).st_mode & 0o777 == 0o700
+    with pytest.raises(ValueError, match='already exist'):
+        importer.write_review_outputs(tmp_path, outputs, [{'overwrite': True}, {}])
+    assert (tmp_path/outputs[0]).read_text() == '{}\n'
+    assert private.read_text() == 'private source' and catalog.read_text() == 'catalog'
+
+
+@pytest.mark.parametrize('target', ['data/exclusions.json', '.data/source_snapshot.json', 'inventory.json', 'media/00.json', '../outside.json'])
+def test_output_cannot_overwrite_protected_inputs(tmp_path, target):
+    protected = tmp_path/target; protected.parent.mkdir(parents=True, exist_ok=True); protected.write_text('original')
+    with pytest.raises(ValueError):
+        importer.write_review_outputs(tmp_path, [target, importer.REVIEW_DIRECTORY/'other.json'], [{}, {}])
+    assert protected.read_text() == 'original'
+    assert not (tmp_path/importer.REVIEW_DIRECTORY/'other.json').exists()
+
+
+def test_absolute_outside_root_output_rejected(tmp_path):
+    with pytest.raises(ValueError):
+        importer.write_review_outputs(tmp_path, [tmp_path.parent/'outside-photo-review.json', importer.REVIEW_DIRECTORY/'report.json'], [{}, {}])
+
+
+@pytest.mark.parametrize('link_kind', ['symlink', 'hardlink'])
+def test_existing_links_cannot_overwrite_other_private_file(tmp_path, link_kind):
+    import os
+    source = tmp_path/'.data/source_snapshot.json'; source.parent.mkdir(); source.write_text('private preserved')
+    directory = tmp_path/importer.REVIEW_DIRECTORY; directory.mkdir(mode=0o700)
+    link = directory/'delta.json'
+    if link_kind == 'symlink': link.symlink_to(source)
+    else: os.link(source, link)
+    with pytest.raises(ValueError, match='already exist'):
+        importer.write_review_outputs(tmp_path, [link, directory/'report.json'], [{}, {}])
+    assert source.read_text() == 'private preserved'
+    assert not (directory/'report.json').exists()
+
+
+def test_symlink_review_directory_rejected(tmp_path):
+    directory = tmp_path/'.data'; directory.mkdir()
+    other = tmp_path/'other-private'; other.mkdir()
+    (directory/'dealer-photo-reviews').symlink_to(other, target_is_directory=True)
+    with pytest.raises(OSError):
+        importer.write_review_outputs(tmp_path, [importer.REVIEW_DIRECTORY/'delta.json', importer.REVIEW_DIRECTORY/'report.json'], [{}, {}])
+    assert not list(other.iterdir())
