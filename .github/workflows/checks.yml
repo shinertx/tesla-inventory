@@ -26,3 +26,4 @@ jobs:
       - run: python tests/storefront_controls_browser_smoke.py
       - run: python tests/simple_flow_browser_smoke.py
       - run: python tests/journey_regressions_browser_smoke.py
+      - run: python tests/funding_browser_smoke.py
