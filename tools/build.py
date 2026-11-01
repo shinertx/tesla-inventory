@@ -279,6 +279,7 @@ def build(source=None,output=ROOT,now=None,gallery_source=None):
     robots_lines=[
         'User-agent: *','Allow: /','Disallow: /api/','',
         'User-agent: Googlebot','Allow: /','',
+        'User-agent: Google-Extended','Allow: /','',
         'User-agent: Bingbot','Allow: /','',
         'User-agent: OAI-SearchBot','Allow: /','',
         'User-agent: GPTBot','Allow: /','',
@@ -286,6 +287,9 @@ def build(source=None,output=ROOT,now=None,gallery_source=None):
         'User-agent: PerplexityBot','Allow: /','',
         'User-agent: ClaudeBot','Allow: /','',
         'User-agent: Applebot','Allow: /','',
+        'User-agent: Applebot-Extended','Allow: /','',
+        'User-agent: Meta-ExternalAgent','Allow: /','',
+        'User-agent: Amazonbot','Allow: /','',
         f'Sitemap: {BASE}/sitemap.xml',
     ]
     (output/'robots.txt').write_text('\n'.join(robots_lines)+'\n')

@@ -6,6 +6,18 @@
   const useExternalApi = /^(www\.)?voltsandvins\.com$/i.test(location.hostname);
   const rawApiBase = window.VOLTS_API_BASE || document.body.dataset.apiBase || (useExternalApi ? metaApiBase : 'api/');
   const apiURL = new URL(rawApiBase.endsWith('/') ? rawApiBase : rawApiBase + '/', rootURL);
+  function trackVisit(event, vin=''){
+    if(!useExternalApi && !window.ENABLE_VISIT_BEACON) return;
+    try{
+      fetch(new URL('visit', apiURL), {
+        method:'POST',
+        keepalive:true,
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({event, path:location.pathname+location.search, vin, referrer:document.referrer||''})
+      }).catch(()=>{});
+    }catch{}
+  }
+  trackVisit('page_view', new URLSearchParams(location.search).get('vin')||'');
   document.querySelector('.brand').href=rootURL.href;
   const $ = id => document.getElementById(id);
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -120,7 +132,7 @@
   $('cards').addEventListener('click',e=>{const save=e.target.closest('[data-save]');if(save){toggleSave(save.dataset.save);return;}const link=e.target.closest('[data-open]');if(link){e.preventDefault();showVehicle(link.dataset.open);}});
   function showVehicle(vin){
     const x=byVIN.get(vin);if(!x){notify('This vehicle is not in the current published snapshot.');return;}
-    activeVIN=vin;
+    activeVIN=vin;trackVisit('vin_view',vin);
     const url=new URL(location.href);url.searchParams.delete('reservation');url.searchParams.delete('session_id');url.searchParams.delete('test_mode');url.searchParams.set('vin',vin);history.replaceState(null,'',url);
     document.title=`${x.year} Tesla ${x.model} ${x.trim} (VIN ${x.vin}) | Volts & VINs`;
     let ld=$('dynamic-vehicle-schema');if(!ld){ld=document.createElement('script');ld.id='dynamic-vehicle-schema';ld.type='application/ld+json';document.head.append(ld);}
@@ -159,7 +171,7 @@
     $('deal-term')?.addEventListener('change',e=>{dealTerm=Number(e.target.value);paintDeal();});
   }
   function buildDeal(vin){
-    const x=byVIN.get(vin);if(!x)return;activeVIN=vin;
+    const x=byVIN.get(vin);if(!x)return;activeVIN=vin;trackVisit('deal_estimator',vin);
     try{const d=JSON.parse(localStorage.getItem('marketplace_deal')||'null');if(d&&d.vin===vin&&d.mode)dealMode=d.mode;}catch{}
     const zState=zipState();
     paintDeal();
