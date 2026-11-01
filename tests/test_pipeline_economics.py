@@ -59,3 +59,52 @@ def test_publisher_stages_media_and_never_the_private_report(tmp_path, monkeypat
     assert 'media' in staged and 'data/vehicle_photos.json' in staged
     assert not any(path.startswith('.data/') or 'TOP_ARBITRAGE_DEALS' in path for path in staged)
     assert result['git']['pushed'] is True
+
+
+def test_publisher_preserves_unrelated_staged_private_file(tmp_path, monkeypatch):
+    import subprocess
+    real_run = subprocess.run
+    def git(*args, check=True):
+        return real_run(['git', *args], cwd=tmp_path, check=check, capture_output=True, text=True)
+    git('init', '-q'); git('config', 'user.email', 'fixture@example.test'); git('config', 'user.name', 'Fixture')
+    for name in ['inventory.json', 'llms.txt', 'llms-full.txt', 'index.html', 'sitemap.xml', 'robots.txt', 'data/vehicle_photos.json']:
+        path = tmp_path / name; path.parent.mkdir(exist_ok=True); path.write_text('original')
+    for name in ['deals', 'models', 'states', 'years', 'media']:
+        folder = tmp_path / name; folder.mkdir(); (folder / 'fixture').write_text('original')
+    git('add', '.'); git('commit', '-qm', 'Initial public fixtures')
+    secret = tmp_path / '.data/private-report.md'; secret.parent.mkdir(); secret.write_text('PRIVATE FIXTURE')
+    git('add', '.data/private-report.md')
+    (tmp_path / 'inventory.json').write_text('updated public fixture')
+    def run(args, **kwargs):
+        if args[:2] == ['git', 'push']: return SimpleNamespace(returncode=0)
+        return real_run(args, **kwargs)
+    monkeypatch.setattr(jobs.subprocess, 'run', run)
+    result = jobs.job_publish_and_index(repo_dir=tmp_path, ping_search_engines=False,
+        git_push=True, status_file=tmp_path / '.data/status.json')
+    assert result['git']['pushed'] is True
+    assert git('show', 'HEAD:.data/private-report.md', check=False).returncode != 0
+    assert '.data/private-report.md' in git('diff', '--cached', '--name-only').stdout
+    assert git('show', 'HEAD:inventory.json').stdout == 'updated public fixture'
+
+
+@pytest.mark.parametrize('source_rows', [[], [{'vin': 'one'}]])
+def test_partial_source_does_not_replace_existing_catalog(tmp_path, monkeypatch, source_rows):
+    source = tmp_path / 'source.json'; source.write_text(json.dumps({'items': source_rows}))
+    inventory = tmp_path / 'inventory.json'; inventory.write_text(json.dumps({'items': [{'vin': str(i)} for i in range(10)]}))
+    before = inventory.read_bytes()
+    monkeypatch.setattr(jobs, 'build_catalog', lambda **kwargs: pytest.fail('Partial source must not overwrite published artifacts'))
+    result = jobs.job_reprice_and_build(snapshot_path=source, output_dir=tmp_path, status_file=tmp_path / '.data/status.json')
+    assert result['ok'] is False and result['published_unchanged'] is True
+    assert inventory.read_bytes() == before
+
+
+def test_discovery_stops_a_host_after_first_access_denial(tmp_path, monkeypatch):
+    from curl_cffi import requests
+    calls = []
+    def denied(url, **kwargs):
+        calls.append(url); return SimpleNamespace(status_code=403)
+    monkeypatch.setattr(requests, 'get', denied)
+    jobs.job_discover_vehicles(db_path=tmp_path / 'inventory.db', snapshot_path=tmp_path / 'source.json',
+        partitions=[('cargurus', 'Model Y', 2024, 2), ('cargurus', 'Model 3', 2023, 2)],
+        status_file=tmp_path / 'status.json')
+    assert len(calls) == 1

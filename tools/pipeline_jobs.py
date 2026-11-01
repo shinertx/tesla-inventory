@@ -21,6 +21,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -78,12 +79,18 @@ def job_discover_vehicles(
     now = _utc_now()
     accepted_total = 0
     partition_results = []
+    blocked_hosts = set()
     for source, model, year, pages in partitions:
         for page in range(1, pages + 1):
             url = source_url(source, model, year, page)
+            host = urlsplit(url).hostname
+            if host in blocked_hosts:
+                break
             try:
                 resp = requests.get(url, impersonate="chrome120", timeout=15)
                 if resp.status_code != 200:
+                    if resp.status_code in (403, 429):
+                        blocked_hosts.add(host)
                     partition_results.append({
                         "source": source,
                         "model": model,
@@ -188,6 +195,19 @@ def job_reprice_and_build(
     """Job 3: Recompute peer benchmarks, dynamic 50/50 buyer-seller savings, static HTML, and Top Arbitrage Deals."""
     os.environ.setdefault("ENABLE_GITHUB_PAGES_CNAME", "true")
     os.environ.setdefault("BUYER_SURPLUS_SHARE", "0.5")
+    # Fresh CI runners have no private baseline. Refuse a partial/empty scrape before it can replace the storefront.
+    try:
+        source_rows = json.loads(snapshot_path.read_text()).get("items", [])
+        source_count = len({row.get("vin") for row in source_rows if isinstance(row, dict) and row.get("vin")})
+        existing_path = output_dir / "inventory.json"
+        existing_count = len(json.loads(existing_path.read_text()).get("items", [])) if existing_path.exists() else 0
+    except (OSError, ValueError, AttributeError, TypeError):
+        source_count, existing_count = 0, 0
+    if not source_count or source_count < existing_count * .8:
+        result = {"ok": False, "reason": "source_coverage_requires_review", "source_vins": source_count,
+                  "existing_catalog_vins": existing_count, "published_unchanged": True}
+        _write_job_status(status_file, "3_reprice_and_build", result)
+        return result
     manifest = build_catalog(source=snapshot_path, output=output_dir)
     docs_out = output_dir / ".data/top-arbitrage-deals.md"
     write_markdown_report(docs_out, min_spread_dollars=min_spread_dollars, catalog_root=output_dir)
@@ -239,7 +259,7 @@ def job_publish_and_index(
                     check=True,
                 )
                 subprocess.run(
-                    ["git", "commit", "-m", f"Automated catalog & dynamic pricing refresh ({_utc_now()[:16]}Z)"],
+                    ["git", "commit", "--only", "-m", f"Automated catalog & dynamic pricing refresh ({_utc_now()[:16]}Z)", "--", *public_artifacts],
                     cwd=repo_dir,
                     check=True,
                 )
@@ -454,6 +474,9 @@ def main() -> None:
         summary["enrich"] = job_enrich_media(status_file=args.status_file)
     if args.job in ("build", "all"):
         summary["build"] = job_reprice_and_build(status_file=args.status_file)
+        if not summary["build"].get("ok"):
+            print(json.dumps(summary, indent=2))
+            raise SystemExit(1)
     if args.job in ("publish", "all"):
         summary["publish"] = job_publish_and_index(git_push=args.git_push, status_file=args.status_file)
     if args.job in ("match", "all"):

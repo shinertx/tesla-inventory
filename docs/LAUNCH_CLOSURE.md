@@ -16,7 +16,7 @@ Codex owns quarantine, code, catalog/media projection, release integration, and 
 
 - Dealer alerts and private reports use published price minus recorded source asking price, before costs. No negotiation, lender, or shipping income is assumed.
 - Private reports stay under .data with restricted file permissions. The public operational pointer contains no supplier-cost rows. Historical Git versions are unchanged.
-- Scheduled publication includes media shards, preventing a gallery-count update without matching published gallery files.
+- Scheduled publication includes media shards, preventing a gallery-count update without matching published gallery files. Commits include only declared public paths. Empty sources or source coverage below 80% require review before a rebuild; 403/429 stops that host.
 
 ## Required external inputs
 
