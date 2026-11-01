@@ -24,6 +24,8 @@ class Settings:
     retention_days: int = 90
     sandbox_mode: bool = False
     auto_refund_enabled: bool = False
+    super_dispatch_api_key: str = ''
+    shipping_estimates_enabled: bool = False
 
     @property
     def is_test_sandbox(self):
@@ -64,4 +66,6 @@ class Settings:
             retention_days=int(os.getenv('REQUEST_RETENTION_DAYS', '90')),
             sandbox_mode=os.getenv('SANDBOX_MODE', '').lower() == 'true',
             auto_refund_enabled=os.getenv('AUTO_REFUND_ENABLED', 'true').lower() == 'true',
+            super_dispatch_api_key=os.getenv('SUPER_DISPATCH_API_KEY',''),
+            shipping_estimates_enabled=os.getenv('SHIPPING_ESTIMATES_ENABLED','').lower()=='true',
         )
