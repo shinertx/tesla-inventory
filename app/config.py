@@ -28,23 +28,40 @@ class Settings:
     shipping_estimates_enabled: bool = False
 
     @property
+    def stripe_mode(self):
+        """Classify account secret/restricted keys; never treat unknown keys as TEST."""
+        if not isinstance(self.stripe_key,str) or any(c.isspace() for c in self.stripe_key):return None
+        for mode in ('test','live'):
+            for kind in ('sk','rk'):
+                prefix=f'{kind}_{mode}_'
+                if self.stripe_key.startswith(prefix) and len(self.stripe_key)>len(prefix):return mode
+        return None
+
+    @property
     def is_test_sandbox(self):
-        return bool(self.sandbox_mode and not self.stripe_key.startswith('sk_live_'))
+        return bool(self.sandbox_mode and self.stripe_mode=='test')
+
+    @property
+    def publishable_key_matches_mode(self):
+        prefix=f'pk_{self.stripe_mode}_'
+        return bool(self.stripe_mode in ('test','live') and isinstance(self.stripe_publishable_key,str)
+                    and self.stripe_publishable_key.startswith(prefix) and len(self.stripe_publishable_key)>len(prefix)
+                    and not any(c.isspace() for c in self.stripe_publishable_key))
 
     @property
     def agreements_gate_passed(self):
-        return bool(self.platform_agreements_verified or (self.is_test_sandbox and self.stripe_key.startswith('sk_test_')))
+        return bool(self.platform_agreements_verified or self.is_test_sandbox)
 
     @property
     def payments_ready(self):
         return bool(self.agreements_gate_passed and self.checkout_enabled and self.stripe_key and self.webhook_secret
-                    and self.stripe_key.startswith(('sk_test_','sk_live_'))
+                    and self.stripe_mode in ('test','live')
+                    and (not self.sandbox_mode or self.stripe_mode=='test')
                     and self.checkout_ui_mode in ('embedded_page','hosted_page')
                     and self.payment_method_types and set(self.payment_method_types)<={'card','us_bank_account'}
                     and self.balance_payment_method_types and set(self.balance_payment_method_types)<={'us_bank_account'}
-                    and (self.checkout_ui_mode=='hosted_page' or (
-                        self.stripe_publishable_key.startswith('pk_live_' if self.stripe_key.startswith('sk_live_') else 'pk_test_')))
-                    and (not self.stripe_key.startswith('sk_live_') or (self.origin.startswith('https://') and self.platform_agreements_verified)))
+                    and (self.checkout_ui_mode=='hosted_page' or self.publishable_key_matches_mode)
+                    and (self.stripe_mode!='live' or (self.origin.startswith('https://') and self.platform_agreements_verified)))
 
     @classmethod
     def from_env(cls):

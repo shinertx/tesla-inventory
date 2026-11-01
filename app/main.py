@@ -92,7 +92,7 @@ def create_app(settings=None, payments=None, shipping=None):
         response.headers['Content-Security-Policy']="default-src 'self'; img-src 'self' https: data:; style-src 'self'; script-src 'self' https://js.stripe.com; connect-src 'self' https://api.stripe.com https://*.stripe.com; frame-src https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
         if request.url.path.startswith('/api/'):
             response.headers['Cache-Control']='no-store'
-        if settings.is_test_sandbox or settings.stripe_key.startswith('sk_test_'):
+        if settings.sandbox_mode or settings.stripe_mode=='test':
             response.headers['X-Robots-Tag']='noindex, nofollow'
         return response
 
@@ -306,7 +306,7 @@ def create_app(settings=None, payments=None, shipping=None):
         onboarding='ready' if (approved and settings.platform_agreements_verified) else ('sandbox_test_only' if (approved and settings.is_test_sandbox) else 'pending')
         payments_enabled=bool(settings.payments_ready and approved and settings.supported_states)
         return {'mode':'dealer_fulfillment','partner_onboarding_status':onboarding,
-            'sandbox_mode':settings.is_test_sandbox,'test_mode':settings.stripe_key.startswith('sk_test_'),
+            'sandbox_mode':settings.is_test_sandbox,'test_mode':settings.stripe_mode=='test',
             'supported_states':settings.supported_states,'payments_enabled':payments_enabled,
             'payment_methods':list(settings.payment_method_types),'ach_enabled':payments_enabled and ('us_bank_account' in settings.balance_payment_method_types or 'us_bank_account' in settings.payment_method_types),
             'balance_payment_methods':list(settings.balance_payment_method_types),'balance_payment_method':'us_bank_account','deposit_cents':DEPOSIT,'requests_enabled':True,'inventory_owner':'fulfilling_dealer'}
@@ -345,19 +345,20 @@ def create_app(settings=None, payments=None, shipping=None):
         checks={
             'approved_licensed_seller':bool(approved),
             'seller_platform_agreements':settings.agreements_gate_passed,
-            'stripe_secret_key':settings.stripe_key.startswith(('sk_live_','sk_test_')),
+            'stripe_secret_key':settings.stripe_mode in ('test','live'),
             'stripe_webhook_secret':bool(settings.webhook_secret),
-            'stripe_publishable_key':settings.checkout_ui_mode=='hosted_page' or settings.stripe_publishable_key.startswith('pk_live_' if settings.stripe_key.startswith('sk_live_') else 'pk_test_'),
+            'stripe_publishable_key':settings.checkout_ui_mode=='hosted_page' or settings.publishable_key_matches_mode,
             'checkout_ui_mode':settings.checkout_ui_mode in {'hosted_page','embedded_page'},
             'deposit_payment_methods':bool(settings.payment_method_types) and set(settings.payment_method_types)<={'card','us_bank_account'},
             'balance_payment_methods':bool(settings.balance_payment_method_types) and set(settings.balance_payment_method_types)<={'us_bank_account'},
-            'live_https_and_agreements':not settings.stripe_key.startswith('sk_live_') or (settings.origin.startswith('https://') and settings.platform_agreements_verified),
+            'live_https_and_agreements':settings.stripe_mode!='live' or (settings.origin.startswith('https://') and settings.platform_agreements_verified),
+            'sandbox_key_mode':not settings.sandbox_mode or settings.stripe_mode=='test',
             'supported_sale_states':bool(settings.supported_states),
             'checkout_enable_setting':settings.checkout_enabled,
         }
         missing=[name for name,passed in checks.items() if not passed]
         return {
-            'deposits':{'enabled':bool(settings.payments_ready and approved and settings.supported_states),'test_mode':settings.stripe_key.startswith('sk_test_'),
+            'deposits':{'enabled':bool(settings.payments_ready and approved and settings.supported_states),'test_mode':settings.stripe_mode=='test',
                         'approved_seller_count':approved,'missing':missing},
             'shipping':{'provider':'Super Dispatch Pricing Insights','configured':bool(settings.super_dispatch_api_key),
                         'enabled':bool(settings.shipping_estimates_enabled and settings.super_dispatch_api_key),
@@ -616,7 +617,8 @@ def create_app(settings=None, payments=None, shipping=None):
                 base_valid=(session.get('amount_total')==DEPOSIT
                     and session.get('currency')=='usd' and session.get('mode')=='payment'
                     and meta.get('order_id')==row['id'] and meta.get('quote_version')==str(row['quote_version'])
-                    and bool(session.get('livemode'))==settings.stripe_key.startswith('sk_live_') and session.get('payment_intent'))
+                    and settings.stripe_mode in ('test','live')
+                    and session.get('livemode') is (settings.stripe_mode=='live') and session.get('payment_intent'))
                 if not base_valid:raise HTTPException(409,'Payment does not match this order')
                 if kind=='checkout.session.completed' and session.get('payment_status')=='unpaid':
                     if row['payment_id'] and row['payment_id']!=session['payment_intent']:raise HTTPException(409,'Different payment already recorded')
@@ -653,7 +655,8 @@ def create_app(settings=None, payments=None, shipping=None):
                     and session.get('currency')=='usd' and session.get('mode')=='payment'
                     and meta.get('order_id')==row['id'] and meta.get('quote_version')==str(row['quote_version'])
                     and meta.get('payment_stage')=='balance_ach'
-                    and bool(session.get('livemode'))==settings.stripe_key.startswith('sk_live_') and session.get('payment_intent'))
+                    and settings.stripe_mode in ('test','live')
+                    and session.get('livemode') is (settings.stripe_mode=='live') and session.get('payment_intent'))
                 if not base_valid:raise HTTPException(409,'Balance payment does not match this order')
                 if row['balance_payment_id'] and row['balance_payment_id']!=session['payment_intent']:
                     raise HTTPException(409,'Different balance payment already recorded')
@@ -677,6 +680,8 @@ def create_app(settings=None, payments=None, shipping=None):
                     c.execute('UPDATE orders SET balance_payment_state=?,balance_checkout_id=NULL,balance_payment_id=NULL,updated_at=? WHERE id=?',(bstate,now,row['id']))
                     store.event(c,row['id'],'balance_payment_failed' if kind.endswith('failed') else 'balance_checkout_expired',{},True)
             elif kind in ('refund.updated','refund.created'):
+                if settings.stripe_mode not in ('test','live') or event.get('livemode') is not (settings.stripe_mode=='live'):
+                    raise HTTPException(409,'Refund mode does not match this integration')
                 pi=obj.get('payment_intent','')
                 row=c.execute('SELECT * FROM orders WHERE payment_id=? OR balance_payment_id=?',(pi,pi)).fetchone()
                 if row and row['payment_account']!=event.get('account'):raise HTTPException(409,'Webhook account mismatch')
@@ -1118,11 +1123,11 @@ def create_app(settings=None, payments=None, shipping=None):
         return HTMLResponse(f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex,nofollow"><title>{title} — SYNTHETIC SANDBOX TEST ONLY</title></head><body><h1>{title} (SYNTHETIC SANDBOX TEST ONLY)</h1><p>This document is a synthetic sandbox fixture for integration verification only. No real vehicle sale, warranty, or dealer obligation is created.</p><p>Disclosed synthetic seller: SYNTHETIC SANDBOX DEALER (TEST ONLY) · $250 test reservation deposit is refundable in Stripe TEST mode.</p></body></html>')
     @app.get('/sitemap.xml')
     def sitemap():
-        if settings.is_test_sandbox:raise HTTPException(404)
+        if settings.sandbox_mode or settings.stripe_mode=='test':raise HTTPException(404)
         return FileResponse(ROOT/'sitemap.xml',media_type='application/xml')
     @app.get('/robots.txt')
     def robots():
-        if settings.is_test_sandbox:
+        if settings.sandbox_mode or settings.stripe_mode=='test':
             from fastapi.responses import PlainTextResponse
             return PlainTextResponse('User-agent: *\nDisallow: /\n')
         return FileResponse(ROOT/'robots.txt',media_type='text/plain')
@@ -1132,11 +1137,11 @@ def create_app(settings=None, payments=None, shipping=None):
     def indexnow_key():return FileResponse(ROOT/'voltsandvins-indexnow-key.txt',media_type='text/plain')
     @app.get('/llms.txt')
     def llms_txt():
-        if settings.is_test_sandbox or not (ROOT/'llms.txt').is_file():raise HTTPException(404)
+        if settings.sandbox_mode or settings.stripe_mode=='test' or not (ROOT/'llms.txt').is_file():raise HTTPException(404)
         return FileResponse(ROOT/'llms.txt',media_type='text/plain; charset=utf-8')
     @app.get('/llms-full.txt')
     def llms_full_txt():
-        if settings.is_test_sandbox or not (ROOT/'llms-full.txt').is_file():raise HTTPException(404)
+        if settings.sandbox_mode or settings.stripe_mode=='test' or not (ROOT/'llms-full.txt').is_file():raise HTTPException(404)
         return FileResponse(ROOT/'llms-full.txt',media_type='text/plain; charset=utf-8')
     @app.get('/')
     def home():return FileResponse(ROOT/'index.html')

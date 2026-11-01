@@ -636,7 +636,7 @@ def test_auto_refund_on_cancel_and_durable_refund_worker_with_pending_webhook(tm
 
     # Webhook refund.updated marks order refunded
     pi='pi_'+o2['id']
-    rw=client.post('/api/stripe/webhook',json={'id':'evt_refund_settled','type':'refund.updated','account':'acct_fixtureDealer',
+    rw=client.post('/api/stripe/webhook',json={'id':'evt_refund_settled','type':'refund.updated','livemode':False,'account':'acct_fixtureDealer',
         'data':{'object':{'id':'re_pending_'+o2['id'],'payment_intent':pi,'amount':25000,'status':'succeeded'}}},
         headers={'Stripe-Signature':'valid-test-signature'})
     assert rw.status_code==200 and status(client,o2)=='refunded'
