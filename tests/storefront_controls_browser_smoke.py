@@ -10,7 +10,7 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
-from static_browser_smoke import PagesHandler
+from static_browser_smoke import PagesHandler, open_details
 
 ROOT=Path(__file__).resolve().parents[1]
 SVG='<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500"><rect width="800" height="500" fill="#dde7ed"/></svg>'
@@ -154,7 +154,7 @@ def main():
                 assert page.locator('#vehicle-dialog[open]').count()==1
                 assert rows[1]['vin'] in page.url
                 page.locator('[data-close=vehicle-dialog]').click();checks['shortlist_vehicle_open']=True
-                page.locator('#saved-button').click();page.locator('#compare-saved').click()
+                page.locator('#saved-button').click();page.locator('[data-compare-select]').nth(0).check();page.locator('[data-compare-select]').nth(1).check();page.locator('#compare-saved').click()
                 page.locator(f'[data-compare-open="{rows[0]["vin"]}"]').click()
                 assert page.locator('#compare-dialog[open]').count()==0
                 assert page.locator('#vehicle-dialog[open]').count()==1
@@ -167,14 +167,14 @@ def main():
                 page.locator('#deal-continue').click();page.locator('#request-dialog[open]').wait_for()
                 page.locator('[name=name]').fill('Controls Fixture Buyer');page.locator('[name=email]').fill('controls@example.test')
                 page.locator('[name=consent]').check();page.locator('#submit-request').click()
-                page.locator('#order-dialog[open]').wait_for();page.locator('#order-payment-pref').select_option('partner_financing')
+                page.locator('#order-dialog[open]').wait_for();open_details(page, '.payment-settings');page.locator('#order-payment-pref').select_option('partner_financing')
                 page.wait_for_function('()=>document.querySelector("#order-payment-pref")?.value==="partner_financing"&&!document.querySelector("#order-payment-pref").disabled')
                 assert state['preferences']==['partner_financing']
                 page.reload();page.wait_for_selector('.card');page.locator('[data-close=vehicle-dialog]').click()
                 page.locator('#order-button').click();page.locator('#order-dialog[open]').wait_for()
                 assert page.locator('#order-payment-pref').input_value()=='partner_financing'
                 checks['payment_preference_persists_after_reload']=True
-                page.locator('#delete-request').click()
+                open_details(page, '#order-access'); page.locator('#delete-request').click()
                 page.wait_for_function('()=>document.querySelector("#toast").textContent.includes("Deletion request recorded")')
                 assert state['privacy_requests']==1;checks['privacy_request_submission']=True
                 assert not state['external_requests'],state['external_requests']

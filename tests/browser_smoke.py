@@ -3,6 +3,7 @@ import json,socket,threading,tempfile,time,sys
 from pathlib import Path
 import uvicorn
 from playwright.sync_api import sync_playwright
+from static_browser_smoke import open_details
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
 from app.main import create_app
 from app.config import Settings
@@ -67,13 +68,13 @@ def main():
                 assert page.evaluate('JSON.parse(sessionStorage.getItem("marketplace_order"))')==access
                 page.unroute(order_path);page.locator('#retry-saved-order').click();page.locator('#report-issue').wait_for()
                 assert 'Request received' in page.locator('#order-content').inner_text();results['temporary_outage_keeps_private_access']=True
-                page.locator('#switch-order').click();page.locator('#legacy-recovery summary').click();page.locator('#recover-id').fill(access['id']);page.locator('#recover-token').fill(access['token']);page.locator('#recover-form button[type=submit], #recover-form button.secondary').click()
+                open_details(page, '#order-access'); page.locator('#switch-order').click();page.locator('#legacy-recovery summary').click();page.locator('#recover-id').fill(access['id']);page.locator('#recover-token').fill(access['token']);page.locator('#recover-form button[type=submit], #recover-form button.secondary').click()
                 page.wait_for_selector('#report-issue');assert 'Request received' in page.locator('#order-content').inner_text();results['order_recovery']=True
                 page.locator('#report-issue').click();page.locator('#issue-description').fill('Please verify the charging adapters included with this vehicle.');page.locator('#send-issue').click();page.locator('#issue-form').wait_for(state='hidden');results['support_case']=True
                 page.locator('#cancel-order').click();page.get_by_role('heading',name='Request cancelled').wait_for();results['cancellation']=True
                 page.locator('[data-close=order-dialog]').click()
                 page.locator('.save').nth(1).click();page.locator('#saved-button').click();assert page.locator('.shortlist-car').count()==2
-                page.locator('#compare-saved').click();assert page.locator('.comparison-grid article').count()==2;results['shortlist_comparison']=True
+                page.locator('[data-compare-select]').nth(0).check();page.locator('[data-compare-select]').nth(1).check();page.locator('#compare-saved').click();assert page.locator('.comparison-grid article').count()==2;results['shortlist_comparison']=True
                 page.locator('[data-close=compare-dialog]').click()
                 # A failed config request previously suppressed photo discovery entirely.
                 race=context.new_page();race.route('**/api/config',lambda r:r.abort())

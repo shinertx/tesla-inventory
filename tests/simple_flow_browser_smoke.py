@@ -11,7 +11,7 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
-from static_browser_smoke import PagesHandler
+from static_browser_smoke import PagesHandler, open_details
 from storefront_controls_browser_smoke import fixtures, SVG
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,7 +45,7 @@ def main():
             state['catalog_reads'] += 1
             return r.fulfill(json={'meta': {'media_version': 'simple-fixture'}, 'items': [row]})
         if '/data/us_zip_centers.json' in url:
-            return r.fulfill(json={'zips': {'78201': ['TX', 0, 0], '78701': ['TX', 0, 0]}})
+            return r.fulfill(json={'zips': {'78201': ['TX', 0, 0], '78701': ['TX', 0, 0], '90210': ['CA', 0, 0]}})
         if '/media/' in url:
             return r.fulfill(json={row['vin']: [{'url': row['photo'], 'title': 'Fixture photo', 'category': 'photos'}]})
         if '/api/' in url:
@@ -122,9 +122,19 @@ def main():
                 page.locator('#deal-scroll').evaluate('(el)=>el.scrollTop=el.scrollHeight')
                 visible_button(page, '#deal-continue')
                 page.locator('#deal-continue').click(); page.locator('#request-dialog[open]').wait_for()
-                assert page.locator('#request-dialog h2').inner_text() == 'Your final price'
+                assert page.locator('#request-dialog h2').inner_text() == 'Request your final price'
                 visible_button(page, '#submit-request')
+                assert '$21,735' in page.locator('#request-estimate').inner_text()
+                assert '$3,000' in page.locator('#request-estimate').inner_text()
                 assert page.locator('#submit-request').inner_text() == 'Request final price · $0 today'
+                page.locator('[name=zip]').fill('90210')
+                page.wait_for_function('()=>document.querySelector("#request-estimate").textContent.includes("90210")')
+                assert page.locator('[name=state]').input_value() == 'CA'
+                assert '$21,735' not in page.locator('#request-estimate').inner_text()
+                page.locator('[name=zip]').fill('12')
+                assert 'Enter a valid delivery ZIP' in page.locator('#request-estimate').inner_text()
+                assert '$21,735' not in page.locator('#request-estimate').inner_text()
+
                 page.locator('[name=name]').fill('Fixture Buyer'); page.locator('[name=email]').fill('fixture@example.test')
                 page.locator('[name=zip]').fill('78701'); page.locator('[name=payment_preference]').select_option('partner_financing')
                 page.locator('[name=consent]').check()
@@ -164,11 +174,11 @@ def main():
                 assert len(state['pending']) == 1
                 state['pending'].pop().fulfill(status=201, json=dict(order, access_token=token))
                 state['hold_request'] = False
-                page.locator('#order-dialog[open]').wait_for(); page.locator('#copy-access').click()
+                page.locator('#order-dialog[open]').wait_for(); open_details(page, '#order-access'); page.locator('#copy-access').click()
                 private_link = page.evaluate('navigator.clipboard.readText()')
                 assert private_link.startswith(base) and '#request=' in private_link and token in private_link
                 with page.expect_download() as download:
-                    page.locator('#save-access').click()
+                    open_details(page, '#order-access'); page.locator('#save-access').click()
                 text = Path(download.value.path()).read_text()
                 assert 'Volts' in text and token in text and 'href=' in text and '.html' in download.value.suggested_filename
                 page.locator('[data-close=order-dialog]').click()
@@ -178,7 +188,7 @@ def main():
                 recovered.locator('#order-dialog[open]').wait_for()
                 assert '#' not in recovered.url and token not in recovered.url
                 assert recovered.evaluate('JSON.parse(sessionStorage.getItem("marketplace_order")).id') == order_id
-                recovered.locator('#switch-order').click()
+                open_details(recovered, '#order-access'); recovered.locator('#switch-order').click()
                 before = state['reads']
                 for invalid in ['https://other.example/#request=x&access=y', base+'wrong#request=x&access=y', 'not a URL']:
                     recovered.locator('#recover-link').fill(invalid); recovered.locator('#open-return-link').click()
