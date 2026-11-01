@@ -475,8 +475,8 @@ def test_partner_financing_prequalification_cannot_unlock_dealer_funded(setup):
     r_cond=client.post(f"/api/admin/orders/{o['id']}/financing",json={'state':'conditional_approval','provider':'Partner Credit Union','reference':'evidence:cond','stipulations':['proof_of_income']},headers=admin())
     assert r_cond.status_code==200
     assert client.post(f"/api/admin/orders/{o['id']}/transition",json=t_body('dealer_confirmed'),headers=admin()).status_code==409
-    # Lender funded requires funded_amount_cents > 0 and unlocks dealer_funded
-    r_funded=client.post(f"/api/admin/orders/{o['id']}/financing",json={'state':'lender_funded','provider':'Partner Credit Union','reference':'evidence:wire-settled','funded_amount_cents':2875000},headers=admin())
+    # Settled lender proceeds must cover the complete balance before dealer_funded
+    r_funded=client.post(f"/api/admin/orders/{o['id']}/financing",json={'state':'lender_funded','provider':'Partner Credit Union','reference':'evidence:wire-settled','funded_amount_cents':3131250},headers=admin())
     assert r_funded.status_code==200 and r_funded.json()['financing']['state']=='lender_funded'
     assert client.post(f"/api/admin/orders/{o['id']}/transition",json=t_body('dealer_confirmed'),headers=admin()).status_code==200
 
