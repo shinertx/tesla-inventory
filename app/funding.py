@@ -129,8 +129,10 @@ def observe_lender_snapshot(c,row,body,now):
     baseline=head['amount_cents'] if head else _legacy_lender_proceeds(c,row)[0]
     if body.funded_amount_cents<baseline:
         raise FundingRuleError('A lower lender amount requires an append-only lender funding correction with actual evidence')
-    if head and head['amount_cents']>0 and head['provider']!=body.provider:
-        raise FundingRuleError('Changing the recorded lender requires reconciliation before new funding can be applied')
+    if baseline>0:
+        baseline_provider=head['provider'] if head else json.loads(row['financing_detail']).get('provider')
+        if baseline_provider!=body.provider:
+            raise FundingRuleError('Changing the recorded lender requires reconciliation before new funding can be applied')
     c.execute('INSERT INTO lender_funding_observations(reference,kind,prior_reference,order_id,quote_version,dealer_id,seller_key,provider,amount_cents,currency,evidence_reference,observed_at,payload_hash) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
         (body.reference,'funding',head['reference'] if head else None,row['id'],row['quote_version'],row['dealer_id'],seller_key(row),
          body.provider,body.funded_amount_cents,'USD',body.reference,now,fingerprint))

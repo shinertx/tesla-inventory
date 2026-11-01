@@ -165,3 +165,22 @@ def test_historical_padded_ids_are_compared_canonically_without_rewriting_histor
     with store.connect() as db:
         saved=json.loads(db.execute("SELECT detail FROM events WHERE kind='financing_lender_funded' ORDER BY id DESC LIMIT 1").fetchone()[0])
         assert saved['reference']==old['reference']
+
+
+def test_legacy_positive_baseline_requires_reconciliation_before_provider_switch(setup):
+    client,_,_,store=setup
+    order=request(client);approve(client,order)
+    legacy_funding(store,order,100000,'wire:legacy-provider-a')
+    switched=funding_body(200000,'wire:new-provider-b',provider='Different lender')
+    rejected=post_funding(client,order,switched)
+    assert rejected.status_code==409 and 'reconciliation' in rejected.text
+    assert summary(client,order)['lender_funded_cents']==100000
+    with store.connect() as db:
+        assert db.execute('SELECT COUNT(*) FROM lender_funding_observations').fetchone()[0]==0
+    assert correct(client,order,correction_body('wire:legacy-provider-a',0)).status_code==200
+    assert post_funding(client,order,switched).status_code==200
+    funds=summary(client,order)
+    assert funds['lender_funded_cents']==200000
+    assert funds['prior_quote_unallocated_lender_cents']==0
+    with store.connect() as db:
+        assert db.execute('SELECT COUNT(*) FROM lender_funding_observations').fetchone()[0]==2
