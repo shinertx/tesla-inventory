@@ -50,6 +50,7 @@ def test_cross_origin_request_survives_restart_without_enabling_payment(tmp_path
     assert restarted.get(path, headers={'Origin': ORIGIN}).status_code == 404
     assert restarted.get('/api/admin/orders', headers={'Origin': ORIGIN}).status_code == 401
     assert restarted.get('/api/config').json()['payments_enabled'] is False
+    assert restarted.get('/api/config').json()['ach_enabled'] is False
     assert restarted.post(path + '/checkout', headers=headers,
                           json={'quote_version': 1, 'terms_accepted': True}).status_code == 409
 
