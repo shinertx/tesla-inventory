@@ -31,6 +31,8 @@
 - [Fremont Factory Built Used Teslas (13,511 listings)](https://voltsandvins.com/deals/fremont-build.html)
 
 ## Machine-Readable Feeds & Indexes
+- Fast AI Agent Filter & Search API (<15ms JSON): https://api.voltsandvins.com/api/search?model=Model+Y&max_price=36000&only_price_finds=true&limit=10
+- OpenAPI 3.1 Action Specification (ChatGPT / Claude / Gemini Tools): https://voltsandvins.com/openapi.json
 - Full Top-100 Price-Find VIN Digest: https://voltsandvins.com/llms-full.txt
 - XML Sitemap (197 URLs): https://voltsandvins.com/sitemap.xml
 - Live Public JSON Catalog: https://voltsandvins.com/inventory.json

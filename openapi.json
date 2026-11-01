@@ -1,0 +1,116 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Volts & VINs Used Tesla Search & Benchmark API",
+    "version": "1.0.0",
+    "description": "Query 15,000+ VIN-decoded used Teslas with mileage-adjusted peer price benchmarks and direct checkout links."
+  },
+  "servers": [
+    {
+      "url": "https://api.voltsandvins.com"
+    }
+  ],
+  "paths": {
+    "/api/search": {
+      "get": {
+        "operationId": "searchUsedTeslas",
+        "summary": "Filter VIN-decoded used Teslas by model, year, max price, mileage, state, drivetrain, and peer-benchmark savings.",
+        "parameters": [
+          {
+            "name": "model",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Model Y",
+                "Model 3",
+                "Model S",
+                "Model X",
+                "Cybertruck"
+              ]
+            }
+          },
+          {
+            "name": "year_min",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "year_max",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "max_price",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "max_mileage",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "drivetrain",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "AWD",
+                "RWD"
+              ]
+            }
+          },
+          {
+            "name": "only_price_finds",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "savings",
+                "price_asc",
+                "mileage_asc"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "maximum": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching VIN-decoded Tesla listings with peer benchmarks and checkout URLs."
+          }
+        }
+      }
+    }
+  }
+}

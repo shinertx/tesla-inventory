@@ -331,11 +331,40 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None):
         *[f'- [{label} ({len(sub):,} listings)]({BASE}/{g}/{s}.html)' for g,s,label,_,sub in categories if g=='deals'],
         '',
         '## Machine-Readable Feeds & Indexes',
+        f'- Fast AI Agent Filter & Search API (<15ms JSON): https://api.voltsandvins.com/api/search?model=Model+Y&max_price=36000&only_price_finds=true&limit=10',
+        f'- OpenAPI 3.1 Action Specification (ChatGPT / Claude / Gemini Tools): {BASE}/openapi.json',
         f'- Full Top-100 Price-Find VIN Digest: {BASE}/llms-full.txt',
         f'- XML Sitemap ({len(entries)} URLs): {BASE}/sitemap.xml',
         f'- Live Public JSON Catalog: {BASE}/inventory.json',
     ]
     (output/'llms.txt').write_text('\n'.join(llms_summary)+'\n')
+    openapi_spec={
+        'openapi':'3.1.0',
+        'info':{'title':'Volts & VINs Used Tesla Search & Benchmark API','version':'1.0.0','description':'Query 15,000+ VIN-decoded used Teslas with mileage-adjusted peer price benchmarks and direct checkout links.'},
+        'servers':[{'url':'https://api.voltsandvins.com'}],
+        'paths':{
+            '/api/search':{
+                'get':{
+                    'operationId':'searchUsedTeslas',
+                    'summary':'Filter VIN-decoded used Teslas by model, year, max price, mileage, state, drivetrain, and peer-benchmark savings.',
+                    'parameters':[
+                        {'name':'model','in':'query','schema':{'type':'string','enum':['Model Y','Model 3','Model S','Model X','Cybertruck']}},
+                        {'name':'year_min','in':'query','schema':{'type':'integer'}},
+                        {'name':'year_max','in':'query','schema':{'type':'integer'}},
+                        {'name':'max_price','in':'query','schema':{'type':'integer'}},
+                        {'name':'max_mileage','in':'query','schema':{'type':'integer'}},
+                        {'name':'state','in':'query','schema':{'type':'string'}},
+                        {'name':'drivetrain','in':'query','schema':{'type':'string','enum':['AWD','RWD']}},
+                        {'name':'only_price_finds','in':'query','schema':{'type':'boolean'}},
+                        {'name':'sort','in':'query','schema':{'type':'string','enum':['savings','price_asc','mileage_asc']}},
+                        {'name':'limit','in':'query','schema':{'type':'integer','default':10,'maximum':50}},
+                    ],
+                    'responses':{'200':{'description':'Matching VIN-decoded Tesla listings with peer benchmarks and checkout URLs.'}},
+                }
+            }
+        },
+    }
+    (output/'openapi.json').write_text(json.dumps(openapi_spec,indent=2)+'\n')
     find_rows=[
         f"- **{x['year']} Tesla {x['model']} {x['trim']}** (VIN `{x['vin']}`) — Est. Price: `${x['display_price']:,.0f}` | Peer Benchmark: `${x['reference_price']:,.0f}` ({x['reference_sample']} peers) | **Save `${x['savings_amount']:,.0f}`** | {x['mileage']:,} mi | {x.get('drivetrain') or 'EV'} | {x.get('city') or ''}, {x['state']} | {BASE}/?vin={x['vin']}"
         for x in top_finds
