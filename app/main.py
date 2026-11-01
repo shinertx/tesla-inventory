@@ -736,11 +736,19 @@ def create_app(settings=None, payments=None):
     def cname():return FileResponse(ROOT/'CNAME',media_type='text/plain')
     @app.get('/voltsandvins-indexnow-key.txt')
     def indexnow_key():return FileResponse(ROOT/'voltsandvins-indexnow-key.txt',media_type='text/plain')
+    @app.get('/llms.txt')
+    def llms_txt():
+        if settings.is_test_sandbox or not (ROOT/'llms.txt').is_file():raise HTTPException(404)
+        return FileResponse(ROOT/'llms.txt',media_type='text/plain; charset=utf-8')
+    @app.get('/llms-full.txt')
+    def llms_full_txt():
+        if settings.is_test_sandbox or not (ROOT/'llms-full.txt').is_file():raise HTTPException(404)
+        return FileResponse(ROOT/'llms-full.txt',media_type='text/plain; charset=utf-8')
     @app.get('/')
     def home():return FileResponse(ROOT/'index.html')
     @app.get('/{group}/{slug}.html')
     def category(group:str,slug:str):
-        if group not in ('models','years','states') or not slug.replace('-','').isalnum():raise HTTPException(404)
+        if group not in ('models','years','states','deals') or not slug.replace('-','').isalnum():raise HTTPException(404)
         path=ROOT/group/(slug+'.html')
         if not path.is_file():raise HTTPException(404)
         return FileResponse(path)

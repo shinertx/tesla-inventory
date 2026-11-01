@@ -142,8 +142,13 @@ def test_seo_schema_jsonld_cname_and_indexnow_are_built(tmp_path):
     home=(tmp_path/'index.html').read_text()
     assert 'Volts &amp; VINs' in home
     assert 'application/ld+json' in home and VIN in home
+    assert '"@type":"Dataset"' in home and '"@type":"FAQPage"' in home and '"@type":"SearchAction"' in home
+    cat=(tmp_path/'models/model-s.html').read_text()
+    assert '"@type":"BreadcrumbList"' in cat and 'Model S Tesla Listings (1) — From $20,000' in cat
     assert (tmp_path/'CNAME').read_text().strip()=='voltsandvins.com'
     assert len((tmp_path/'voltsandvins-indexnow-key.txt').read_text().strip())==32
+    assert 'OAI-SearchBot' in (tmp_path/'robots.txt').read_text() and 'PerplexityBot' in (tmp_path/'robots.txt').read_text()
+    assert 'Volts & VINs' in (tmp_path/'llms.txt').read_text() and (tmp_path/'llms-full.txt').is_file()
     from tools.indexnow import build_indexnow_payload
     payload=build_indexnow_payload(['https://voltsandvins.com/'])
     assert payload['host']=='voltsandvins.com' and payload['urlList']==['https://voltsandvins.com/']

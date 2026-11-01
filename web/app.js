@@ -345,7 +345,8 @@
     for(const option of $('hardware').options){if(option.value){const count=items.filter(x=>x.hardware===option.value).length;option.disabled=!count;option.textContent=count?`${option.value} · ${count} verified`:`${option.value} — evidence needed`;}}
     options('model',[...new Set(items.map(x=>x.model))].sort());options('year',[...new Set(items.map(x=>x.year))].sort((a,b)=>b-a));options('state',[...new Set(items.map(x=>x.state))].filter(x=>x!=='US').sort());
     $('snapshot-status').textContent='Your next favorite is in here.';
-    const preset=document.body.dataset.preset;if(preset){const [key,value]=preset.split(':');if($(key))$(key).value=value;}
+    const preset=document.body.dataset.preset;if(preset){for(const part of preset.split(';')){const [key,value]=part.split(':');if(key==='discover'){discovery=value;document.querySelectorAll('[data-discover]').forEach(b=>b.classList.toggle('active',b.dataset.discover===value));}else if($(key))$(key).value=value;}}
+    const q=new URLSearchParams(location.search).get('q');if(q&&$('search'))$('search').value=q;
     applyFilters();
     const vin=new URLSearchParams(location.search).get('vin');if(vin)showVehicle(vin);
     // Redirect parameters never prove payment. Only an authenticated server order does.
