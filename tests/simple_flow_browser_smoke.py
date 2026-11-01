@@ -36,12 +36,13 @@ def main():
     order_id, token = 'simple-fixture-order', 'simple-fixture-private-token'
     order = {'id': order_id, 'vin': row['vin'], 'state': 'requested', 'quote_version': 0,
              'quote': None, 'payment_preference': 'cash', 'online_actions': []}
-    state = {'malformed': False, 'posts': 0, 'reads': 0, 'visits': [], 'unexpected': [], 'hold_request': False, 'pending': []}
+    state = {'malformed': False, 'posts': 0, 'reads': 0, 'visits': [], 'unexpected': [], 'hold_request': False, 'pending': [], 'catalog_reads': 0}
     results = {'local_fixtures': True, 'real_providers': False, 'real_payments': False, 'viewports': {}, 'javascript_errors': []}
 
     def route(r):
         url = r.request.url
         if 'inventory.json' in url:
+            state['catalog_reads'] += 1
             return r.fulfill(json={'meta': {'media_version': 'simple-fixture'}, 'items': [row]})
         if '/data/us_zip_centers.json' in url:
             return r.fulfill(json={'zips': {'78201': ['TX', 0, 0], '78701': ['TX', 0, 0]}})
@@ -81,7 +82,9 @@ def main():
                 context.add_init_script('window.ENABLE_VISIT_BEACON=true')
                 page = context.new_page()
                 page.on('pageerror', lambda e: results['javascript_errors'].append(str(e)))
+                catalog_reads = state['catalog_reads']
                 page.goto(base); page.wait_for_selector('[data-price]')
+                assert state['catalog_reads'] == catalog_reads + 1
                 if width == 390:
                     page.locator('#mobile-filters').click()
                     assert page.locator('#mobile-filters').get_attribute('aria-expanded') == 'true'
