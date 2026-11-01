@@ -2,7 +2,7 @@
 (() => {
   const scriptURL = document.currentScript.src;
   const rootURL = new URL('../', scriptURL);
-  const metaApiBase = document.querySelector('meta[name="volts-api-base"]')?.content?.trim() || 'https://hank.jockeyvc.com/volts-api/api/';
+  const metaApiBase = document.querySelector('meta[name="volts-api-base"]')?.content?.trim() || 'https://api.voltsandvins.com/api/';
   const useExternalApi = /^(www\.)?voltsandvins\.com$/i.test(location.hostname);
   const rawApiBase = window.VOLTS_API_BASE || document.body.dataset.apiBase || (useExternalApi ? metaApiBase : 'api/');
   const apiURL = new URL(rawApiBase.endsWith('/') ? rawApiBase : rawApiBase + '/', rootURL);
