@@ -25,7 +25,7 @@ def main():
             browser=p.chromium.launch()
             for width in (1440,390):
                 context=browser.new_context(viewport={'width':width,'height':1000})
-                state={'order':None,'cases':[],'case_calls':[],'blocked_fullscreen':False,'pending':None,'lost_ack':True}
+                state={'order':None,'cases':[],'case_calls':[],'pending':None,'lost_ack':True}
                 def route(request):
                     url=request.request.url
                     if 'inventory.json' in url:return request.fulfill(json={'meta':{'media_version':'fixture'},'items':rows})
@@ -49,7 +49,6 @@ def main():
                         if path=='orders/fixture-order':return request.fulfill(json=state['order'])
                         return request.fulfill(status=404,json={'detail':'Fixture endpoint unavailable'})
                     if request.request.resource_type=='image':
-                        if state['blocked_fullscreen']:return request.abort()
                         return request.fulfill(content_type='image/svg+xml',body=SVG)
                     if url.startswith(base):return request.continue_()
                     return request.abort()
@@ -65,9 +64,12 @@ def main():
                 results[f'comparison_and_stale_favorites_{width}']=True
                 page.locator('[data-close=compare-dialog]').click()
                 page.locator(f'[data-open="{rows[0]["vin"]}"]').click();page.wait_for_selector('.gallery-thumb')
-                state['blocked_fullscreen']=True;page.locator('#photo-expand').click();page.locator('#full-photo-error').wait_for(state='visible')
+                page.locator('#photo-expand').click()
+                # Cached images may not issue a request; inject the browser failure event deterministically.
+                page.locator('#full-photo').evaluate('(img)=>img.dispatchEvent(new Event("error"))')
+                page.locator('#full-photo-error').wait_for(state='visible')
                 assert not page.locator('#full-photo').is_visible()
-                state['blocked_fullscreen']=False;page.locator('#retry-full-photo').click()
+                page.locator('#retry-full-photo').click()
                 page.wait_for_function('()=>document.querySelector("#full-photo").naturalWidth>0&&!document.querySelector("#full-photo").hidden')
                 assert page.locator('#full-next').is_visible() and page.locator('#full-prev').is_visible()
                 results[f'fullscreen_retry_{width}']=True
