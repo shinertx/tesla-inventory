@@ -12,6 +12,10 @@ from .models import PurchaseRequest, Quote, Transition, Cancellation, CheckoutAc
 from .store import Store
 from .payments import StripePayments
 from .media import VehicleMedia
+from .providers import SuperDispatchPricingClient, ProviderNotConfigured, ProviderUnavailable, UnsupportedRoute
+from pydantic import BaseModel, ConfigDict, StrictBool
+from dataclasses import asdict
+from threading import Lock
 
 DEPOSIT = 25000
 ONLINE_STATES={
@@ -43,7 +47,12 @@ def _load_inventory(path):
         _INVENTORY_CACHE['vehicles']={x['vin']:x for x in inv['items']}
     return _INVENTORY_CACHE['inv'],_INVENTORY_CACHE['vehicles']
 
-def create_app(settings=None, payments=None):
+class ShippingEstimateRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    is_inoperable: StrictBool
+
+
+def create_app(settings=None, payments=None, shipping=None):
     settings=settings or Settings.from_env()
     store=Store(settings.db_path)
     payments=payments or StripePayments(settings)
@@ -57,6 +66,7 @@ def create_app(settings=None, payments=None):
         allow_headers=['Authorization','Content-Type','Idempotency-Key'],
         allow_credentials=False,max_age=600)
     app.state.store=store
+    shipping_lock=Lock()
     media=VehicleMedia(store,settings.sourcing_path)
 
     @app.middleware('http')
@@ -180,7 +190,7 @@ def create_app(settings=None, payments=None):
         with store.connect() as c:
             approved=sum(bool(json.loads(r['profile']).get('verified')) for r in c.execute('SELECT profile FROM dealers'))
         onboarding='ready' if (approved and settings.platform_agreements_verified) else ('sandbox_test_only' if (approved and settings.is_test_sandbox) else 'pending')
-        payments_enabled=bool(settings.payments_ready and approved)
+        payments_enabled=bool(settings.payments_ready and approved and settings.supported_states)
         return {'mode':'dealer_fulfillment','partner_onboarding_status':onboarding,
             'sandbox_mode':settings.is_test_sandbox,'test_mode':settings.stripe_key.startswith('sk_test_'),
             'supported_states':settings.supported_states,'payments_enabled':payments_enabled,
@@ -213,6 +223,76 @@ def create_app(settings=None, payments=None):
     @app.get('/api/admin/dealers',dependencies=[Depends(admin)])
     def dealers():
         with store.connect() as c:return [json.loads(r['profile']) for r in c.execute('SELECT profile FROM dealers')]
+
+    @app.get('/api/admin/integrations',dependencies=[Depends(admin)])
+    def integrations():
+        with store.connect() as c:
+            approved=sum(bool(json.loads(r['profile']).get('verified')) for r in c.execute('SELECT profile FROM dealers'))
+        checks={
+            'approved_licensed_seller':bool(approved),
+            'seller_platform_agreements':settings.agreements_gate_passed,
+            'stripe_secret_key':settings.stripe_key.startswith(('sk_live_','sk_test_')),
+            'stripe_webhook_secret':bool(settings.webhook_secret),
+            'stripe_publishable_key':settings.checkout_ui_mode=='hosted_page' or settings.stripe_publishable_key.startswith('pk_live_' if settings.stripe_key.startswith('sk_live_') else 'pk_test_'),
+            'checkout_ui_mode':settings.checkout_ui_mode in {'hosted_page','embedded_page'},
+            'deposit_payment_methods':bool(settings.payment_method_types) and set(settings.payment_method_types)<={'card','us_bank_account'},
+            'balance_payment_methods':bool(settings.balance_payment_method_types) and set(settings.balance_payment_method_types)<={'us_bank_account'},
+            'live_https_and_agreements':not settings.stripe_key.startswith('sk_live_') or (settings.origin.startswith('https://') and settings.platform_agreements_verified),
+            'supported_sale_states':bool(settings.supported_states),
+            'checkout_enable_setting':settings.checkout_enabled,
+        }
+        missing=[name for name,passed in checks.items() if not passed]
+        return {
+            'deposits':{'enabled':bool(settings.payments_ready and approved and settings.supported_states),'test_mode':settings.stripe_key.startswith('sk_test_'),
+                        'approved_seller_count':approved,'missing':missing},
+            'shipping':{'provider':'Super Dispatch Pricing Insights','configured':bool(settings.super_dispatch_api_key),
+                        'enabled':bool(settings.shipping_estimates_enabled and settings.super_dispatch_api_key),
+                        'binding_carrier_quotes':False,'carrier_booking':False},
+            'financing':{'applications_enabled':False,'status':'provider_contract_and_credentials_required'},
+            'note':'Configuration does not establish provider approval or a successful live transaction.'}
+
+    @app.post('/api/admin/orders/{order_id}/shipping-estimate',dependencies=[Depends(admin)])
+    def shipping_estimate(order_id:str,body:ShippingEstimateRequest):
+        # One process serializes pricing calls; persisted receipts also survive restarts.
+        # This endpoint cannot approve quotes, hold inventory, book transport, or collect money.
+        with shipping_lock:
+            if not settings.shipping_estimates_enabled or not settings.super_dispatch_api_key:
+                raise HTTPException(503,'Transport pricing access has not been connected')
+            with store.connect() as c:
+                row=get_order(c,order_id)
+                if row['state'] in {'cancelled','refunded','completed'}:raise HTTPException(409,'Request is closed')
+                vehicle=vehicles.get(row['vin'],{})
+                customer=json.loads(row['customer'])
+                if not isinstance(customer.get('zip'),str) or len(customer['zip'])!=5 or not customer['zip'].isdigit():
+                    raise HTTPException(409,'Delivery ZIP requires confirmation')
+                model=vehicle.get('model')
+                kind={'Model 3':'sedan','Model S':'sedan','Model Y':'suv','Model X':'suv','Cybertruck':'pickup_4_doors'}.get(model)
+                state=vehicle.get('state','')
+                if not kind or not vehicle.get('city') or not isinstance(state,str) or len(state)!=2 or not state.isupper() or not vehicle.get('year'):
+                    raise HTTPException(409,'Vehicle route and type require confirmation')
+                if state in {'US','AK','HI'}:raise HTTPException(422,'Transport pricing requires a supported mainland route')
+                payload={'pickup':{'city':vehicle['city'],'state':vehicle['state']},'delivery':{'zip':customer['zip']},
+                         'vehicle':{'type':kind,'make':'Tesla','model':model,'year':str(vehicle['year']),'is_inoperable':body.is_inoperable}}
+                request_hash=digest(json.dumps(payload,sort_keys=True))
+                cached=c.execute("SELECT detail FROM events WHERE order_id=? AND kind='shipping_estimate_received' ORDER BY id DESC LIMIT 1",(order_id,)).fetchone()
+                if cached:
+                    result=json.loads(cached['detail'])
+                    if result.get('request_hash')==request_hash and result.get('cache_expires_at',0)>int(time.time()):
+                        return {k:v for k,v in result.items() if k!='request_hash'}
+            if not store.rate_limit('shipping-estimate:'+order_id,limit=6):raise HTTPException(429,'Transport pricing request limit reached')
+            try:
+                estimate=(shipping or SuperDispatchPricingClient(settings.super_dispatch_api_key)).recommended_price(**payload)
+            except UnsupportedRoute:
+                raise HTTPException(422,'Transport pricing is unavailable for this route') from None
+            except ProviderNotConfigured:
+                raise HTTPException(503,'Transport pricing account requires operator review') from None
+            except (ProviderUnavailable,ValueError):
+                raise HTTPException(503,'Transport pricing is unavailable. No carrier has been booked.') from None
+            result={**asdict(estimate),'binding':False,'carrier_booked':False,'cache_expires_at':estimate.observed_at+900,
+                    'notice':'Provider pricing recommendation only. This is not a binding carrier quote or delivery promise.'}
+            with store.transaction() as c:
+                store.event(c,order_id,'shipping_estimate_received',{**result,'request_hash':request_hash})
+            return result
 
     @app.get('/api/vehicles/{vin}/photos')
     def vehicle_photos(vin:str,request:Request):
