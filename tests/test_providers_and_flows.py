@@ -326,10 +326,28 @@ def test_pipeline_jobs_status_and_order_matcher(tmp_path):
             "INSERT INTO orders (id, access_hash, request_key, request_hash, vin, customer, state, created_at, updated_at, action_due_at) "
             "VALUES ('ord_1', 'h1', 'rk1', 'rh1', '7SAYGDED2TA594632', '{\"name\":\"Alice\",\"email\":\"a@b.com\",\"phone\":\"5125550100\",\"zip\":\"78701\"}', 'requested', 1000, 1000, 2000)"
         )
+    inv_path = tmp_path / 'inventory.json'
+    inv_path.write_text(json.dumps({'items': [{
+        'vin': '7SAYGDED2TA594632', 'year': 2026, 'model': 'Model Y',
+        'trim': 'Long Range', 'display_price': 25000, 'savings_amount': 1800,
+    }]}))
+    arb_path = tmp_path / 'arbitrage_opportunities.json'
+    arb_path.write_text(json.dumps({'items': [{
+        'vin': '7SAYGDED2TA594632', 'source_asking_cents': 2000000,
+        'proposed_retail_cents': 2500000, 'modeled_gross_spread_cents': 500000,
+        'source_dealer': 'Synthetic Source Dealer',
+        'source_url': 'https://source.example.test/vehicle',
+    }, {
+        'vin': 'unrelated-fixture-vin', 'source_asking_cents': 1000000,
+        'proposed_retail_cents': 3000000, 'modeled_gross_spread_cents': 2000000,
+        'source_dealer': 'Unrelated Source Dealer',
+    }]}))
     packets_out = tmp_path / 'deal_packets.json'
     status_file = tmp_path / 'jobs_status.json'
     res = job_match_customer_orders(
         orders_db=db_path,
+        arb_path=arb_path,
+        inv_path=inv_path,
         packets_out=packets_out,
         status_file=status_file,
     )
@@ -339,6 +357,13 @@ def test_pipeline_jobs_status_and_order_matcher(tmp_path):
     packets = json.loads(packets_out.read_text())['packets']
     assert packets[0]['vin'] == '7SAYGDED2TA594632'
     assert packets[0]['buyer_name'] == 'Alice'
-    assert packets[0]['volts_upfront_spread'] >= 4000
-
-
+    assert len(packets) == 1
+    assert packets[0]['source_dealer'] == 'Synthetic Source Dealer'
+    assert packets[0]['source_dealer_price'] == 20000
+    assert packets[0]['volts_retail_price'] == 25000
+    assert packets[0]['volts_upfront_spread'] == 5000
+    assert packets[0]['buyer_savings_badge'] == 1800
+    status = json.loads(status_file.read_text())['jobs']['5_match_customer_orders']
+    assert status['ok'] is True
+    assert status['orders_scanned'] == status['matched_with_arbitrage'] == 1
+    assert status['updated_at']
