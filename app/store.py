@@ -40,6 +40,45 @@ CREATE TABLE IF NOT EXISTS case_request_keys (
 );
 CREATE TABLE IF NOT EXISTS rate_limits (bucket TEXT NOT NULL, window INTEGER NOT NULL,
  count INTEGER NOT NULL, PRIMARY KEY(bucket, window));
+CREATE TABLE IF NOT EXISTS buyer_cash_entries (
+ id TEXT PRIMARY KEY, reference TEXT NOT NULL UNIQUE, kind TEXT NOT NULL CHECK(kind IN ('receipt','reversal')),
+ order_id TEXT NOT NULL REFERENCES orders(id), quote_version INTEGER NOT NULL,
+ dealer_id TEXT NOT NULL, seller_key TEXT NOT NULL, amount_cents INTEGER NOT NULL CHECK(amount_cents>0),
+ currency TEXT NOT NULL CHECK(currency='USD'),
+ receipt_id TEXT REFERENCES buyer_cash_entries(id), evidence_reference TEXT NOT NULL,
+ observed_at INTEGER NOT NULL, recorded_at INTEGER NOT NULL, payload_hash TEXT NOT NULL,
+ CHECK((kind='receipt' AND receipt_id IS NULL) OR (kind='reversal' AND receipt_id IS NOT NULL))
+);
+CREATE INDEX IF NOT EXISTS buyer_cash_order ON buyer_cash_entries(order_id);
+CREATE INDEX IF NOT EXISTS buyer_cash_parent ON buyer_cash_entries(receipt_id);
+CREATE TRIGGER IF NOT EXISTS buyer_cash_no_update BEFORE UPDATE ON buyer_cash_entries
+ BEGIN SELECT RAISE(ABORT,'Buyer cash history is append-only'); END;
+CREATE TRIGGER IF NOT EXISTS buyer_cash_no_delete BEFORE DELETE ON buyer_cash_entries
+ BEGIN SELECT RAISE(ABORT,'Buyer cash history is append-only'); END;
+CREATE TRIGGER IF NOT EXISTS buyer_cash_reversal_check BEFORE INSERT ON buyer_cash_entries WHEN NEW.kind='reversal'
+ BEGIN
+ SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM buyer_cash_entries p WHERE p.id=NEW.receipt_id AND p.kind='receipt'
+   AND p.order_id=NEW.order_id AND p.quote_version=NEW.quote_version AND p.dealer_id=NEW.dealer_id AND p.seller_key=NEW.seller_key)
+   THEN RAISE(ABORT,'Reversal must match its original receipt') END;
+ SELECT CASE WHEN NEW.amount_cents>(SELECT amount_cents FROM buyer_cash_entries WHERE id=NEW.receipt_id)
+   -(SELECT COALESCE(SUM(amount_cents),0) FROM buyer_cash_entries WHERE receipt_id=NEW.receipt_id AND kind='reversal')
+   THEN RAISE(ABORT,'Reversal exceeds original receipt') END;
+ END;
+CREATE TABLE IF NOT EXISTS lender_funding_observations (
+ seq INTEGER PRIMARY KEY AUTOINCREMENT, reference TEXT NOT NULL UNIQUE,
+ kind TEXT NOT NULL CHECK(kind IN ('funding','correction')), prior_reference TEXT REFERENCES lender_funding_observations(reference),
+ legacy_prior_event_id INTEGER REFERENCES events(id),
+ order_id TEXT NOT NULL REFERENCES orders(id), quote_version INTEGER NOT NULL,
+ dealer_id TEXT NOT NULL, seller_key TEXT NOT NULL, provider TEXT NOT NULL,
+ amount_cents INTEGER NOT NULL CHECK(amount_cents>=0), currency TEXT NOT NULL CHECK(currency='USD'),
+ evidence_reference TEXT NOT NULL, observed_at INTEGER NOT NULL, payload_hash TEXT NOT NULL,
+ CHECK(kind='correction' OR amount_cents>0)
+);
+CREATE INDEX IF NOT EXISTS lender_funding_order ON lender_funding_observations(order_id,seq);
+CREATE TRIGGER IF NOT EXISTS lender_funding_no_update BEFORE UPDATE ON lender_funding_observations
+ BEGIN SELECT RAISE(ABORT,'Lender funding history is append-only'); END;
+CREATE TRIGGER IF NOT EXISTS lender_funding_no_delete BEFORE DELETE ON lender_funding_observations
+ BEGIN SELECT RAISE(ABORT,'Lender funding history is append-only'); END;
 '''
 
 class Store:

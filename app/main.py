@@ -9,11 +9,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from .config import Settings, ROOT
-from .models import PurchaseRequest, Quote, Transition, Cancellation, CheckoutAcceptance, BalanceCheckoutAcceptance, PaymentPreferenceUpdate, FinancingUpdate, TransportUpdate, SellerHold, CustomerCase, CaseResolution, AccessRecovery, Dealer, Settlement, SettlementReversal, OnlineAction
+from .models import PurchaseRequest, Quote, Transition, Cancellation, CheckoutAcceptance, BalanceCheckoutAcceptance, PaymentPreferenceUpdate, FinancingUpdate, TransportUpdate, SellerHold, CustomerCase, CaseResolution, AccessRecovery, Dealer, Settlement, SettlementReversal, OnlineAction, BuyerCashReceipt, BuyerCashReversal, LenderFundingCorrection
 from .store import Store
 from .payments import StripePayments
 from .media import VehicleMedia
 from .catalog import catalog_exclusions
+from .funding import funding_summary, seller_key, CASH_RECORD_STATES, lender_head, observe_lender_snapshot, FundingRuleError
+from .transport_rules import TransportRuleError, validate_transport_update, require_booked_transport
 from .providers import SuperDispatchPricingClient, ProviderNotConfigured, ProviderUnavailable, UnsupportedRoute
 from pydantic import BaseModel, ConfigDict, StrictBool
 from dataclasses import asdict
@@ -146,26 +148,26 @@ def create_app(settings=None, payments=None, shipping=None):
         if saved and quote_price>saved['vehicle_price_cents']:
             raise HTTPException(409,'Quote vehicle price exceeds the price saved with this request. Honor the saved price or mark this vehicle unavailable.')
 
-    def require_financing_coverage(row):
-        # Pure cash orders retain the existing dealer-receipt/ACH evidence path.
-        # Switching preference cannot erase already recorded lender proceeds.
-        if row['payment_preference']!='partner_financing' and row['financing_state']!='lender_funded':return
-        if not row['quote']:
-            raise HTTPException(409,'A verified quote is required to confirm funding coverage')
-        q=Quote.model_validate_json(row['quote'])
-        deposit_credited=bool(row['payment_id'] and row['state'] in (
-            'deposit_paid','dealer_confirmed','dealer_funded','in_transit','delivered','settlement_pending','completed'))
-        required=q.total_cents-(DEPOSIT if deposit_credited else 0)
-        # The recorded balance ACH settles the complete quote balance, not a guessed down payment.
-        if deposit_credited and row['balance_payment_state']=='paid' and row['balance_payment_id']:return
-        if row['financing_state']!='lender_funded':
-            raise HTTPException(409,'Financing prequalification or approval is not funded proceeds; settled funding is required')
-        try:
-            funding=FinancingUpdate.model_validate_json(row['financing_detail'])
-        except (ValueError,TypeError):
-            raise HTTPException(409,'Verified lender funding details are required before release') from None
-        if funding.state!='lender_funded' or funding.funded_amount_cents<required:
-            raise HTTPException(409,'Recorded settled lender proceeds do not cover the current quote balance. An unrecorded down payment cannot cover the difference.')
+    def require_funding_coverage(c,row):
+        summary=funding_summary(c,row,DEPOSIT)
+        if summary and summary['in_flight_balance_conflict']:
+            raise HTTPException(409,'An existing full-balance payment is open or under review. Reconcile its outcome before vehicle release; no provider session has been cancelled.')
+        if not summary or not summary['coverage_complete']:
+            raise HTTPException(409,'Recorded settled proceeds do not cover the current quote balance. Record actual additional settled cash; an unrecorded down payment cannot cover the difference.')
+
+    def legacy_balance_payment_blocked(c,row):
+        funds=funding_summary(c,row,DEPOSIT)
+        return not funds or not funds['balance_checkout_allowed']
+
+    def record_balance_conflict(c,row,source_reference):
+        funds=funding_summary(c,row,DEPOSIT)
+        if funds and funds['in_flight_balance_conflict']:
+            detail={'quote_version':row['quote_version'],'source_reference':source_reference,
+                    'balance_payment_state':row['balance_payment_state'],'balance_checkout_id':row['balance_checkout_id'],
+                    'balance_payment_id':row['balance_payment_id'],'provider_session_cancelled':False}
+            encoded=json.dumps(detail,sort_keys=True)
+            if not c.execute("SELECT 1 FROM events WHERE order_id=? AND kind='funding_payment_conflict' AND detail=?",(row['id'],encoded)).fetchone():
+                store.event(c,row['id'],'funding_payment_conflict',detail,True)
 
     def dealer_for(c,dealer_id):
         stored=c.execute('SELECT profile FROM dealers WHERE id=?',(dealer_id,)).fetchone()
@@ -250,6 +252,12 @@ def create_app(settings=None, payments=None, shipping=None):
         financing={key:private_financing[key] for key in (
             'provider','lender_name','approved_amount_cents','funded_amount_cents','stipulations','application_url') if key in private_financing}
         financing['state']=row['financing_state']
+        reconciled=funding_summary(c,row,DEPOSIT)
+        if reconciled:
+            financing['funded_amount_cents']=reconciled['lender_funded_cents']
+            head=lender_head(c,row)
+            if (head and head['kind']=='correction') or (financing['state']=='lender_funded' and not reconciled['lender_funded_cents']):
+                financing['state']='funding_reconciled'
         private_transport=json.loads(row['transport_detail']) if row['transport_detail'] else {}
         transport={key:private_transport[key] for key in (
             'provider','carrier_name','tracking_url','bol_reference','quote_expires_at',
@@ -261,7 +269,8 @@ def create_app(settings=None, payments=None, shipping=None):
                 'vehicle':vehicle_summary,'refund_submitted':bool(row['refund_id']),
                 'quote_version':row['quote_version'],'action_due_at':row['action_due_at'],
                 'payment_preference':row['payment_preference'],'balance_payment_state':row['balance_payment_state'],
-                'financing':financing,'transport':transport,'shipping_estimate':customer_shipping_estimate(row,c)}
+                'financing':financing,'transport':transport,'shipping_estimate':customer_shipping_estimate(row,c),
+                'funding_summary':reconciled}
 
     def _execute_deposit_refund(c,row,strict=True):
         if row['state']=='refunded':return row
@@ -438,6 +447,7 @@ def create_app(settings=None, payments=None, shipping=None):
             store.expire(c,int(time.time()))
             row=order_access(c,order_id,authorization)
             actions=[{'kind':x['kind'],'url':x['url']} for x in c.execute('SELECT * FROM online_actions WHERE order_id=?',(order_id,)) if row['state'] in ONLINE_STATES[x['kind']]]
+            if legacy_balance_payment_blocked(c,row):actions=[a for a in actions if a['kind']!='pay_balance']
             return {**public(row,c),'online_actions':actions}
 
     @app.post('/api/orders/{order_id}/privacy')
@@ -503,6 +513,10 @@ def create_app(settings=None, payments=None, shipping=None):
             row=order_access(c,order_id,authorization)
             require_vehicle_review_clear(row['vin'])
             if row['state'] not in ('quoted','checkout_pending'):raise HTTPException(409,'A verified quote is required')
+            funds=funding_summary(c,row,DEPOSIT)
+            if funds and (funds['net_additional_cash_cents'] or funds['prior_quote_unallocated_cash_cents']
+                          or funds['lender_funded_cents'] or funds['settled_balance_cents'] or funds['funds_review_required']):
+                raise HTTPException(409,'Settled or unreconciled funds already exist. Reconcile this request before opening another deposit payment.')
             dealer=dealer_for_order(c,row)
             destination=json.loads(row['customer']).get('state')
             if destination not in dealer.supported_states or destination not in settings.supported_states:raise HTTPException(409,'Destination is no longer supported')
@@ -547,6 +561,8 @@ def create_app(settings=None, payments=None, shipping=None):
             row=order_access(c,order_id,authorization)
             require_vehicle_review_clear(row['vin'])
             if row['state']!='dealer_confirmed':raise HTTPException(409,'Dealer order acceptance and signed contract are required before balance payment')
+            if legacy_balance_payment_blocked(c,row):
+                raise HTTPException(409,'Additional or unreconciled funds are recorded. Reconcile the remaining balance before opening a full-balance payment.')
             if row['payment_preference']=='partner_financing' and row['financing_state']!='declined':
                 raise HTTPException(409,'Order is set to partner financing; switch to cash/ACH or complete lender funding')
             if row['balance_payment_state'] in ('ach_processing','paid'):
@@ -708,6 +724,147 @@ def create_app(settings=None, payments=None, shipping=None):
                 _execute_deposit_refund(c,get_order(c,order_id),strict=False)
             return public(get_order(c,order_id),c)
 
+    def cash_response(c,row,entry):
+        return {'entry':{key:entry[key] for key in ('id','kind','quote_version','dealer_id','amount_cents','currency','receipt_id','observed_at','recorded_at')},
+                'funding_summary':funding_summary(c,row,DEPOSIT),'observational_only':True,'money_moved':False}
+
+    def existing_cash_entry(c,row,reference,payload_hash,kind):
+        entry=c.execute('SELECT * FROM buyer_cash_entries WHERE reference=?',(reference,)).fetchone()
+        if entry and (entry['order_id']!=row['id'] or entry['payload_hash']!=payload_hash or entry['kind']!=kind):
+            raise HTTPException(409,'Funding reference is already recorded with another order or payload')
+        return entry
+
+    def check_cash_reference(c,reference,allow_lender_order=None):
+        identifiers=('payment_id','balance_payment_id','checkout_id','balance_checkout_id','refund_id')
+        if c.execute('SELECT 1 FROM orders WHERE '+' OR '.join(key+'=?' for key in identifiers),tuple(reference for _ in identifiers)).fetchone():
+            raise HTTPException(409,'A deposit or balance-payment reference cannot be counted as additional buyer cash')
+        if c.execute('SELECT 1 FROM buyer_cash_entries WHERE reference=?',(reference,)).fetchone():
+            raise HTTPException(409,'Funding reference is already reserved by a cash observation')
+        for entry in c.execute('SELECT order_id FROM lender_funding_observations WHERE reference=?',(reference,)):
+            if entry['order_id']!=allow_lender_order:raise HTTPException(409,'Lender funding reference cannot be reused for another observation')
+        for record in c.execute('SELECT id,financing_detail FROM orders WHERE financing_detail IS NOT NULL'):
+            if record['id']==allow_lender_order:continue
+            try:used=json.loads(record['financing_detail']).get('reference')==reference
+            except (ValueError,TypeError,AttributeError):used=False
+            if used:raise HTTPException(409,'A lender funding reference cannot be counted as additional buyer cash')
+        for record in c.execute("SELECT order_id,detail FROM events WHERE kind='financing_lender_funded'"):
+            if record['order_id']==allow_lender_order:continue
+            try:used=json.loads(record['detail']).get('reference')==reference
+            except (ValueError,TypeError,AttributeError):used=False
+            if used:raise HTTPException(409,'A historical lender reference is already reserved and cannot be reused')
+
+    @app.get('/api/admin/orders/{order_id}/buyer-cash-receipts',dependencies=[Depends(admin)])
+    def buyer_cash_history(order_id:str):
+        with store.connect() as c:
+            row=get_order(c,order_id)
+            entries=[dict(entry) for entry in c.execute('SELECT * FROM buyer_cash_entries WHERE order_id=? ORDER BY recorded_at,id',(order_id,))]
+            return {'entries':entries,'funding_summary':funding_summary(c,row,DEPOSIT),'observational_only':True}
+
+    @app.post('/api/admin/orders/{order_id}/buyer-cash-receipts',dependencies=[Depends(admin)])
+    def record_buyer_cash(order_id:str,body:BuyerCashReceipt):
+        now=int(time.time());payload_hash=digest(body.model_dump_json())
+        with store.transaction() as c:
+            row=get_order(c,order_id)
+            existing=existing_cash_entry(c,row,body.receipt_reference,payload_hash,'receipt')
+            if existing:return cash_response(c,row,existing)
+            if row['state'] not in CASH_RECORD_STATES:
+                raise HTTPException(409,'A new cash receipt is not supported in this state. Late settlements on closed requests require accounting review.')
+            dealer_for_order(c,row)
+            if body.quote_version!=row['quote_version'] or body.dealer_id!=row['dealer_id']:
+                raise HTTPException(409,'Receipt must match the current quote version and selling dealer')
+            if not row['quote']:raise HTTPException(409,'A confirmed seller quote is required')
+            if body.settled_at>now:raise HTTPException(409,'Only actually settled cash can be recorded; settlement time cannot be in the future')
+            check_cash_reference(c,body.receipt_reference)
+            entry_id=str(uuid.uuid4())
+            c.execute('INSERT INTO buyer_cash_entries VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(
+                entry_id,body.receipt_reference,'receipt',order_id,body.quote_version,body.dealer_id,seller_key(row),
+                body.amount_cents,body.currency,None,body.evidence_reference,body.settled_at,now,payload_hash))
+            c.execute('UPDATE orders SET updated_at=? WHERE id=?',(now,order_id))
+            store.event(c,order_id,'buyer_cash_receipt_recorded',{'entry_id':entry_id,'amount_cents':body.amount_cents,'quote_version':body.quote_version},True)
+            record_balance_conflict(c,get_order(c,order_id),body.receipt_reference)
+            return cash_response(c,get_order(c,order_id),c.execute('SELECT * FROM buyer_cash_entries WHERE id=?',(entry_id,)).fetchone())
+
+    @app.post('/api/admin/orders/{order_id}/buyer-cash-reversals',dependencies=[Depends(admin)])
+    def reverse_buyer_cash(order_id:str,body:BuyerCashReversal):
+        now=int(time.time());payload_hash=digest(body.model_dump_json())
+        with store.transaction() as c:
+            row=get_order(c,order_id)
+            existing=existing_cash_entry(c,row,body.reversal_reference,payload_hash,'reversal')
+            if existing:return cash_response(c,row,existing)
+            receipt=c.execute("SELECT * FROM buyer_cash_entries WHERE id=? AND order_id=? AND kind='receipt'",(body.receipt_id,order_id)).fetchone()
+            if not receipt:raise HTTPException(404,'Original settled cash receipt was not found')
+            # An observed return/correction stays tied to its original seller and version, even after closure or requote.
+            if body.quote_version!=receipt['quote_version'] or body.dealer_id!=receipt['dealer_id']:
+                raise HTTPException(409,'Reversal must match the original receipt quote version and selling dealer')
+            if body.observed_at>now:raise HTTPException(409,'Reversal observation cannot be in the future')
+            reversed_cents=c.execute("SELECT COALESCE(SUM(amount_cents),0) FROM buyer_cash_entries WHERE receipt_id=? AND kind='reversal'",(receipt['id'],)).fetchone()[0]
+            if body.amount_cents>receipt['amount_cents']-reversed_cents:
+                raise HTTPException(409,'Reversal exceeds the unreversed settled receipt amount')
+            check_cash_reference(c,body.reversal_reference)
+            entry_id=str(uuid.uuid4())
+            c.execute('INSERT INTO buyer_cash_entries VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(
+                entry_id,body.reversal_reference,'reversal',order_id,receipt['quote_version'],receipt['dealer_id'],receipt['seller_key'],
+                body.amount_cents,body.currency,receipt['id'],body.evidence_reference,body.observed_at,now,payload_hash))
+            c.execute('UPDATE orders SET updated_at=? WHERE id=?',(now,order_id))
+            store.event(c,order_id,'buyer_cash_reversal_observed',{'entry_id':entry_id,'receipt_id':receipt['id'],'amount_cents':body.amount_cents},True)
+            record_balance_conflict(c,get_order(c,order_id),body.reversal_reference)
+            return cash_response(c,get_order(c,order_id),c.execute('SELECT * FROM buyer_cash_entries WHERE id=?',(entry_id,)).fetchone())
+
+    @app.get('/api/admin/orders/{order_id}/lender-funding-observations',dependencies=[Depends(admin)])
+    def lender_history(order_id:str):
+        with store.connect() as c:
+            row=get_order(c,order_id)
+            return {'observations':[dict(entry) for entry in c.execute('SELECT * FROM lender_funding_observations WHERE order_id=? ORDER BY seq',(order_id,))],
+                    'funding_summary':funding_summary(c,row,DEPOSIT),'observational_only':True}
+
+    @app.post('/api/admin/orders/{order_id}/lender-funding-corrections',dependencies=[Depends(admin)])
+    def correct_lender_funding(order_id:str,body:LenderFundingCorrection):
+        now=int(time.time());fingerprint=digest(body.model_dump_json())
+        with store.transaction() as c:
+            row=get_order(c,order_id)
+            existing=c.execute('SELECT * FROM lender_funding_observations WHERE reference=?',(body.correction_reference,)).fetchone()
+            if existing:
+                if existing['kind']!='correction' or existing['order_id']!=order_id or existing['payload_hash']!=fingerprint:
+                    raise HTTPException(409,'Correction reference is already recorded with another order or payload')
+                return {'funding_summary':funding_summary(c,row,DEPOSIT),'observational_only':True,'money_moved':False}
+            if row['workflow_model']!='dealer_fulfillment' or not row['quote']:
+                raise HTTPException(409,'A seller quote is required for lender reconciliation')
+            if body.observed_at>now:raise HTTPException(409,'A funding correction cannot be observed in the future')
+            prior=c.execute('SELECT * FROM lender_funding_observations WHERE reference=? AND order_id=?',(body.expected_prior_reference,order_id)).fetchone()
+            legacy_event_id=None
+            if not prior:
+                if lender_head(c,row):raise HTTPException(409,'A newer lender reconciliation exists; review its reference before correcting it')
+                funds=funding_summary(c,row,DEPOSIT);detail=json.loads(row['financing_detail'] or '{}')
+                if not funds or funds['lender_funded_cents']<=0 or detail.get('reference')!=body.expected_prior_reference or body.quote_version!=row['quote_version'] or body.dealer_id!=row['dealer_id']:
+                    raise HTTPException(409,'Legacy lender observation binding requires accounting review; no historical funds have been inferred')
+                for event in c.execute("SELECT id,detail FROM events WHERE order_id=? AND kind='financing_lender_funded' ORDER BY id DESC",(order_id,)):
+                    actual=json.loads(event['detail'])
+                    if actual.get('reference')==body.expected_prior_reference and actual.get('funded_amount_cents')==funds['lender_funded_cents'] and actual.get('provider')==detail.get('provider'):
+                        legacy_event_id=event['id'];break
+                if legacy_event_id is None:raise HTTPException(409,'An actual historical funded event is required for this correction')
+                # This is a new correction linked to a real old event, never a fabricated historical receipt.
+                prior={'quote_version':row['quote_version'],'dealer_id':row['dealer_id'],'seller_key':seller_key(row),'provider':detail['provider'],'reference':None}
+            if body.quote_version!=prior['quote_version'] or body.dealer_id!=prior['dealer_id']:
+                raise HTTPException(409,'Correction must match the original observation quote and selling dealer')
+            head=c.execute('SELECT * FROM lender_funding_observations WHERE order_id=? AND quote_version=? AND dealer_id=? AND seller_key=? ORDER BY seq DESC LIMIT 1',
+                (order_id,prior['quote_version'],prior['dealer_id'],prior['seller_key'])).fetchone()
+            if not legacy_event_id and (not head or head['reference']!=body.expected_prior_reference):
+                raise HTTPException(409,'Lender observation changed. Review the latest recorded observation before correcting it')
+            if legacy_event_id:head=prior
+            current_context=prior['quote_version']==row['quote_version'] and prior['dealer_id']==row['dealer_id'] and prior['seller_key']==seller_key(row)
+            check_cash_reference(c,body.correction_reference)
+            c.execute('INSERT INTO lender_funding_observations(reference,kind,prior_reference,legacy_prior_event_id,order_id,quote_version,dealer_id,seller_key,provider,amount_cents,currency,evidence_reference,observed_at,payload_hash) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                (body.correction_reference,'correction',head['reference'],legacy_event_id,order_id,prior['quote_version'],prior['dealer_id'],prior['seller_key'],head['provider'],
+                 body.net_settled_cents,'USD',body.evidence_reference,body.observed_at,fingerprint))
+            if current_context:
+                detail=json.loads(row['financing_detail'] or '{}')
+                detail.update(state='funding_reconciled',provider=head['provider'],funded_amount_cents=body.net_settled_cents,
+                              reference=body.correction_reference,_quote_version=row['quote_version'],_seller_key=seller_key(row))
+                c.execute("UPDATE orders SET financing_state='funding_reconciled',financing_detail=?,updated_at=? WHERE id=?",(json.dumps(detail),now,order_id))
+            store.event(c,order_id,'lender_funding_correction_observed',{'quote_version':prior['quote_version'],'net_settled_cents':body.net_settled_cents,'current_quote':current_context},True)
+            record_balance_conflict(c,get_order(c,order_id),body.correction_reference)
+            return {'funding_summary':funding_summary(c,get_order(c,order_id),DEPOSIT),'observational_only':True,'money_moved':False}
+
     @app.post('/api/admin/orders/{order_id}/financing',dependencies=[Depends(admin)])
     def update_financing(order_id:str,body:FinancingUpdate):
         now=int(time.time())
@@ -715,19 +872,29 @@ def create_app(settings=None, payments=None, shipping=None):
             row=get_order(c,order_id);dealer=dealer_for_order(c,row)
             if row['state'] in ('cancelled','refunded','completed'):
                 raise HTTPException(409,'Order is closed')
+            if body.quote_version is not None and body.quote_version!=row['quote_version']:
+                raise HTTPException(409,'Lender observation must match the current quote version')
+            if body.state=='lender_funded':
+                check_cash_reference(c,body.reference,allow_lender_order=order_id)
+                try:observe_lender_snapshot(c,row,body,now)
+                except FundingRuleError as exc:raise HTTPException(409,str(exc)) from None
+            else:
+                funds=funding_summary(c,row,DEPOSIT)
+                if funds and funds['lender_funded_cents']:
+                    raise HTTPException(409,'Recorded lender proceeds require an explicit funding correction before a status regression')
             if body.application_url:
                 from urllib.parse import urlsplit
                 if urlsplit(body.application_url).hostname not in dealer.online_portal_hosts:
                     raise HTTPException(409,'Use an approved lender application host for this seller')
-            c.execute('UPDATE orders SET financing_state=?,financing_detail=?,updated_at=? WHERE id=?',(body.state,body.model_dump_json(),now,order_id))
+            detail={**body.model_dump(),'_quote_version':row['quote_version'],'_seller_key':seller_key(row)}
+            c.execute('UPDATE orders SET financing_state=?,financing_detail=?,updated_at=? WHERE id=?',(body.state,json.dumps(detail),now,order_id))
             store.event(c,order_id,'financing_'+body.state,body.model_dump(),True)
+            if body.state=='lender_funded':record_balance_conflict(c,get_order(c,order_id),body.reference)
             return public(get_order(c,order_id),c)
 
     @app.post('/api/admin/orders/{order_id}/transport',dependencies=[Depends(admin)])
     def update_transport(order_id:str,body:TransportUpdate):
         now=int(time.time())
-        if body.state in ('quoted','carrier_accepted') and body.quote_expires_at<=now:
-            raise HTTPException(409,'Transport quote is already expired')
         with store.transaction() as c:
             row=get_order(c,order_id);dealer_for_order(c,row)
             if row['state'] in ('cancelled','refunded','completed'):
@@ -735,7 +902,12 @@ def create_app(settings=None, payments=None, shipping=None):
             if body.state in ('dispatched','delivered'):
                 if row['state'] not in ('dealer_funded','in_transit','delivered','settlement_pending'):
                     raise HTTPException(409,'Dealer funding must be confirmed before vehicle dispatch or delivery')
-                require_financing_coverage(row)
+                require_funding_coverage(c,row)
+            previous=json.loads(row['transport_detail']) if row['transport_detail'] else {'state':row['transport_state']}
+            recorded=c.execute("SELECT detail FROM events WHERE order_id=? AND kind IN ('transport_carrier_accepted','transport_dispatched','transport_delivered') ORDER BY id DESC LIMIT 1",(order_id,)).fetchone()
+            accepted_booking=json.loads(recorded['detail']) if recorded else None
+            try:validate_transport_update(row['state'],previous,body.model_dump(),now,accepted_booking=accepted_booking)
+            except TransportRuleError as exc:raise HTTPException(409,str(exc)) from None
             c.execute('UPDATE orders SET transport_state=?,transport_detail=?,updated_at=? WHERE id=?',(body.state,body.model_dump_json(),now,order_id))
             store.event(c,order_id,'transport_'+body.state,body.model_dump(),True)
             return public(get_order(c,order_id),c)
@@ -769,17 +941,11 @@ def create_app(settings=None, payments=None, shipping=None):
                 hold=c.execute('SELECT expires_at FROM source_holds WHERE order_id=?',(order_id,)).fetchone()
                 if not hold or hold['expires_at']<=now:raise HTTPException(409,'Source dealer hold expired; reconfirm before proceeding')
             if body.state in ('dealer_funded','in_transit'):
-                require_financing_coverage(row)
-            if body.state=='dealer_funded':
-                if row['balance_payment_state'] in ('checkout_open','ach_processing','failed','payment_review'):
-                    raise HTTPException(409,'Balance ACH payment has not settled; cannot mark dealer_funded while unpaid or processing')
+                require_funding_coverage(c,row)
             if body.state=='in_transit':
-                if row['transport_state'] in ('quoted','exception'):
-                    raise HTTPException(409,'Carrier acceptance is required before dispatch; a rate quote alone cannot release the vehicle')
-                if row['transport_detail']:
-                    td=json.loads(row['transport_detail'])
-                    if td.get('quote_expires_at',now+1)<=now and row['transport_state']!='carrier_accepted':
-                        raise HTTPException(409,'Transport quote expired before carrier acceptance')
+                detail=json.loads(row['transport_detail']) if row['transport_detail'] else None
+                try:require_booked_transport(row['transport_state'],detail)
+                except TransportRuleError as exc:raise HTTPException(409,str(exc)) from None
             if any(len(body.evidence.get(key,'').strip())<5 for key in rule[1]):
                 raise HTTPException(409,'Required transaction evidence is missing')
             c.execute('UPDATE orders SET state=?,updated_at=?,action_due_at=? WHERE id=?',(body.state,now,now+86400,order_id))

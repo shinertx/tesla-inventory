@@ -65,6 +65,26 @@ def event(client,payments,order,**changes):
     return client.post('/api/stripe/webhook',json={'id':'evt_'+str(uuid.uuid4()),'type':'checkout.session.completed','account':session['account'],'data':{'object':{'id':session['id']}}},headers={'Stripe-Signature':'valid-test-signature'})
 def status(client,order):return client.get(f"/api/orders/{order['id']}",headers=auth(order)).json()['state']
 
+def record_cash_balance(client,order,amount=None):
+    current=client.get('/api/orders/'+order['id'],headers=auth(order)).json()
+    result=client.post('/api/admin/orders/'+order['id']+'/buyer-cash-receipts',json={
+        'currency':'USD','quote_version':current['quote_version'],'dealer_id':'fixture-dealer',
+        'amount_cents':amount if amount is not None else current['quote']['balance_after_deposit_cents'],
+        'receipt_reference':'cash:fixture:'+str(uuid.uuid4()),'evidence_reference':'bank:settlement:fixture',
+        'settled_at':int(time.time()),'settled':True,'excludes_reservation_deposit':True},headers=admin())
+    assert result.status_code==200,result.text
+    return result.json()
+
+
+def accept_fixture_transport(client,order):
+    now=int(time.time())
+    result=client.post('/api/admin/orders/'+order['id']+'/transport',json={
+        'state':'carrier_accepted','provider':'Fixture carrier','quote_reference':'fixture:carrier-quote',
+        'rate_cents':60000,'quote_expires_at':now+86400,'pickup_window_start':now+3600,
+        'pickup_window_end':now+7200,'carrier_acceptance_reference':'fixture:carrier-acceptance'},headers=admin())
+    assert result.status_code==200,result.text
+    return result.json()
+
 def test_pending_platform_agreements_collect_requests_but_block_transactions(setup):
     _,s,p,_=setup;c=TestClient(create_app(replace(s,platform_agreements_verified=False),p));o=request(c)
     assert c.get('/api/config').json()['partner_onboarding_status']=='pending'
@@ -158,6 +178,8 @@ def test_refund_retries_do_not_repeat_completed_refund(setup):
 def test_full_fulfillment_requires_evidence_in_order(setup):
     c,_,p,_=setup;o=request(c);approve(c,o);checkout(c,o);event(c,p,o)
     for old,(state,keys) in TRANSITIONS.items():
+        if state=='dealer_funded':record_cash_balance(c,o)
+        if state=='in_transit':accept_fixture_transport(c,o)
         path=f"/api/admin/orders/{o['id']}/transition"
         assert c.post(path,json={'state':state,'evidence':{'none':'missing'}},headers=admin()).status_code==409
         assert c.post(path,json={'state':state,'evidence':{k:'verified:fixture' for k in keys}},headers=admin()).status_code==200
@@ -264,7 +286,10 @@ def test_spread_is_not_earned_from_deposit_and_requires_settlement(setup):
     settlement=dict(received_cents=400000,adjustment_cents=0,actual_platform_cost_cents=125000,dealer_statement_reference='dealer:statement',receipt_reference='bank:receipt',adjustment_reference='adjustment:none')
     path=f"/api/admin/orders/{o['id']}/settle"
     assert c.post(path,json=settlement,headers=admin()).status_code==409
-    for _,(state,keys) in TRANSITIONS.items():assert c.post(f"/api/admin/orders/{o['id']}/transition",json={'state':state,'evidence':{key:'evidence:dealer' for key in keys}},headers=admin()).status_code==200
+    for _,(state,keys) in TRANSITIONS.items():
+        if state=='dealer_funded':record_cash_balance(c,o)
+        if state=='in_transit':accept_fixture_transport(c,o)
+        assert c.post(f"/api/admin/orders/{o['id']}/transition",json={'state':state,'evidence':{key:'evidence:dealer' for key in keys}},headers=admin()).status_code==200
     assert c.post(path,json={**settlement,'received_cents':399999},headers=admin()).status_code==409
     assert c.post(path,json=settlement,headers=admin()).status_code==200
     assert c.post(path,json=settlement,headers=admin()).status_code==200
@@ -485,6 +510,7 @@ def test_transport_rate_quote_cannot_unlock_in_transit(setup):
     client,_,payments,_=setup
     o=request(client);approve(client,o);checkout(client,o);event(client,payments,o)
     assert client.post(f"/api/admin/orders/{o['id']}/transition",json=t_body('deposit_paid'),headers=admin()).status_code==200
+    record_cash_balance(client,o)
     assert client.post(f"/api/admin/orders/{o['id']}/transition",json=t_body('dealer_confirmed'),headers=admin()).status_code==200
     now=int(time.time())
     # Carrier rate quote alone cannot unlock in_transit

@@ -148,3 +148,9 @@ def test_exception_recovery_reads_real_stored_accepted_event(setup, monkeypatch)
     result = post_transport(client, order, dispatched)
     assert result.status_code == 200, result.text
     assert advance(client, order, 'dealer_funded').status_code == 200
+
+
+@pytest.mark.parametrize('change',[{'pickup_window_start':True},{'delivery_window_end':1234.5},{'rate_cents':'60000'}])
+def test_transport_api_keeps_window_and_money_types_strict(setup,change):
+    client,_,order=prepare(setup,funded=False)
+    assert post_transport(client,order,{**transport_body('quoted'),**change}).status_code==422
