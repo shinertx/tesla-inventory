@@ -4963,5 +4963,13 @@
       "static.cargurus.com"
     ]
   },
-  "apply": "python3 -m tools.merge_photo_recovery --gallery data/vehicle_photos.json --delta data/vehicle_photo_recovery_delta.json --output data/vehicle_photos.json; rebuild public inventory only through the current root-owned builder after merge."
+  "apply": "python3 -m tools.merge_photo_recovery --gallery data/vehicle_photos.json --delta data/vehicle_photo_recovery_delta.json --output data/vehicle_photos.json; rebuild public inventory only through the current root-owned builder after merge.",
+  "targeted_export": {
+    "nonphoto_rows_reconciled": 15097,
+    "changed_photo_rows": 76,
+    "built_at_preserved": "2026-11-01T01:47:17.496536+00:00",
+    "media_version_before": "65e0704d2498",
+    "media_version_after": "edfb5f199dd7",
+    "tests": "16 focused tests passed; all non-photo fields equal HEAD; no frontend/category export."
+  }
 }
