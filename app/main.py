@@ -146,6 +146,27 @@ def create_app(settings=None, payments=None, shipping=None):
         if saved and quote_price>saved['vehicle_price_cents']:
             raise HTTPException(409,'Quote vehicle price exceeds the price saved with this request. Honor the saved price or mark this vehicle unavailable.')
 
+    def require_financing_coverage(row):
+        # Pure cash orders retain the existing dealer-receipt/ACH evidence path.
+        # Switching preference cannot erase already recorded lender proceeds.
+        if row['payment_preference']!='partner_financing' and row['financing_state']!='lender_funded':return
+        if not row['quote']:
+            raise HTTPException(409,'A verified quote is required to confirm funding coverage')
+        q=Quote.model_validate_json(row['quote'])
+        deposit_credited=bool(row['payment_id'] and row['state'] in (
+            'deposit_paid','dealer_confirmed','dealer_funded','in_transit','delivered','settlement_pending','completed'))
+        required=q.total_cents-(DEPOSIT if deposit_credited else 0)
+        # The recorded balance ACH settles the complete quote balance, not a guessed down payment.
+        if deposit_credited and row['balance_payment_state']=='paid' and row['balance_payment_id']:return
+        if row['financing_state']!='lender_funded':
+            raise HTTPException(409,'Financing prequalification or approval is not funded proceeds; settled funding is required')
+        try:
+            funding=FinancingUpdate.model_validate_json(row['financing_detail'])
+        except (ValueError,TypeError):
+            raise HTTPException(409,'Verified lender funding details are required before release') from None
+        if funding.state!='lender_funded' or funding.funded_amount_cents<required:
+            raise HTTPException(409,'Recorded settled lender proceeds do not cover the current quote balance. An unrecorded down payment cannot cover the difference.')
+
     def dealer_for(c,dealer_id):
         stored=c.execute('SELECT profile FROM dealers WHERE id=?',(dealer_id,)).fetchone()
         if not stored:raise HTTPException(409,'Fulfilling dealer has not been onboarded')
@@ -225,8 +246,16 @@ def create_app(settings=None, payments=None, shipping=None):
             'mileage':v.get('mileage'),'display_price':commitment['vehicle_price_cents']/100 if commitment else v.get('display_price'),
             'reference_price':ref_price if ref_cents else None,'reference_sample':ref_sample if ref_cents else 0,
             'benchmark_date':comparison.get('benchmark_date'),'photo':v.get('photo'),'city':v.get('city'),'state':v.get('state')} if v and v.get('model') else None
-        financing=json.loads(row['financing_detail']) if row['financing_detail'] else {'state':row['financing_state']}
-        transport=json.loads(row['transport_detail']) if row['transport_detail'] else {'state':row['transport_state']}
+        private_financing=json.loads(row['financing_detail']) if row['financing_detail'] else {}
+        financing={key:private_financing[key] for key in (
+            'provider','lender_name','approved_amount_cents','funded_amount_cents','stipulations','application_url') if key in private_financing}
+        financing['state']=row['financing_state']
+        private_transport=json.loads(row['transport_detail']) if row['transport_detail'] else {}
+        transport={key:private_transport[key] for key in (
+            'provider','carrier_name','tracking_url','bol_reference','quote_expires_at',
+            'pickup_window_start','pickup_window_end','delivery_window_start','delivery_window_end') if key in private_transport}
+        transport['state']=row['transport_state']
+        if summary:transport['customer_delivery_charge_cents']=summary['delivery_charge_cents']
         return {'id':row['id'],'vin':row['vin'],'state':row['state'],'quote':summary,
                 'price_commitment':{'vehicle_price_cents':commitment['vehicle_price_cents'],'scope':'vehicle_price_only'} if commitment else None,
                 'vehicle':vehicle_summary,'refund_submitted':bool(row['refund_id']),
@@ -703,6 +732,10 @@ def create_app(settings=None, payments=None, shipping=None):
             row=get_order(c,order_id);dealer_for_order(c,row)
             if row['state'] in ('cancelled','refunded','completed'):
                 raise HTTPException(409,'Order is closed')
+            if body.state in ('dispatched','delivered'):
+                if row['state'] not in ('dealer_funded','in_transit','delivered','settlement_pending'):
+                    raise HTTPException(409,'Dealer funding must be confirmed before vehicle dispatch or delivery')
+                require_financing_coverage(row)
             c.execute('UPDATE orders SET transport_state=?,transport_detail=?,updated_at=? WHERE id=?',(body.state,body.model_dump_json(),now,order_id))
             store.event(c,order_id,'transport_'+body.state,body.model_dump(),True)
             return public(get_order(c,order_id),c)
@@ -735,9 +768,9 @@ def create_app(settings=None, payments=None, shipping=None):
             if body.state in ('dealer_confirmed','dealer_funded','in_transit'):
                 hold=c.execute('SELECT expires_at FROM source_holds WHERE order_id=?',(order_id,)).fetchone()
                 if not hold or hold['expires_at']<=now:raise HTTPException(409,'Source dealer hold expired; reconfirm before proceeding')
+            if body.state in ('dealer_funded','in_transit'):
+                require_financing_coverage(row)
             if body.state=='dealer_funded':
-                if row['payment_preference']=='partner_financing' and row['financing_state']!='lender_funded':
-                    raise HTTPException(409,'Financing prequalification or approval is not funded proceeds; lender_funded is required')
                 if row['balance_payment_state'] in ('checkout_open','ach_processing','failed','payment_review'):
                     raise HTTPException(409,'Balance ACH payment has not settled; cannot mark dealer_funded while unpaid or processing')
             if body.state=='in_transit':
