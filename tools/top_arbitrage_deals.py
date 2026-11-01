@@ -88,7 +88,7 @@ def write_markdown_report(output_path: Path, min_spread_dollars: int = 4000) -> 
         "# Top Mispriced Tesla Arbitrage Deals (`+$4,000+` Upfront Spread)",
         "",
         "Generated from live [`inventory.json`](../inventory.json) and [`.data/arbitrage_opportunities.json`](../.data/arbitrage_opportunities.json).",
-        "- **Buyer Discount Policy (`PricingPolicy.buyer_savings_cents`):** Buyer still saves **`$1,500` below peer market benchmark**.",
+        "- **Buyer Discount Policy (`PricingPolicy`):** Dynamic 50/50 buyer-seller surplus split above our `$2,300` floor (buyer saves `$500` to `$11,368` below peer market benchmark).",
         "- **4-Layer Profit Formula:** `Upfront Mispriced Spread` + `$1,000 Wholesale Negotiation` + `$800 Lender Reserve` + `$200 Shipping Buffer`.",
         "",
         "## 1. Fast-Moving Volume Picks: Model 3 & Model Y (`+$4,000+` Upfront Markup)",

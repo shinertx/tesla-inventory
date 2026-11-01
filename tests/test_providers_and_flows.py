@@ -269,3 +269,31 @@ def test_top_arbitrage_deals_filter():
     assert len({d['buyer_savings_dollars'] for d in deals}) >= 8
     assert deals[0]['total_4layer_profit_dollars'] == deals[0]['upfront_spread_dollars'] + 2000
 
+
+def test_pipeline_jobs_status_and_order_matcher(tmp_path):
+    from tools.pipeline_jobs import job_match_customer_orders
+    from app.store import Store
+
+    db_path = tmp_path / 'orders.db'
+    store = Store(db_path)
+    with store.connect() as conn:
+        conn.execute(
+            "INSERT INTO orders (id, access_hash, request_key, request_hash, vin, customer, state, created_at, updated_at, action_due_at) "
+            "VALUES ('ord_1', 'h1', 'rk1', 'rh1', '7SAYGDED2TA594632', '{\"name\":\"Alice\",\"email\":\"a@b.com\",\"phone\":\"5125550100\",\"zip\":\"78701\"}', 'requested', 1000, 1000, 2000)"
+        )
+    packets_out = tmp_path / 'deal_packets.json'
+    status_file = tmp_path / 'jobs_status.json'
+    res = job_match_customer_orders(
+        orders_db=db_path,
+        packets_out=packets_out,
+        status_file=status_file,
+    )
+    assert res['ok'] is True
+    assert res['orders_scanned'] == 1
+    assert res['matched_with_arbitrage'] == 1
+    packets = json.loads(packets_out.read_text())['packets']
+    assert packets[0]['vin'] == '7SAYGDED2TA594632'
+    assert packets[0]['buyer_name'] == 'Alice'
+    assert packets[0]['volts_upfront_spread'] >= 4000
+
+
