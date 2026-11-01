@@ -1,3 +1,13 @@
+# Active work split — November 1, 2026
+
+Ben confirmed the dealer, financing, and transport accounts do not exist yet. Antigravity owns obtaining those providers and dealer onboarding. Codex owns the remaining site functions and release integration. Do not repeat provider discovery in the functions task.
+
+Current functions branch: codex/customer-functions, based on main 2c5fa84, preserving Antigravity's $200 estimated-shipping buffer. Source fixes cover support-case retries/history, blocked browser storage, pending-deposit cancellation, comparison labels, unavailable favorites, fullscreen-photo recovery, and stale asynchronous order responses.
+
+The ownership message was delivered in the existing Antigravity Tesla chat. Final acknowledgment must be checked rather than inferred from a queued message.
+
+--- Prior released baseline follows ---
+
 # Current handoff — November 1, 2026
 
 This replaces the earlier stale checkpoints. Use current provider and deployment evidence before changing payment flags.
