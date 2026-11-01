@@ -100,6 +100,12 @@ def main():
                 assert forged.locator('#order-dialog[open]').count()==0
                 assert '150-POINT CERTIFIED' not in forged.content();results['forged_callback_ignored']=True
                 category=context.new_page();category.goto(base+'/models/model-y.html');category.wait_for_selector('.card');assert category.locator('#model').input_value()=='Model Y';results['category_preset']=True
+                missing_center=next(x['vin'] for x in json.loads((ROOT/'inventory.json').read_text())['items'] if x.get('photo') and not x.get('location_center'))
+                incomplete=context.new_page();incomplete.goto(base+'/?vin='+missing_center);incomplete.locator('#vehicle-request').click()
+                assert 'Pending delivery and tax quote' in incomplete.locator('#deal-summary').inner_text()
+                incomplete.locator('[data-deal-mode=finance]').click()
+                assert 'vehicle price only; tax and delivery extra' in incomplete.locator('#deal-summary').inner_text()
+                results['unknown_delivery_keeps_balance_pending']=True;incomplete.close()
                 mobile=browser.new_context(viewport={'width':390,'height':844},is_mobile=True,device_scale_factor=1)
                 mobile.route('**/*',lambda r:r.continue_() if r.request.url.startswith(base) else (r.fulfill(status=200,content_type='image/svg+xml',body='<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800"><rect width="1200" height="800" fill="#dce5eb"/></svg>') if r.request.resource_type=='image' else r.abort()))
                 m=mobile.new_page();m.goto(base);m.wait_for_selector('.card');results['mobile_no_horizontal_overflow']=m.evaluate('document.documentElement.scrollWidth<=innerWidth');assert results['mobile_no_horizontal_overflow']
