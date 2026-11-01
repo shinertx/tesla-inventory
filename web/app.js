@@ -200,11 +200,15 @@
     let draft=null;try{const d=JSON.parse(localStorage.getItem('marketplace_deal')||'null');if(d&&byVIN.has(d.vin))draft=d;}catch{}
     $('order-content').innerHTML=`<h2>Open your purchase request</h2><p>Use the Request ID and private access code you saved when submitting your request.</p>${draft?`<div class="notice">Saved deal draft found for VIN ${esc(draft.vin)}. <button type="button" id="resume-draft" class="text-button">Resume saved deal draft →</button></div>`:''}<form id="recover-form"><label>Request ID<input id="recover-id" required></label><label>Private access code<input id="recover-token" type="password" required></label><button class="primary">Open request</button><p id="recover-error" class="form-error" role="alert">${esc(initialError)}</p></form>`;
     $('resume-draft')?.addEventListener('click',()=>{close('order-dialog');buildDeal(draft.vin);});
+    if(currentAccess()){
+      const retry=document.createElement('button');retry.type='button';retry.id='retry-saved-order';retry.className='secondary';retry.textContent='Retry your saved request';
+      retry.addEventListener('click',refreshOrder);$('recover-form').before(retry);
+    }
     $('recover-form').addEventListener('submit',async e=>{e.preventDefault();const recovered={id:$('recover-id').value.trim(),token:$('recover-token').value.trim()};try{const order=await api('orders/'+encodeURIComponent(recovered.id),{headers:{Authorization:'Bearer '+recovered.token}});sessionStorage.setItem('marketplace_order',JSON.stringify(recovered));showOrder(order);}catch(error){$('recover-error').textContent=error.message;}});
   }
   async function refreshOrder(){
     const access=currentAccess();if(!access){renderRecoverOrder();open('order-dialog');return;}
-    try{showOrder(await api('orders/'+encodeURIComponent(access.id),{headers:{Authorization:'Bearer '+access.token}}));}catch(error){sessionStorage.removeItem('marketplace_order');renderRecoverOrder(error.message);open('order-dialog');}
+    try{showOrder(await api('orders/'+encodeURIComponent(access.id),{headers:{Authorization:'Bearer '+access.token}}));}catch(error){renderRecoverOrder(error.message+' Your saved access is kept. Retry your request.');open('order-dialog');}
   }
   function showOrder(order){
     destroyCheckout();stopOrderPoll();lastOrderSnapshot=JSON.stringify(order);

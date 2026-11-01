@@ -61,6 +61,12 @@ def main():
                 page.wait_for_selector('#order-dialog[open]');assert 'Preparing your deal' in page.locator('#order-content').inner_text();results['durable_request']=True
                 access=page.evaluate('JSON.parse(sessionStorage.getItem("marketplace_order"))')
                 page.reload();page.wait_for_selector('.card');page.locator('[data-close=vehicle-dialog]').click();page.locator('#order-button').click();page.wait_for_selector('#order-dialog[open]');assert 'Preparing your deal' in page.locator('#order-content').inner_text();results['status_survives_reload']=True
+                order_path=base+'/api/orders/'+access['id']
+                page.route(order_path,lambda r:r.fulfill(status=503,content_type='application/json',body=json.dumps({'detail':'Temporary outage'})))
+                page.locator('[data-close=order-dialog]').click();page.locator('#order-button').click();page.locator('#retry-saved-order').wait_for()
+                assert page.evaluate('JSON.parse(sessionStorage.getItem("marketplace_order"))')==access
+                page.unroute(order_path);page.locator('#retry-saved-order').click();page.locator('#report-issue').wait_for()
+                assert 'Preparing your deal' in page.locator('#order-content').inner_text();results['temporary_outage_keeps_private_access']=True
                 page.locator('#switch-order').click();page.locator('#recover-id').fill(access['id']);page.locator('#recover-token').fill(access['token']);page.locator('#recover-form button[type=submit], #recover-form button.primary').click()
                 page.wait_for_selector('#report-issue');assert 'Preparing your deal' in page.locator('#order-content').inner_text();results['order_recovery']=True
                 page.locator('#report-issue').click();page.locator('#issue-description').fill('Please verify the charging adapters included with this vehicle.');page.locator('#send-issue').click();page.locator('#issue-form').wait_for(state='hidden');results['support_case']=True
