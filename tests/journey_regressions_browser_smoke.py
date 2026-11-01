@@ -2,6 +2,7 @@
 import functools
 import json
 import threading
+import time
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
@@ -85,7 +86,29 @@ def main():
                 assert 'financ' in note and ('not' in note or 'separate' in note) and 'application' in note
                 assert not page.get_by_text('Application submitted to partner lender', exact=True).count()
                 assert not page.locator('#order-amount-due').count()
+
+                now=int(time.time())
+                order['shipping_estimate']={'provider':'Super Dispatch','customer_estimate_cents':75029,'observed_at':now,'cache_expires_at':now+2,'binding':False,'carrier_booked':False}
+                page.locator('#refresh-order').click()
+                page.locator('#provider-shipping-estimate').wait_for(state='visible')
+                assert '$750.29' in page.locator('#provider-shipping-estimate').inner_text()
+                assert 'No carrier is booked' in page.locator('#provider-shipping-estimate').inner_text()
+                assert '550.29' not in page.locator('#provider-shipping-estimate').inner_text()
+                page.locator('#provider-shipping-estimate').wait_for(state='detached',timeout=3500)
+                # An expired recommendation remains hidden even when returned by a stale fixture API.
+                page.locator('#refresh-order').click()
+                assert not page.locator('#provider-shipping-estimate').count()
+                order.pop('shipping_estimate')
+
                 assert page.locator('#order-next-step').evaluate('(el)=>!!(el.compareDocumentPosition(document.querySelector("#order-access"))&Node.DOCUMENT_POSITION_FOLLOWING)')
+                order.update(state='deposit_paid',quote=quote,quote_version=1,payment_preference='partner_financing',financing={'state':'application_ready','provider':'Fixture lender','application_url':'https://fixture.invalid/apply','approved_amount_cents':0,'funded_amount_cents':0})
+                page.locator('#refresh-order').click()
+                page.get_by_role('heading',name='Deposit verified',exact=True).wait_for()
+                assert 'lender application is ready' in page.locator('#order-next-step').inner_text()
+                assert page.locator('#order-next-step a').get_attribute('href')=='https://fixture.invalid/apply'
+                assert 'No application has been submitted' in page.locator('#order-payment-preference-note').inner_text()
+                assert 'not a credit approval' in page.locator('#order-payment-preference-note').inner_text()
+                order['financing']={'state':'not_requested'}
                 for phase in ('quoted', 'deposit_paid', 'dealer_confirmed', 'in_transit', 'completed'):
                     order.update(state=phase, quote=quote, quote_version=1, payment_preference='cash')
                     order['balance_payment_state'] = 'paid' if phase in ('in_transit', 'completed') else 'unpaid'
@@ -111,6 +134,7 @@ def main():
                 results['viewports'][str(width)] = {'factory_and_vehicle_location_distinct': True,
                     'explicit_two_to_three_comparison': True, 'fourth_choice_not_silently_omitted': True,
                     'next_steps_above_account_controls': True, 'finance_preference_not_application': True,
+                    'customer_shipping_estimate_expires': True, 'hosted_financing_ready_not_approval': True,
                     'settled_balance_current_due_zero': True, 'review_buttons_open_correct_section': True}
             assert not results['javascript_errors'], results['javascript_errors']
             browser.close()

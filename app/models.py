@@ -162,7 +162,7 @@ class BalanceCheckoutAcceptance(StrictModel):
         return self
 
 class FinancingUpdate(StrictModel):
-    state: Literal['prequalified','conditional_approval','contract_signed','lender_funded','declined']
+    state: Literal['application_ready','application_submitted','prequalified','conditional_approval','contract_signed','lender_funded','declined']
     provider: str = Field(min_length=2,max_length=80)
     reference: str = Field(min_length=5,max_length=500)
     approved_amount_cents: int = Field(default=0,ge=0,le=100_000_000)
@@ -181,6 +181,10 @@ class FinancingUpdate(StrictModel):
 
     @model_validator(mode='after')
     def check_funding(self):
+        if self.state=='application_ready' and not self.application_url:
+            raise ValueError('Application-ready state requires the approved lender application URL')
+        if self.state in {'application_ready','application_submitted'} and (self.approved_amount_cents or self.funded_amount_cents):
+            raise ValueError('Application readiness or submission is not approval or funded proceeds')
         if self.state=='lender_funded' and self.funded_amount_cents<=0:
             raise ValueError('Lender-funded state requires positive funded_amount_cents')
         return self

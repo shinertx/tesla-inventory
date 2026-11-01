@@ -133,7 +133,41 @@ def create_app(settings=None, payments=None, shipping=None):
             raise HTTPException(409,'Selling dealer identity changed; review the quote')
         return dealer
 
-    def public(row):
+    def shipping_payload(row, is_inoperable):
+        vehicle=vehicles.get(row['vin'],{})
+        customer=json.loads(row['customer'])
+        if not isinstance(customer.get('zip'),str) or len(customer['zip'])!=5 or not customer['zip'].isdigit():
+            raise HTTPException(409,'Delivery ZIP requires confirmation')
+        model=vehicle.get('model')
+        kind={'Model 3':'sedan','Model S':'sedan','Model Y':'suv','Model X':'suv','Cybertruck':'pickup_4_doors'}.get(model)
+        state=vehicle.get('state','')
+        if not kind or not vehicle.get('city') or not isinstance(state,str) or len(state)!=2 or not state.isupper() or not vehicle.get('year'):
+            raise HTTPException(409,'Vehicle route and type require confirmation')
+        if state in {'US','AK','HI'}:raise HTTPException(422,'Transport pricing requires a supported mainland route')
+        return {'pickup':{'city':vehicle['city'],'state':state},'delivery':{'zip':customer['zip']},
+                'vehicle':{'type':kind,'make':'Tesla','model':model,'year':str(vehicle['year']),'is_inoperable':is_inoperable}}
+
+    def customer_shipping_estimate(row,c):
+        if not settings.shipping_estimates_enabled or not settings.super_dispatch_api_key or row['quote'] or row['state']!='requested':
+            return None
+        cached=c.execute("SELECT detail FROM events WHERE order_id=? AND kind='shipping_estimate_received' ORDER BY id DESC LIMIT 1",(row['id'],)).fetchone()
+        if not cached:return None
+        try:
+            receipt=json.loads(cached['detail']);now=int(time.time())
+            observed=receipt['observed_at'];expiry=receipt['cache_expires_at'];amount=receipt['customer_estimate_cents']
+            if any(type(x) is not int for x in (observed,expiry,amount)) or not 0<amount<=2_000_000 or not 0<observed<=now<expiry<=observed+900:
+                return None
+            if receipt.get('binding') is not False or receipt.get('carrier_booked') is not False:return None
+            # Match the current route and the operator's confirmed operability, without assuming it.
+            hashes={digest(json.dumps(shipping_payload(row,flag),sort_keys=True)) for flag in (False,True)}
+            if receipt.get('request_hash') not in hashes:return None
+            return {'provider':'Super Dispatch','customer_estimate_cents':amount,'observed_at':observed,
+                    'cache_expires_at':expiry,'binding':False,'carrier_booked':False,
+                    'notice':'Provider delivery estimate. Final price and delivery timing are confirmed in your written quote.'}
+        except (ValueError,TypeError,KeyError,HTTPException):
+            return None
+
+    def public(row,c):
         q=json.loads(row['quote']) if row['quote'] and row['workflow_model']=='dealer_fulfillment' else None
         summary=None
         v=vehicles.get(row['vin'],{})
@@ -164,7 +198,7 @@ def create_app(settings=None, payments=None, shipping=None):
                 'vehicle':vehicle_summary,'refund_submitted':bool(row['refund_id']),
                 'quote_version':row['quote_version'],'action_due_at':row['action_due_at'],
                 'payment_preference':row['payment_preference'],'balance_payment_state':row['balance_payment_state'],
-                'financing':financing,'transport':transport}
+                'financing':financing,'transport':transport,'shipping_estimate':customer_shipping_estimate(row,c)}
 
     def _execute_deposit_refund(c,row,strict=True):
         if row['state']=='refunded':return row
@@ -269,18 +303,7 @@ def create_app(settings=None, payments=None, shipping=None):
             with store.connect() as c:
                 row=get_order(c,order_id)
                 if row['state'] in {'cancelled','refunded','completed'}:raise HTTPException(409,'Request is closed')
-                vehicle=vehicles.get(row['vin'],{})
-                customer=json.loads(row['customer'])
-                if not isinstance(customer.get('zip'),str) or len(customer['zip'])!=5 or not customer['zip'].isdigit():
-                    raise HTTPException(409,'Delivery ZIP requires confirmation')
-                model=vehicle.get('model')
-                kind={'Model 3':'sedan','Model S':'sedan','Model Y':'suv','Model X':'suv','Cybertruck':'pickup_4_doors'}.get(model)
-                state=vehicle.get('state','')
-                if not kind or not vehicle.get('city') or not isinstance(state,str) or len(state)!=2 or not state.isupper() or not vehicle.get('year'):
-                    raise HTTPException(409,'Vehicle route and type require confirmation')
-                if state in {'US','AK','HI'}:raise HTTPException(422,'Transport pricing requires a supported mainland route')
-                payload={'pickup':{'city':vehicle['city'],'state':vehicle['state']},'delivery':{'zip':customer['zip']},
-                         'vehicle':{'type':kind,'make':'Tesla','model':model,'year':str(vehicle['year']),'is_inoperable':body.is_inoperable}}
+                payload=shipping_payload(row,body.is_inoperable)
                 request_hash=digest(json.dumps(payload,sort_keys=True))
                 cached=c.execute("SELECT detail FROM events WHERE order_id=? AND kind='shipping_estimate_received' ORDER BY id DESC LIMIT 1",(order_id,)).fetchone()
                 if cached:
@@ -328,7 +351,7 @@ def create_app(settings=None, payments=None, shipping=None):
             row=c.execute('SELECT * FROM orders WHERE request_key=?',(digest(idempotency_key),)).fetchone()
             if row:
                 if row['request_hash']!=request_hash:raise HTTPException(409,'Request key already used')
-                return {**public(row),'access_token':token}
+                return {**public(row,c),'access_token':token}
             store.expire(c,now)
             if c.execute('SELECT 1 FROM holds WHERE vin=?',(body.vin,)).fetchone():
                 raise HTTPException(409,'This vehicle is already reserved or sold. Choose another listing.')
@@ -337,7 +360,7 @@ def create_app(settings=None, payments=None, shipping=None):
                 'VALUES(?,?,?,?,?,?,?,?,?,?,?)',(order_id,digest(token),digest(idempotency_key),request_hash,body.vin,raw,'requested',now,now,now+86400,body.payment_preference))
             c.execute("UPDATE orders SET workflow_model='dealer_fulfillment' WHERE id=?",(order_id,))
             store.event(c,order_id,'request_received',{'vin':body.vin,'demand_channel':body.demand_channel,'campaign_id':body.campaign_id,'payment_preference':body.payment_preference},True)
-            return {**public(get_order(c,order_id)),'access_token':token}
+            return {**public(get_order(c,order_id),c),'access_token':token}
 
     @app.get('/api/orders/{order_id}')
     def status(order_id:str,authorization:Annotated[str|None,Header()]=None):
@@ -345,7 +368,7 @@ def create_app(settings=None, payments=None, shipping=None):
             store.expire(c,int(time.time()))
             row=order_access(c,order_id,authorization)
             actions=[{'kind':x['kind'],'url':x['url']} for x in c.execute('SELECT * FROM online_actions WHERE order_id=?',(order_id,)) if row['state'] in ONLINE_STATES[x['kind']]]
-            return {**public(row),'online_actions':actions}
+            return {**public(row,c),'online_actions':actions}
 
     @app.post('/api/orders/{order_id}/privacy')
     def privacy(order_id:str,authorization:Annotated[str|None,Header()]=None):
@@ -390,7 +413,7 @@ def create_app(settings=None, payments=None, shipping=None):
             c.execute("UPDATE orders SET workflow_model='dealer_fulfillment',dealer_id=?,payment_account=?,dealer_profile=? WHERE id=?",(dealer.id,dealer.stripe_account,dealer.model_dump_json(),order_id))
             c.execute('INSERT INTO source_holds VALUES(?,?,?) ON CONFLICT(order_id) DO UPDATE SET expires_at=excluded.expires_at,reference=excluded.reference',(order_id,body.seller_hold_until,body.seller_hold_reference))
             store.event(c,order_id,'quote_approved',{'contribution_cents':body.contribution_cents,'expected_spread_cents':body.spread_cents,'dealer_id':dealer.id},True)
-            return public(get_order(c,order_id))
+            return public(get_order(c,order_id),c)
 
     def checkout_presentation(session,account):
         if session.get('client_secret'):
@@ -443,7 +466,7 @@ def create_app(settings=None, payments=None, shipping=None):
                 raise HTTPException(409,'Balance payment is already processing or settled')
             c.execute('UPDATE orders SET payment_preference=?,updated_at=? WHERE id=?',(body.payment_preference,now,order_id))
             store.event(c,order_id,'payment_preference_updated',{'payment_preference':body.payment_preference},True)
-            return public(get_order(c,order_id))
+            return public(get_order(c,order_id),c)
 
     @app.post('/api/orders/{order_id}/balance-checkout')
     def balance_checkout(order_id:str,body:BalanceCheckoutAcceptance,authorization:Annotated[str|None,Header()]=None):
@@ -599,7 +622,7 @@ def create_app(settings=None, payments=None, shipping=None):
         now=int(time.time())
         with store.transaction() as c:
             row=order_access(c,order_id,authorization)
-            if row['state'] in ('cancelled','refunded','refund_pending'):return public(row)
+            if row['state'] in ('cancelled','refunded','refund_pending'):return public(row,c)
             if row['state'] in TRANSITIONS and row['state']!='deposit_paid':
                 store.event(c,order_id,'cancellation_review_requested',{'reason':body.reason},True)
                 return {'state':row['state'],'message':'Cancellation requires review of the signed purchase terms.'}
@@ -612,18 +635,22 @@ def create_app(settings=None, payments=None, shipping=None):
             store.event(c,order_id,'cancellation_requested',{'reason':body.reason,'state':state},True)
             if state=='refund_pending' and settings.auto_refund_enabled and settings.payments_ready:
                 _execute_deposit_refund(c,get_order(c,order_id),strict=False)
-            return public(get_order(c,order_id))
+            return public(get_order(c,order_id),c)
 
     @app.post('/api/admin/orders/{order_id}/financing',dependencies=[Depends(admin)])
     def update_financing(order_id:str,body:FinancingUpdate):
         now=int(time.time())
         with store.transaction() as c:
-            row=get_order(c,order_id);dealer_for_order(c,row)
+            row=get_order(c,order_id);dealer=dealer_for_order(c,row)
             if row['state'] in ('cancelled','refunded','completed'):
                 raise HTTPException(409,'Order is closed')
+            if body.application_url:
+                from urllib.parse import urlsplit
+                if urlsplit(body.application_url).hostname not in dealer.online_portal_hosts:
+                    raise HTTPException(409,'Use an approved lender application host for this seller')
             c.execute('UPDATE orders SET financing_state=?,financing_detail=?,updated_at=? WHERE id=?',(body.state,body.model_dump_json(),now,order_id))
             store.event(c,order_id,'financing_'+body.state,body.model_dump(),True)
-            return public(get_order(c,order_id))
+            return public(get_order(c,order_id),c)
 
     @app.post('/api/admin/orders/{order_id}/transport',dependencies=[Depends(admin)])
     def update_transport(order_id:str,body:TransportUpdate):
@@ -636,13 +663,13 @@ def create_app(settings=None, payments=None, shipping=None):
                 raise HTTPException(409,'Order is closed')
             c.execute('UPDATE orders SET transport_state=?,transport_detail=?,updated_at=? WHERE id=?',(body.state,body.model_dump_json(),now,order_id))
             store.event(c,order_id,'transport_'+body.state,body.model_dump(),True)
-            return public(get_order(c,order_id))
+            return public(get_order(c,order_id),c)
 
     @app.post('/api/admin/orders/{order_id}/refund',dependencies=[Depends(admin)])
     def refund(order_id:str):
         with store.transaction() as c:
             row=get_order(c,order_id)
-            return public(_execute_deposit_refund(c,row,strict=True))
+            return public(_execute_deposit_refund(c,row,strict=True),c)
 
     @app.post('/api/admin/refunds/process',dependencies=[Depends(admin)])
     def process_refunds():
@@ -682,7 +709,7 @@ def create_app(settings=None, payments=None, shipping=None):
                 raise HTTPException(409,'Required transaction evidence is missing')
             c.execute('UPDATE orders SET state=?,updated_at=?,action_due_at=? WHERE id=?',(body.state,now,now+86400,order_id))
             store.event(c,order_id,body.state,body.evidence,True)
-            return public(get_order(c,order_id))
+            return public(get_order(c,order_id),c)
 
     @app.post('/api/admin/orders/{order_id}/online-actions',dependencies=[Depends(admin)])
     def online_action(order_id:str,body:OnlineAction):
@@ -705,7 +732,7 @@ def create_app(settings=None, payments=None, shipping=None):
             existing=c.execute('SELECT * FROM settlements WHERE order_id=?',(order_id,)).fetchone()
             if existing:
                 if json.loads(existing['evidence'])!=body.model_dump():raise HTTPException(409,'Settlement already recorded with different evidence')
-                return public(row)
+                return public(row,c)
             if row['state']!='settlement_pending':raise HTTPException(409,'Dealer fulfillment must finish before spread settlement')
             q=Quote.model_validate_json(row['quote'])
             if body.received_cents+body.adjustment_cents!=q.spread_cents:raise HTTPException(409,'Dealer remittance does not reconcile to the agreed spread')
@@ -715,7 +742,7 @@ def create_app(settings=None, payments=None, shipping=None):
             c.execute('INSERT INTO settlements VALUES(?,?,?,?,?,?,?)',(order_id,q.spread_cents,body.received_cents,body.adjustment_cents,body.actual_platform_cost_cents,body.model_dump_json(),now))
             c.execute("UPDATE orders SET state='completed',updated_at=? WHERE id=?",(now,order_id))
             store.event(c,order_id,'spread_settled',{'received_cents':body.received_cents,'actual_contribution_cents':body.received_cents-body.actual_platform_cost_cents},True)
-            return public(get_order(c,order_id))
+            return public(get_order(c,order_id),c)
 
     @app.post('/api/admin/orders/{order_id}/settlement-reversal',dependencies=[Depends(admin)])
     def reverse_settlement(order_id:str,body:SettlementReversal):

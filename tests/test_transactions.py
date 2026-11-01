@@ -617,7 +617,10 @@ def test_auto_refund_on_cancel_and_durable_refund_worker_with_pending_webhook(tm
 
 
 def test_financing_application_url_and_transport_tracking_url_require_https(setup):
-    client,_,payments,_=setup
+    client,_,payments,store=setup
+    with store.transaction() as db:
+        profile=json.loads(db.execute('SELECT profile FROM dealers').fetchone()[0]);profile['online_portal_hosts']=['lender.example.test']
+        db.execute('UPDATE dealers SET profile=?',(json.dumps(profile),))
     o=request(client,body={**customer(),'payment_preference':'partner_financing'})
     approve(client,o);checkout(client,o);event(client,payments,o)
     assert client.post(f"/api/admin/orders/{o['id']}/financing",json={'state':'prequalified','provider':'Partner Credit Union','reference':'evidence:prequal','approved_amount_cents':2875000,'application_url':'http://insecure.example.test/apply'},headers=admin()).status_code==422
@@ -627,3 +630,27 @@ def test_financing_application_url_and_transport_tracking_url_require_https(setu
     assert client.post(f"/api/admin/orders/{o['id']}/transport",json={'state':'quoted','provider':'Montway','quote_reference':'evidence:rate','rate_cents':60000,'quote_expires_at':now+86400,'tracking_url':'http://insecure.example.test/track'},headers=admin()).status_code==422
     r_tr=client.post(f"/api/admin/orders/{o['id']}/transport",json={'state':'quoted','provider':'Montway','quote_reference':'evidence:rate','rate_cents':60000,'quote_expires_at':now+86400,'tracking_url':'https://carrier.example.test/track/123'},headers=admin())
     assert r_tr.status_code==200 and r_tr.json()['transport']['tracking_url']=='https://carrier.example.test/track/123'
+
+
+def test_lender_application_can_be_ready_without_claiming_prequalification(setup):
+    client,_,payments,store=setup
+    with store.transaction() as db:
+        profile=json.loads(db.execute('SELECT profile FROM dealers').fetchone()[0]);profile['online_portal_hosts']=['lender.example.test']
+        db.execute('UPDATE dealers SET profile=?',(json.dumps(profile),))
+    order=request(client,body={**customer(),'payment_preference':'partner_financing'})
+    approve(client,order)
+    endpoint=f"/api/admin/orders/{order['id']}/financing"
+    body={'state':'application_ready','provider':'Fixture lender','reference':'approved-hosted-session-fixture','application_url':'https://lender.example.test/apply/fixture'}
+    assert client.post(endpoint,json=body).status_code==401
+    assert client.post(endpoint,json={**body,'application_url':'https://unapproved.example.test/apply'},headers=admin()).status_code==409
+    assert client.post(endpoint,json={**body,'application_url':''},headers=admin()).status_code==422
+    assert client.post(endpoint,json={**body,'approved_amount_cents':100},headers=admin()).status_code==422
+    result=client.post(endpoint,json=body,headers=admin())
+    assert result.status_code==200,result.text
+    finance=result.json()['financing']
+    assert finance['state']=='application_ready' and finance['approved_amount_cents']==0 and finance['funded_amount_cents']==0
+    assert result.json()['state']=='quoted'
+    assert payments.session_calls==0 and payments.balance_calls==0
+    result=client.post(endpoint,json={**body,'state':'application_submitted','reference':'actual-provider-submission-fixture'},headers=admin())
+    assert result.status_code==200 and result.json()['financing']['state']=='application_submitted'
+    assert payments.session_calls==0
