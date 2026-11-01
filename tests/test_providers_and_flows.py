@@ -259,15 +259,60 @@ def test_flow_a_instant_quote_vs_flow_b_operator_quote_end_to_end(tmp_path):
     assert order_b_check['quote']['balance_after_deposit_cents'] == 3409375
 
 
-def test_top_arbitrage_deals_filter():
-    from tools.top_arbitrage_deals import load_top_deals
+def test_top_arbitrage_deals_filter(tmp_path, monkeypatch):
+    from tools import top_arbitrage_deals
 
-    deals = load_top_deals(min_spread_dollars=3500, models=('Model 3', 'Model Y'), only_live_marked_up=True, limit=10)
-    assert len(deals) == 10
+    public_items, private_items = [], []
+
+    def add_vehicle(vin, model, spread, savings=2000, modeled_spread=None, published=True):
+        price = 30000
+        if published:
+            public_items.append({
+                'vin': vin, 'model': model, 'year': 2024, 'trim': 'Long Range',
+                'mileage': 20000, 'state': 'TX', 'display_price': price,
+            })
+        private_items.append({
+            'vin': vin, 'source_asking_cents': (price - spread) * 100,
+            'proposed_retail_cents': price * 100,
+            'reference_cents': (price + savings) * 100,
+            'modeled_gross_spread_cents': (spread if modeled_spread is None else modeled_spread) * 100,
+        })
+
+    for i in range(12):
+        add_vehicle(f'eligible-{i}', 'Model 3' if i % 2 else 'Model Y',
+                    spread=4000 + i * 100, savings=1600 + i * 75)
+    add_vehicle('at-threshold', 'Model Y', spread=3500)
+    add_vehicle('below-threshold', 'Model 3', spread=3499)
+    add_vehicle('wrong-model', 'Model S', spread=9000)
+    add_vehicle('not-published', 'Model Y', spread=9000, published=False)
+    add_vehicle('modeled-only', 'Model 3', spread=0, modeled_spread=10000)
+
+    (tmp_path / 'inventory.json').write_text(json.dumps({'items': public_items}))
+    (tmp_path / '.data').mkdir()
+    (tmp_path / '.data' / 'arbitrage_opportunities.json').write_text(json.dumps({'items': private_items}))
+    monkeypatch.setattr(top_arbitrage_deals, 'ROOT', tmp_path)
+
+    deals = top_arbitrage_deals.load_top_deals(
+        min_spread_dollars=3500, models=('Model 3', 'Model Y'),
+        only_live_marked_up=True, limit=10,
+    )
+    assert [d['vin'] for d in deals] == [f'eligible-{i}' for i in range(11, 1, -1)]
     assert deals[0]['upfront_spread_dollars'] >= 4000
     assert deals[0]['buyer_savings_dollars'] > 1500
     assert len({d['buyer_savings_dollars'] for d in deals}) >= 8
     assert deals[0]['total_4layer_profit_dollars'] == deals[0]['upfront_spread_dollars'] + 2000
+
+    all_live = top_arbitrage_deals.load_top_deals(
+        min_spread_dollars=3500, models=('Model 3', 'Model Y'),
+        only_live_marked_up=True, limit=50,
+    )
+    assert {d['vin'] for d in all_live} == {f'eligible-{i}' for i in range(12)} | {'at-threshold'}
+    modeled = top_arbitrage_deals.load_top_deals(
+        min_spread_dollars=3500, models=('Model 3', 'Model Y'),
+        only_live_marked_up=False, limit=1,
+    )
+    assert modeled[0]['vin'] == 'modeled-only'
+    assert modeled[0]['upfront_spread_dollars'] == 10000
 
 
 def test_pipeline_jobs_status_and_order_matcher(tmp_path):
@@ -281,10 +326,28 @@ def test_pipeline_jobs_status_and_order_matcher(tmp_path):
             "INSERT INTO orders (id, access_hash, request_key, request_hash, vin, customer, state, created_at, updated_at, action_due_at) "
             "VALUES ('ord_1', 'h1', 'rk1', 'rh1', '7SAYGDED2TA594632', '{\"name\":\"Alice\",\"email\":\"a@b.com\",\"phone\":\"5125550100\",\"zip\":\"78701\"}', 'requested', 1000, 1000, 2000)"
         )
+    inv_path = tmp_path / 'inventory.json'
+    inv_path.write_text(json.dumps({'items': [{
+        'vin': '7SAYGDED2TA594632', 'year': 2026, 'model': 'Model Y',
+        'trim': 'Long Range', 'display_price': 25000, 'savings_amount': 1800,
+    }]}))
+    arb_path = tmp_path / 'arbitrage_opportunities.json'
+    arb_path.write_text(json.dumps({'items': [{
+        'vin': '7SAYGDED2TA594632', 'source_asking_cents': 2000000,
+        'proposed_retail_cents': 2500000, 'modeled_gross_spread_cents': 500000,
+        'source_dealer': 'Synthetic Source Dealer',
+        'source_url': 'https://source.example.test/vehicle',
+    }, {
+        'vin': 'unrelated-fixture-vin', 'source_asking_cents': 1000000,
+        'proposed_retail_cents': 3000000, 'modeled_gross_spread_cents': 2000000,
+        'source_dealer': 'Unrelated Source Dealer',
+    }]}))
     packets_out = tmp_path / 'deal_packets.json'
     status_file = tmp_path / 'jobs_status.json'
     res = job_match_customer_orders(
         orders_db=db_path,
+        arb_path=arb_path,
+        inv_path=inv_path,
         packets_out=packets_out,
         status_file=status_file,
     )
@@ -294,6 +357,13 @@ def test_pipeline_jobs_status_and_order_matcher(tmp_path):
     packets = json.loads(packets_out.read_text())['packets']
     assert packets[0]['vin'] == '7SAYGDED2TA594632'
     assert packets[0]['buyer_name'] == 'Alice'
-    assert packets[0]['volts_upfront_spread'] >= 4000
-
-
+    assert len(packets) == 1
+    assert packets[0]['source_dealer'] == 'Synthetic Source Dealer'
+    assert packets[0]['source_dealer_price'] == 20000
+    assert packets[0]['volts_retail_price'] == 25000
+    assert packets[0]['volts_upfront_spread'] == 5000
+    assert packets[0]['buyer_savings_badge'] == 1800
+    status = json.loads(status_file.read_text())['jobs']['5_match_customer_orders']
+    assert status['ok'] is True
+    assert status['orders_scanned'] == status['matched_with_arbitrage'] == 1
+    assert status['updated_at']

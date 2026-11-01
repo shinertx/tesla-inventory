@@ -24,3 +24,4 @@ jobs:
       - run: python tests/checkout_browser_smoke.py
       - run: python tests/customer_functions_browser_smoke.py
       - run: python tests/storefront_controls_browser_smoke.py
+      - run: python tests/simple_flow_browser_smoke.py

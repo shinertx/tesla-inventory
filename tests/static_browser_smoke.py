@@ -23,11 +23,11 @@ def main(out):
                 page.goto(base+'?vin='+vin);page.wait_for_function('(n)=>document.querySelectorAll(".gallery-thumb").length===n',arg=count)
                 page.wait_for_function('()=>document.querySelector("#gallery-stage img")?.naturalWidth>0')
                 assert page.locator('#vehicle-request').is_enabled()
-                assert page.locator('#vehicle-request').inner_text()=='Build your deal'
+                assert page.locator('#vehicle-request').inner_text()=='Review price'
                 page.locator('.gallery-thumb').last.click();page.wait_for_function('()=>document.querySelector("#gallery-stage img")?.naturalWidth>0')
                 result['named_galleries'][vin]={'count':count,'first_and_last_rendered':True}
             page.locator('#vehicle-request').click();page.locator('#deal-zip').fill('78201');page.locator('#deal-continue').click()
-            page.get_by_text('Deal draft saved on this device. No order or reservation has been placed.').wait_for()
+            page.get_by_text('Price saved on this device. No request or reservation has been placed.').wait_for()
             assert page.evaluate('JSON.parse(localStorage.getItem("marketplace_deal")).vin')=='5YJ3E1EA8KF413066'
             page.goto(base);page.wait_for_selector('.card');page.locator('#order-button').click();page.locator('#deal-dialog[open]').wait_for()
             assert page.locator('#deal-zip').input_value()=='78201'

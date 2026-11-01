@@ -67,7 +67,7 @@ def main():
                 assert 'At market reference' not in text
                 results[f'comparison_and_stale_favorites_{width}']=True
                 page.locator('[data-close=compare-dialog]').click()
-                page.locator(f'[data-open="{rows[0]["vin"]}"]').click();page.wait_for_selector('.gallery-thumb')
+                page.locator(f'[data-open="{rows[0]["vin"]}"]').first.click();page.wait_for_selector('.gallery-thumb')
                 page.locator('#photo-expand').click()
                 # Cached images may not issue a request; inject the browser failure event deterministically.
                 page.locator('#full-photo').evaluate('(img)=>img.dispatchEvent(new Event("error"))')
@@ -101,7 +101,7 @@ def main():
                 page=context.new_page();page.on('pageerror',lambda error:errors.append(str(error)))
                 page.goto(base+'?vin='+rows[0]['vin']);page.locator('#vehicle-request').click();page.locator('#deal-zip').fill('78701');page.locator('#deal-continue').click()
                 page.locator('[name=name]').fill('Fixture Storage Test');page.locator('[name=email]').fill('fixture@example.test');page.locator('[name=consent]').check();page.locator('#submit-request').click()
-                page.locator('#access-warning').wait_for();assert 'Preparing your deal' in page.locator('#order-content').inner_text()
+                page.locator('#access-warning').wait_for();assert 'Request received' in page.locator('#order-content').inner_text()
                 page.locator('#refresh-order').click();page.locator('#report-issue').wait_for();assert 'fixture-order' in page.locator('#order-content').inner_text()
                 results[f'storage_blocked_request_access_{width}']=True
                 page.locator('#report-issue').click();page.locator('#issue-description').fill('Fixture support request');page.locator('#send-issue').dblclick()
@@ -124,16 +124,16 @@ def main():
                 delayed=[];page.route('**/api/orders/fixture-order',lambda r:delayed.append(r))
                 with page.expect_request(lambda r:r.url.endswith('/api/orders/fixture-order')):
                     page.locator('#refresh-order').click()
-                page.locator('#switch-order').click();page.locator('#recover-id').fill('fixture-second');page.locator('#recover-token').fill('second-access');page.locator('#recover-form button.primary').click()
+                page.locator('#switch-order').click();page.locator('#legacy-recovery summary').click();page.locator('#recover-id').fill('fixture-second');page.locator('#recover-token').fill('second-access');page.locator('#recover-form button.secondary').click()
                 page.get_by_text('Request fixture-second',exact=True).wait_for()
                 assert len(delayed)==1;delayed[0].fulfill(json=state['order']);page.wait_for_load_state('networkidle')
                 assert 'Request fixture-second' in page.locator('#order-content').inner_text()
                 page.unroute('**/api/orders/fixture-order');state['order']['state']='requested'
-                page.locator('#switch-order').click();page.locator('#recover-id').fill('fixture-order');page.locator('#recover-token').fill('fixture-access');page.locator('#recover-form button.primary').click();page.locator('#order-payment-pref').wait_for()
+                page.locator('#switch-order').click();page.locator('#legacy-recovery summary').click();page.locator('#recover-id').fill('fixture-order');page.locator('#recover-token').fill('fixture-access');page.locator('#recover-form button.secondary').click();page.locator('#order-payment-pref').wait_for()
                 pending_preference=[];page.route('**/api/orders/fixture-order/payment-preference',lambda r:pending_preference.append(r))
                 with page.expect_request(lambda r:r.url.endswith('/payment-preference')):
                     page.select_option('#order-payment-pref','partner_financing')
-                page.locator('#switch-order').click();page.locator('#recover-id').fill('fixture-second');page.locator('#recover-token').fill('second-access');page.locator('#recover-form button.primary').click();page.get_by_text('Request fixture-second',exact=True).wait_for()
+                page.locator('#switch-order').click();page.locator('#legacy-recovery summary').click();page.locator('#recover-id').fill('fixture-second');page.locator('#recover-token').fill('second-access');page.locator('#recover-form button.secondary').click();page.get_by_text('Request fixture-second',exact=True).wait_for()
                 assert len(pending_preference)==1;pending_preference[0].fulfill(json={**state['order'],'payment_preference':'partner_financing'});page.wait_for_load_state('networkidle')
                 assert 'Request fixture-second' in page.locator('#order-content').inner_text()
                 results[f'late_order_responses_keep_current_request_{width}']=True

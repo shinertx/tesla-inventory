@@ -87,7 +87,7 @@ def main():
                 context.route('**/*',route)
                 page=context.new_page();page.on('pageerror',lambda error:results['javascript_errors'].append(str(error)))
                 page.goto(base);page.wait_for_selector('.card')
-                page.wait_for_function('()=>document.querySelector("#order-button").textContent==="Your purchase"')
+                page.wait_for_function('()=>document.querySelector("#order-button").textContent==="Track my request"')
                 assert page.locator('.card').count()==len(photographed)
                 if width<500:page.locator('#mobile-filters').click()
                 def visible_vins():return page.locator('.card').evaluate_all('(cards)=>cards.map(card=>card.dataset.vin)')
@@ -145,7 +145,7 @@ def main():
                 page.locator('#saved-only').uncheck();expect_rows(photographed)
                 checks['saved_only_toggle']=True
                 if width<500:page.locator('#mobile-filters').click()
-                page.locator(f'[data-open="{rows[0]["vin"]}"]').click()
+                page.locator(f'[data-open="{rows[0]["vin"]}"]').first.click()
                 page.locator('#vehicle-save').click();assert page.locator('#saved-count').inner_text()=='1'
                 page.locator('#vehicle-save').click();assert page.locator('#saved-count').inner_text()=='2'
                 page.locator('[data-close=vehicle-dialog]').click();checks['detail_save_toggle']=True
@@ -163,7 +163,7 @@ def main():
                 page.locator('#privacy-button').click();page.locator('#privacy-dialog[open]').wait_for()
                 assert 'retention' in page.locator('#privacy-dialog').inner_text().lower()
                 page.locator('[data-close=privacy-dialog]').click();checks['privacy_notice_panel']=True
-                page.locator(f'[data-open="{rows[0]["vin"]}"]').click();page.locator('#vehicle-request').click()
+                page.locator(f'[data-open="{rows[0]["vin"]}"]').first.click();page.locator('#vehicle-request').click()
                 page.locator('#deal-continue').click();page.locator('#request-dialog[open]').wait_for()
                 page.locator('[name=name]').fill('Controls Fixture Buyer');page.locator('[name=email]').fill('controls@example.test')
                 page.locator('[name=consent]').check();page.locator('#submit-request').click()
