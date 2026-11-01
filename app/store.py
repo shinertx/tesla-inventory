@@ -34,6 +34,10 @@ CREATE TABLE IF NOT EXISTS outbox (
 CREATE TABLE IF NOT EXISTS source_holds (order_id TEXT PRIMARY KEY, expires_at INTEGER NOT NULL, reference TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS cases (id TEXT PRIMARY KEY,order_id TEXT NOT NULL,kind TEXT NOT NULL,
  description TEXT NOT NULL,status TEXT NOT NULL,owner TEXT,evidence TEXT,created_at INTEGER NOT NULL,due_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS case_request_keys (
+ order_id TEXT NOT NULL, request_key TEXT NOT NULL, request_hash TEXT NOT NULL, case_id TEXT NOT NULL UNIQUE,
+ PRIMARY KEY(order_id,request_key), FOREIGN KEY(case_id) REFERENCES cases(id)
+);
 CREATE TABLE IF NOT EXISTS rate_limits (bucket TEXT NOT NULL, window INTEGER NOT NULL,
  count INTEGER NOT NULL, PRIMARY KEY(bucket, window));
 '''

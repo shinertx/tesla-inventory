@@ -670,16 +670,41 @@ def create_app(settings=None, payments=None):
             store.event(c,order_id,'source_hold_reconfirmed',body.model_dump(),True)
         return {'renewed':True}
 
+    def customer_case_receipt(row):
+        return {key:row[key] for key in ('id','kind','description','status','created_at','due_at')}
+
+    @app.get('/api/orders/{order_id}/cases')
+    def customer_cases(order_id:str,authorization:Annotated[str|None,Header()]=None):
+        with store.connect() as c:
+            order_access(c,order_id,authorization)
+            rows=c.execute('SELECT * FROM cases WHERE order_id=? ORDER BY created_at DESC,id DESC LIMIT 50',(order_id,)).fetchall()
+            return {'items':[customer_case_receipt(row) for row in rows]}
+
     @app.post('/api/orders/{order_id}/cases',status_code=201)
-    def customer_case(order_id:str,body:CustomerCase,authorization:Annotated[str|None,Header()]=None):
+    def customer_case(order_id:str,body:CustomerCase,authorization:Annotated[str|None,Header()]=None,
+                      idempotency_key:Annotated[str|None,Header()]=None):
         with store.transaction() as c:
             order_access(c,order_id,authorization)
+            if idempotency_key is not None and not 16<=len(idempotency_key)<=100:
+                raise HTTPException(400,'Use a unique case request key of 16 to 100 characters')
+            request_hash=digest(body.model_dump_json())
+            if idempotency_key is not None:
+                previous=c.execute('SELECT request_hash,case_id FROM case_request_keys WHERE order_id=? AND request_key=?',
+                                   (order_id,digest(idempotency_key))).fetchone()
+                if previous:
+                    if previous['request_hash']!=request_hash:
+                        raise HTTPException(409,'Case request key already used with different details')
+                    receipt=c.execute('SELECT * FROM cases WHERE id=? AND order_id=?',(previous['case_id'],order_id)).fetchone()
+                    return __import__('fastapi').responses.JSONResponse(customer_case_receipt(receipt),status_code=200)
             if c.execute("SELECT count(*) FROM cases WHERE order_id=? AND status!='resolved'",(order_id,)).fetchone()[0]>=5:
                 raise HTTPException(409,'Please use the existing open case')
             case_id=str(uuid.uuid4());now=int(time.time())
             c.execute('INSERT INTO cases(id,order_id,kind,description,status,created_at,due_at) VALUES(?,?,?,?,?,?,?)',(case_id,order_id,body.kind,body.description,'open',now,now+86400))
+            if idempotency_key is not None:
+                c.execute('INSERT INTO case_request_keys(order_id,request_key,request_hash,case_id) VALUES(?,?,?,?)',
+                          (order_id,digest(idempotency_key),request_hash,case_id))
             store.event(c,order_id,'customer_case_opened',{'case_id':case_id,'kind':body.kind},True)
-            return {'id':case_id,'status':'open'}
+            return customer_case_receipt(c.execute('SELECT * FROM cases WHERE id=?',(case_id,)).fetchone())
 
     @app.get('/api/admin/cases',dependencies=[Depends(admin)])
     def cases():
