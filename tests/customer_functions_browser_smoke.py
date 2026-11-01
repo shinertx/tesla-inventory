@@ -17,7 +17,10 @@ def main():
     rows=[dict(x) for x in source['items'] if x.get('photo')][:3]
     for index,row in enumerate(rows):
         row.update(photo=f'https://example.test/photo-{index}-0.svg',photo_count=2,display_price=20000,
-                   reference_price=[None,19000,20000][index],reference_sample=[0,10,10][index])
+                   reference_price=[None,19000,20000][index],reference_sample=[0,10,10][index],
+                   hardware=None,reservable=False)
+    empty=dict(source['items'][3],photo=None,photo_count=0,hardware=None,reservable=False)
+    fixture_rows=[*rows,empty]
     galleries={x['vin']:[{'url':f'https://example.test/photo-{i}-{p}.svg','title':f'Fixture angle {p+1}','category':'photos'} for p in range(2)] for i,x in enumerate(rows)}
     results={};errors=[]
     try:
@@ -28,7 +31,7 @@ def main():
                 state={'order':None,'cases':[],'case_calls':[],'pending':None,'lost_ack':True}
                 def route(request):
                     url=request.request.url
-                    if 'inventory.json' in url:return request.fulfill(json={'meta':{'media_version':'fixture'},'items':rows})
+                    if 'inventory.json' in url:return request.fulfill(json={'meta':{'media_version':'fixture'},'items':fixture_rows})
                     if '/media/' in url:return request.fulfill(json=galleries)
                     if '/api/' in url:
                         path=url.split('/api/',1)[1]
@@ -56,6 +59,7 @@ def main():
                 context.add_init_script('localStorage.setItem("marketplace_saved",'+json.dumps(json.dumps([x['vin'] for x in rows]+[STALE]))+')')
                 page=context.new_page();page.on('pageerror',lambda error:errors.append(str(error)))
                 page.goto(base);page.wait_for_selector('.card')
+                assert not page.locator('#hardware').is_visible() and not page.locator('#reservable-only').is_visible()
                 page.locator('#saved-button').click();assert page.locator('.shortlist-unavailable').count()==1
                 page.locator('[data-remove-unavailable]').click();assert page.locator('#saved-count').inner_text()=='3'
                 page.locator('#compare-saved').click();text=page.locator('#compare-content').inner_text()
@@ -74,6 +78,22 @@ def main():
                 assert page.locator('#full-next').is_visible() and page.locator('#full-prev').is_visible()
                 results[f'fullscreen_retry_{width}']=True
                 page.locator('[data-close=photo-dialog]').click();page.locator('[data-close=vehicle-dialog]').click()
+                page.goto(base+'?vin='+empty['vin'])
+                page.get_by_text('Vehicle photos are not available yet.',exact=True).wait_for()
+                assert not page.locator('#photo-expand').is_visible()
+                assert not page.locator('#gallery-next').is_visible() and not page.locator('#gallery-prev').is_visible()
+                results[f'empty_gallery_has_no_dead_controls_{width}']=True
+                # Eligible inventory must restore these filters and a real loaded photo must restore expansion.
+                eligible={**empty,'hardware':'HW4','reservable':True,'photo_count':None}
+                page.route('**/inventory.json*',lambda r:r.fulfill(json={'meta':{},'items':[eligible]}))
+                page.route('**/api/vehicles/*/photos',lambda r:r.fulfill(json={'photos':[{'url':'https://example.test/recovered.svg','title':'Recovered fixture photo','category':'photos'}]}))
+                page.reload();page.locator('#photo-expand').wait_for(state='visible')
+                page.locator('[data-close=vehicle-dialog]').click()
+                if width==390:page.locator('#mobile-filters').click()
+                assert page.locator('#hardware').is_visible() and page.locator('#reservable-only').is_visible()
+                page.locator('#photos-only').uncheck();page.select_option('#hardware','HW4');page.locator('#reservable-only').check()
+                assert page.locator('#result-count').inner_text()=='1 Tesla listing'
+                results[f'eligible_controls_restore_{width}']=True
                 context.close()
 
                 context=browser.new_context(viewport={'width':width,'height':1000});context.route('**/*',route)
