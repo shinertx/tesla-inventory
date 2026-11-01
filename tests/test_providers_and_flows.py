@@ -384,7 +384,9 @@ def test_pipeline_jobs_status_and_order_matcher(tmp_path):
     assert packets[0]['source_dealer'] == 'Synthetic Source Dealer'
     assert packets[0]['source_dealer_price'] == 20000
     assert packets[0]['volts_retail_price'] == 25000
-    assert packets[0]['volts_upfront_spread'] == 5000
+    assert packets[0]['modeled_gross_spread_dollars'] == 5000
+    assert packets[0]['ancillary_income_assumed_dollars'] == 0
+    assert packets[0]['collected_revenue_established'] is False
     assert packets[0]['buyer_savings_badge'] == 1800
     status = json.loads(status_file.read_text())['jobs']['5_match_customer_orders']
     assert status['ok'] is True

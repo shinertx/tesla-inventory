@@ -189,9 +189,9 @@ def job_reprice_and_build(
     os.environ.setdefault("ENABLE_GITHUB_PAGES_CNAME", "true")
     os.environ.setdefault("BUYER_SURPLUS_SHARE", "0.5")
     manifest = build_catalog(source=snapshot_path, output=output_dir)
-    docs_out = output_dir / "docs/TOP_ARBITRAGE_DEALS.md"
-    write_markdown_report(docs_out, min_spread_dollars=min_spread_dollars)
-    deals = load_top_deals(min_spread_dollars=min_spread_dollars, limit=1000)
+    docs_out = output_dir / ".data/top-arbitrage-deals.md"
+    write_markdown_report(docs_out, min_spread_dollars=min_spread_dollars, catalog_root=output_dir)
+    deals = load_top_deals(min_spread_dollars=min_spread_dollars, limit=1000, catalog_root=output_dir)
     inv_data = json.loads((output_dir / "inventory.json").read_text())
     items = inv_data.get("items", [])
     price_finds = [x for x in items if (x.get("savings_amount") or 0) >= 500]
@@ -222,10 +222,11 @@ def job_publish_and_index(
         except Exception as exc:
             indexnow_res = {"error": str(exc)[:160]}
     git_res = {"pushed": False}
+    public_artifacts = ["inventory.json", "llms.txt", "llms-full.txt", "index.html", "deals", "models", "states", "years", "sitemap.xml", "robots.txt", "media", "data/vehicle_photos.json"]
     if git_push:
         try:
             status = subprocess.run(
-                ["git", "status", "--porcelain", "inventory.json", "llms.txt", "llms-full.txt", "index.html", "deals", "models", "states", "years"],
+                ["git", "status", "--porcelain", "--", *public_artifacts],
                 cwd=repo_dir,
                 capture_output=True,
                 text=True,
@@ -233,7 +234,7 @@ def job_publish_and_index(
             )
             if status.stdout.strip():
                 subprocess.run(
-                    ["git", "add", "inventory.json", "llms.txt", "llms-full.txt", "index.html", "deals", "models", "states", "years", "docs/TOP_ARBITRAGE_DEALS.md"],
+                    ["git", "add", "--", *public_artifacts],
                     cwd=repo_dir,
                     check=True,
                 )
@@ -270,19 +271,19 @@ def send_deal_alert_email(
         return False
     vin = packet.get("vin", "")
     vehicle = packet.get("vehicle") or f"Tesla ({vin})"
-    spread = packet.get("volts_upfront_spread")
-    profit_4 = packet.get("volts_4layer_profit_est")
+    spread = packet.get("modeled_gross_spread_dollars")
+    spread_label = f"{'-' if spread < 0 else '+'}${abs(spread):,}" if spread is not None else None
     src_price = packet.get("source_dealer_price")
     vv_price = packet.get("volts_retail_price")
     savings = packet.get("buyer_savings_badge") or 0
     src_url = packet.get("source_url") or "https://voltsandvins.com/?vin=" + vin
     subject = (
-        f"[Volts & VINs Deal Alert] {vehicle} ({vin}) — Est. +${profit_4:,} Profit"
-        if profit_4
+        f"[Volts & VINs Deal Alert] {vehicle} ({vin}) — Modeled spread {spread_label} before costs"
+        if spread is not None
         else f"[Volts & VINs Order Request] {vehicle} ({vin})"
     )
     lines = [
-        "New Customer Reservation Request on Volts & VINs",
+        "Customer vehicle request on Volts & VINs",
         "=================================================",
         f"Order ID: {packet.get('order_id')}",
         f"Buyer: {packet.get('buyer_name')} | {packet.get('buyer_email')} | {packet.get('buyer_phone')} | ZIP {packet.get('buyer_zip')}",
@@ -298,9 +299,10 @@ def send_deal_alert_email(
         lines.append(f"- Source Dealer Ask: ${src_price:,}")
     if vv_price:
         lines.append(f"- Volts & VINs Retail Price: ${vv_price:,} (Buyer Badge: Save ${savings:,})")
-    if spread:
-        lines.append(f"- Upfront Arbitrage Spread: +${spread:,}")
-        lines.append(f"- Est. 4-Layer Total Profit: +${profit_4:,}")
+    if spread is not None:
+        lines.append(f"- Modeled gross spread: {spread_label} before costs")
+    lines.append("Asking-price projection only. No negotiated discount, lender income, or transport profit is assumed.")
+    lines.append("Collected platform revenue is not established by this request or price gap.")
     lines.append(f"- Direct Source Listing Link: {src_url}")
     text_body = "\n".join(lines) + "\n"
 
@@ -382,9 +384,11 @@ def job_match_customer_orders(
                     cust = {}
                 arb = arb_by_vin.get(vin, {})
                 inv = inv_by_vin.get(vin, {})
-                source_cents = arb.get("source_asking_cents") or 0
-                opt_cents = arb.get("proposed_retail_cents") or ((inv.get("display_price") or 0) * 100)
-                spread_cents = arb.get("modeled_gross_spread_cents") or max(0, opt_cents - source_cents)
+                source_cents = arb.get("source_asking_cents")
+                source_cents = source_cents if type(source_cents) is int and source_cents > 0 else None
+                published_price = inv.get("display_price")
+                retail_cents = round(published_price * 100) if type(published_price) in (int, float) and published_price > 0 else None
+                spread_cents = retail_cents - source_cents if retail_cents is not None and source_cents is not None else None
                 packet = {
                     "order_id": r["id"],
                     "vin": vin,
@@ -397,10 +401,12 @@ def job_match_customer_orders(
                     "vehicle": f"{inv.get('year', '')} Tesla {inv.get('model', '')} {inv.get('trim', '')}".strip(),
                     "source_dealer": arb.get("source_dealer") or "",
                     "source_dealer_price": round(source_cents / 100) if source_cents else None,
-                    "volts_retail_price": round(opt_cents / 100) if opt_cents else inv.get("display_price"),
+                    "volts_retail_price": round(retail_cents / 100) if retail_cents is not None else None,
                     "buyer_savings_badge": inv.get("savings_amount", 0),
-                    "volts_upfront_spread": round(spread_cents / 100) if spread_cents else None,
-                    "volts_4layer_profit_est": (round(spread_cents / 100) + 2000) if spread_cents else None,
+                    "modeled_gross_spread_dollars": round(spread_cents / 100) if spread_cents is not None else None,
+                    "spread_basis": "published_price_minus_source_ask" if spread_cents is not None else "unavailable",
+                    "ancillary_income_assumed_dollars": 0,
+                    "collected_revenue_established": False,
                     "source_url": arb.get("source_url") or "",
                 }
                 packets.append(packet)
@@ -422,7 +428,7 @@ def job_match_customer_orders(
     result = {
         "ok": True,
         "orders_scanned": len(packets),
-        "matched_with_arbitrage": sum(1 for p in packets if p.get("volts_upfront_spread")),
+        "matched_with_arbitrage": sum(1 for p in packets if (p.get("modeled_gross_spread_dollars") or 0) > 0),
         "alert_recipient": alert_email,
         "emails_sent_this_run": emails_sent,
     }
