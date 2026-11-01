@@ -26,6 +26,13 @@ def main(out):
     try:
         with sync_playwright() as p:
             b=p.chromium.launch();page=b.new_page(viewport={'width':1440,'height':1000});page.on('pageerror',lambda e:result['javascript_errors'].append(str(e)))
+            v_page=next(iter(sorted((ROOT/'v').glob('*.html'))),None)
+            if v_page:
+                page.goto(base+'v/'+v_page.name)
+                page.locator('#vehicle-dialog[open]').wait_for()
+                assert v_page.stem in page.locator('#vehicle-panel').inner_text()
+                assert page.url.endswith('/v/'+v_page.name)
+                result['static_vdp_bootstrap']=True
             for vin,count in [('5YJ3E1EA8SF921313',30),('7SAYGDED1RF039277',45),('5YJ3E1EA8KF413066',59)]:
                 page.goto(base+'?vin='+vin);page.wait_for_function('(n)=>document.querySelectorAll(".gallery-thumb").length===n',arg=count)
                 page.wait_for_function('()=>document.querySelector("#gallery-stage img")?.naturalWidth>0')

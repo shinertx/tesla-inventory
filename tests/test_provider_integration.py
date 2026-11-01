@@ -119,3 +119,68 @@ def test_invalid_stripe_configuration_has_an_actionable_missing_gate(tmp_path):
         db.execute('INSERT INTO dealers VALUES(?,?,?)',('fixture',json.dumps({'verified':True}),int(time.time())))
     data=client.get('/api/admin/integrations',headers=ADMIN).json()['deposits']
     assert not data['enabled'] and 'stripe_secret_key' in data['missing'] and 'stripe_publishable_key' in data['missing']
+
+
+def test_customer_receives_only_fresh_private_order_shipping_projection(tmp_path):
+    client,settings,shipping,_,order=setup(tmp_path)
+    assert client.post(path(order),json={'is_inoperable':False},headers=ADMIN).status_code==200
+    public_path='/api/orders/'+order['id']
+    access={'Authorization':'Bearer '+order['access_token']}
+    assert client.get(public_path).status_code==404
+    assert client.get(public_path,headers={'Authorization':'Bearer wrong'}).status_code==404
+    result=client.get(public_path,headers=access).json()
+    estimate=result['shipping_estimate']
+    assert set(estimate)=={'provider','customer_estimate_cents','observed_at','cache_expires_at','binding','carrier_booked','notice'}
+    assert estimate['customer_estimate_cents']==75029
+    assert estimate['provider']=='Super Dispatch' and not estimate['binding'] and not estimate['carrier_booked']
+    assert result['state']=='requested' and result['quote'] is None and result['transport']=={'state':'unquoted'}
+    assert 'fixture-private-key' not in json.dumps(result) and 'carrier_estimate_cents' not in json.dumps(estimate)
+    assert len(shipping.calls)==1  # Reading status never calls the paid provider.
+    restarted=TestClient(create_app(settings,shipping=shipping))
+    assert restarted.get(public_path,headers=access).json()['shipping_estimate']==estimate
+    disabled=TestClient(create_app(replace(settings,shipping_estimates_enabled=False),shipping=shipping))
+    assert disabled.get(public_path,headers=access).json()['shipping_estimate'] is None
+    assert len(shipping.calls)==1
+
+
+@pytest.mark.parametrize('change',[
+    {'observed_at':0,'cache_expires_at':1},
+    {'observed_at':4102444800,'cache_expires_at':4102445700},
+    {'customer_estimate_cents':True},
+    {'customer_estimate_cents':0},
+    {'customer_estimate_cents':2000001},
+    {'binding':True},
+    {'carrier_booked':True},
+    {'request_hash':'wrong-route'},
+    {'cache_expires_at':4102444800},
+])
+def test_invalid_or_expired_provider_receipt_never_reaches_customer(tmp_path,change):
+    client,_,shipping,store,order=setup(tmp_path)
+    client.post(path(order),json={'is_inoperable':True},headers=ADMIN)
+    with store.transaction() as db:
+        receipt=json.loads(db.execute("SELECT detail FROM events WHERE kind='shipping_estimate_received'").fetchone()[0])
+        receipt.update(change)
+        db.execute("UPDATE events SET detail=? WHERE kind='shipping_estimate_received'",(json.dumps(receipt),))
+    result=client.get('/api/orders/'+order['id'],headers={'Authorization':'Bearer '+order['access_token']})
+    assert result.status_code==200 and result.json()['shipping_estimate'] is None
+    assert len(shipping.calls)==1
+
+
+def test_changed_route_does_not_reuse_customer_shipping_estimate(tmp_path):
+    client,settings,shipping,_,order=setup(tmp_path)
+    client.post(path(order),json={'is_inoperable':False},headers=ADMIN)
+    catalog=json.loads(settings.inventory_path.read_text());catalog['items'][0]['city']='Houston'
+    settings.inventory_path.write_text(json.dumps(catalog))
+    restarted=TestClient(create_app(settings,shipping=shipping))
+    result=restarted.get('/api/orders/'+order['id'],headers={'Authorization':'Bearer '+order['access_token']})
+    assert result.status_code==200 and result.json()['shipping_estimate'] is None
+    assert len(shipping.calls)==1
+
+
+def test_corrupt_shipping_receipt_does_not_break_request_status(tmp_path):
+    client,_,shipping,store,order=setup(tmp_path)
+    client.post(path(order),json={'is_inoperable':False},headers=ADMIN)
+    with store.transaction() as db:db.execute("UPDATE events SET detail='broken-json' WHERE kind='shipping_estimate_received'")
+    result=client.get('/api/orders/'+order['id'],headers={'Authorization':'Bearer '+order['access_token']})
+    assert result.status_code==200 and result.json()['state']=='requested' and result.json()['shipping_estimate'] is None
+    assert len(shipping.calls)==1

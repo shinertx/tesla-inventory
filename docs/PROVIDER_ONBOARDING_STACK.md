@@ -1,56 +1,44 @@
-# Volts & VINs — "Better Than Carvana" Provider & Onboarding Stack
+# Provider connections and launch inputs
 
-## Why `Engine + Montway` Are Only Bridges (Not the Best Stack)
+Volts & VINs uses a branded customer experience with a disclosed licensed retail seller.
 
-1. **Why Montway is NOT the best for transport:**
-   - Montway is a **retail auto-transport broker** that adds `$250–$400/car` in broker fees and reposts the load to a carrier load board.
-   - **What beats Carvana & Montway:** **`Super Dispatch` (`superdispatch.com`) + `RunBuggy` (`runbuggy.com`) + `Central Dispatch`**.
-     - Direct API to 20,000+ verified carriers with **$0 broker markup**.
-     - Instant algorithmic lane pricing (`Super Dispatch Pricing Insights API` / `RunBuggy Quotes API`) plus your `+$200` shipping margin buffer.
-     - **Digital photo eBOL (Electronic Bill of Lading)** at pickup/drop-off + **Uber-style live GPS map link** for the customer.
+The working seller label is **Jockey**. It is an unverified draft placeholder. No dealer has agreed yet.
 
-2. **Why Engine by MoneyLion is NOT the best for financing:**
-   - Engine is a general fintech lead-gen marketplace (`moneylion.com`). It cannot structure a VIN-specific retail installment contract or pay you full automotive dealer reserve (`$600–$1,200/car`).
-   - **What beats Carvana:** **`AutoFi` (`autofi.com`) + `700Credit` (Soft-Pull) + `CUDL` (Credit Union Direct Lending)**.
-     - Carvana pushes buyers into its high-APR in-house subprime lender (`Bridgecrest` at `9%–16%` APR).
-     - **AutoFi + CUDL + 700Credit** pits **40+ credit unions and prime auto lenders** (PenFed, Navy Federal, Capital One Auto, Ally, Chase) against each other inside your checkout.
-     - Result: Buyers get **`1.5%–3.0%` lower APR** (`~$80/mo` lower payment than Carvana on the same Tesla), and lenders pay Volts & VINs **`+$600–$1,200` dealer reserve per car**.
+All vendor inquiries remain drafts under Ben's November 1 instruction. No new accounts, paid plans, or vendor sends are authorized.
 
-3. **Why Carvana Loses on Title & Registration (And How We Beat Them):**
-   - Carvana is notorious for 60–90 day title/registration delays.
-   - **What beats Carvana:** **`Vitu` (`vitu.com`) / `ATC` (`autotitle.com`)** (or **`Caramel` (`drivecaramel.com`)** prior to your Texas GDN license clearing) for exact 50-state county tax/title calculation, instant electronic temp tags, and digital DMV filing.
+| Part | Current code | Needed to activate |
+| --- | --- | --- |
+| $250 reservation | Seller-scoped Stripe Checkout, signed webhook verification, cancellation and refunds | Real licensed seller, signed seller/platform terms, eligible live Stripe/Connect access, supported states, actual vehicle quote and hold |
+| Financing | Payment preference, recorded lender status, approved hosted application links | Licensed seller's approved lending relationship, official application URL or API contract, customer consent, authenticated funding evidence |
+| Delivery estimate | Verified Super Dispatch Pricing Insights request and fresh customer-price projection | Provider-issued Pricing Insights key and account entitlement; confirmed route and vehicle operability |
+| Carrier booking | Recorded accepted-carrier and delivery evidence | Approved Shipper API credentials, booking/acceptance contract, carrier insurance, bill of lading and tracking integration |
+| Photos and inventory | Public galleries and private source catalog | Authorized dealer/source feeds with full galleries, stable VIN mapping and availability updates |
+| Tax, title and documents | Itemized seller quote and secure document links | Selling dealer's actual tax/title calculations, documents, signing and filing process |
+| Platform income | Private modeled spread and recorded settlement receipts | Executed compensation/settlement agreement and verified remittance or approved processor fee collection |
 
----
+## Existing payment account
 
-## Side-by-Side Comparison: Carvana vs. Volts & VINs Best-in-Class Stack
+The inspected Stripe TEST account returns the name **JENNi sandbox**. It is not an approved production automotive account.
 
-| Layer | Carvana Stack | Earlier Bridge (`Engine + Montway`) | **Volts & VINs "Beat Carvana" Stack** | Customer & Margin Advantage |
-| :--- | :--- | :--- | :--- | :--- |
-| **Inventory & Price** | ~1,200 Teslas (heavy recon/vending overhead) | 15,097 Teslas | **15,097 VIN-Verified Teslas + Peer Benchmark Savings** | **12x more Teslas**, `$500–$4,000` below peer benchmark |
-| **Financing** | Bridgecrest in-house high APR (`9%–16%`) | Engine generic lead-gen offers | **`700Credit` Soft-Pull + `AutoFi` + `CUDL` (Credit Unions + Prime Banks)** | **`1.5%–3%` lower APR for buyer** + **`+$600–$1,200` dealer reserve** to you |
-| **Transport & Tracking** | Fleet trucks (limited routes) | Montway retail broker (`+$300` middleman fee) | **`RunBuggy` + `Super Dispatch` API + `Central Dispatch`** | **0 broker fee**, digital photo eBOL inspection, **live GPS map link**, **`+$200–$400` shipping margin** |
-| **Deposit & Balance Pay** | Legacy bank portal | Stripe Checkout | **`Stripe Embedded Checkout` (`$250`) + `Stripe Financial Connections` (Instant Plaid ACH)** | 1-click `$250` hold + instant verified bank balance settlement |
-| **Title, Tax & Temp Tags** | Manual back-office (frequent delays) | Manual dealer paperwork | **`Caramel` (Bridge) → `Vitu` 50-State Digital DMV + `TxDMV webDEALER`** | Exact county tax/title to the penny + instant e-tag |
+Do not relabel a synthetic seller as Jockey or enable checkout from placeholder information.
 
----
+## Integration boundaries
 
-## Environment Variables Wired in `app/providers.py`
+Super Dispatch Pricing Insights recommends a price. It does not book a carrier or guarantee a delivery window.
 
-Once credentials are issued for any of the providers above, set on `hank.jockeyvc.com`:
+The verified client remains available. Legacy unverified provider adapters fail closed before any network request.
 
-```bash
-# 1. Live Stripe Deposit & ACH Balance Checkout
-STRIPE_SECRET_KEY=sk_live_...
-STRIPE_PUBLISHABLE_KEY=pk_live_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-CHECKOUT_ENABLED=true
-PLATFORM_AGREEMENTS_VERIFIED=true
+The legacy instant-quote helper returns estimates only. It cannot provide verification evidence or approve a purchase quote.
 
-# 2. Direct Carrier Transport API (Super Dispatch or RunBuggy — $0 broker fee + $200 safety buffer)
-SUPER_DISPATCH_API_KEY=...
-RUNBUGGY_API_TOKEN=...
+Financing requires the provider's actual contract and approved access. No default APR, lender approval, delivery window or referral income establishes live service.
 
-# 3. Embedded Auto Lending API (AutoFi + 700Credit / CUDL)
-AUTOFI_API_KEY=...
-AUTOFI_DEALER_CODE=...
-```
+A bank link is not settled purchase funding. A ledger entry is not a collected platform payout.
+
+## Official onboarding sources
+
+- [AutoFi marketplace partnerships](https://www.autofi.com/marketplaces/)
+- [Super Dispatch Pricing Insights authentication](https://developer.superdispatch.com/pricing-insights/docs/authentication/)
+- [Super Dispatch Shipper API quickstart](https://developer.superdispatch.com/shipper/docs/quickstart/)
+- [Stripe Connect direct charges](https://docs.stripe.com/connect/direct-charges)
+
+See PROVIDER_SETUP.md for the supported integration contract and activation checks.

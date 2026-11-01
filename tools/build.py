@@ -315,7 +315,10 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None):
         v_text=v_text.replace('<meta property="og:description" content="Compare used Teslas by model, mileage, estimated price, and vehicle photos.">',f'<meta property="og:description" content="{html.escape(v_desc,quote=True)}">')
         v_text=v_text.replace('<meta property="og:url" content="https://voltsandvins.com/">',f'<meta property="og:url" content="{v_href}">')
         v_text=v_text.replace('<link rel="canonical" href="https://voltsandvins.com/">',f'<link rel="canonical" href="{v_href}">')
-        v_text=v_text.replace('<!-- STRUCTURED_DATA -->',schema_script(v_href,v_label,[x],v_desc,v_label))
+        if x.get('photo'):
+            v_text=v_text.replace('</head>',f'<meta property="og:image" content="{html.escape(x["photo"],quote=True)}"></head>')
+        vehicle_schema=schema_script(v_href,v_label,[x],v_desc,v_label).replace(f'{BASE}/?vin={vin}',v_href)
+        v_text=v_text.replace('<!-- STRUCTURED_DATA -->',vehicle_schema)
         v_text=v_text.replace('<!-- SEO_INTERNAL_LINKS -->',nav_links('../'))
         v_text=v_text.replace('<!-- CATEGORY_CONTENT -->',v_intro)
         (output/'v'/(vin+'.html')).write_text(v_text)
