@@ -56,6 +56,11 @@ def test_top_price_find_vehicle_pages_render_with_initial_vin(tmp_path):
     v_html = v_page.read_text()
     assert 'data-initial-vin="7SAYGDED1RF039277"' in v_html
     assert 'https://voltsandvins.com/v/7SAYGDED1RF039277.html' in v_html
+    assert '<meta property="og:image" content="https://example.test/vehicle.jpg">' in v_html
+    schema=json.loads(re.search(r'<script type="application/ld\+json">(.*?)</script>',v_html).group(1))
+    listing=next(node for node in schema['@graph'] if node['@type']=='ItemList')['itemListElement'][0]['item']
+    assert listing['url']=='https://voltsandvins.com/v/7SAYGDED1RF039277.html'
+    assert 'offers' not in listing
     assert 'Save $3,400' in v_html
     assert 'Built in Fremont' in v_html
     assert 'PRIVATE SUPPLIER NAME' not in v_html

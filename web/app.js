@@ -159,7 +159,7 @@
   function showVehicle(vin){
     const x=byVIN.get(vin);if(!x){notify('This vehicle is not in the current published snapshot.');return;}
     activeVIN=vin;trackVisit('vin_view',vin);
-    const url=new URL(location.href);url.searchParams.delete('reservation');url.searchParams.delete('session_id');url.searchParams.delete('test_mode');url.searchParams.set('vin',vin);history.replaceState(null,'',url);
+    const url=new URL(location.href);url.searchParams.delete('reservation');url.searchParams.delete('session_id');url.searchParams.delete('test_mode');if(document.body.dataset.initialVin===vin)url.searchParams.delete('vin');else url.searchParams.set('vin',vin);history.replaceState(null,'',url);
     document.title=`${x.year} Tesla ${x.model} ${x.trim} (VIN ${x.vin}) | Volts & VINs`;
     let ld=$('dynamic-vehicle-schema');if(!ld){ld=document.createElement('script');ld.id='dynamic-vehicle-schema';ld.type='application/ld+json';document.head.append(ld);}
     const ldObj={'@context':'https://schema.org','@type':'Car','name':`${x.year} Tesla ${x.model} ${x.trim}`,'brand':{'@type':'Brand','name':'Tesla'},'model':x.model,'vehicleModelDate':String(x.year),'vehicleIdentificationNumber':x.vin,'itemCondition':'https://schema.org/UsedCondition','mileageFromOdometer':{'@type':'QuantitativeValue','value':x.mileage,'unitCode':'SMI'},'image':x.photo?[x.photo]:[],'url':url.href};
