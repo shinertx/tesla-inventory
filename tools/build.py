@@ -255,7 +255,9 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None):
     home_desc=f"Compare {len(items):,} VIN-decoded used Tesla Model Y, Model 3, Model S, Model X, and Cybertruck listings ({home_finds:,} priced $500+ below mileage-adjusted peer benchmarks) on Volts & VINs."
     root_html=template.replace('<!-- STRUCTURED_DATA -->',schema_script(BASE+'/','Volts & VINs Used Tesla Inventory',items,home_desc)).replace('<!-- SEO_INTERNAL_LINKS -->',nav_links(''))
     (output/'index.html').write_text(root_html)
-    for group in ('models','years','states','deals'):
+    top_vin_pages=sorted([x for x in items if x.get('savings_amount',0)>=500 and x.get('reference_sample',0)>=5],key=lambda x:(-x['savings_amount'],x['display_price'],x['vin']))[:200]
+    top_vin_set={x['vin'] for x in top_vin_pages}
+    for group in ('models','years','states','deals','v'):
         folder=output/group;folder.mkdir(exist_ok=True)
         for obsolete in folder.glob('*.html'):obsolete.unlink()
     for group,slug,label,preset,subset in categories:
@@ -267,7 +269,8 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None):
         desc=f"Browse {len(subset):,} {label} listings starting at ${low_p:,.0f} (median ${med_p:,.0f}). Compare VIN-decoded specs, photos, and {finds_cnt:,} peer-benchmarked price finds{f' saving up to ${max_save:,.0f}' if max_save>=500 else ''} on Volts & VINs."
         def card_li(x):
             save_note=f" (Save ${x['savings_amount']:,.0f} vs. ${x['reference_price']:,.0f} peer benchmark)" if x.get('savings_amount',0)>=500 and x.get('reference_sample',0)>=5 else ''
-            return f'<li><a href="../?vin={x["vin"]}">{html.escape(str(x["year"])+" "+x["model"]+" "+x["trim"])}</a> — ${x["display_price"]:,.0f}{save_note}, {x["mileage"]:,} mi, {html.escape(x.get("city") or x["state"])}; estimated vehicle price, tax, title and delivery quoted separately.</li>'
+            v_link=f'../v/{x["vin"]}.html' if x['vin'] in top_vin_set else f'../?vin={x["vin"]}'
+            return f'<li><a href="{v_link}">{html.escape(str(x["year"])+" "+x["model"]+" "+x["trim"])}</a> — ${x["display_price"]:,.0f}{save_note}, {x["mileage"]:,} mi, {html.escape(x.get("city") or x["state"])}; estimated vehicle price, tax, title and delivery quoted separately.</li>'
         cards=''.join(card_li(x) for x in subset[:24])
         text=template.replace('href="web/', 'href="../web/').replace('src="web/','src="../web/').replace('href="inventory.json"','href="../inventory.json"')
         text=text.replace('data-preset=""',f'data-preset="{html.escape(preset,quote=True)}"')
@@ -282,6 +285,41 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None):
         text=text.replace('<!-- CATEGORY_CONTENT -->',f'<section class="category-intro"><h1>{html.escape(label)} listings</h1><p>{len(subset):,} vehicles to explore starting at ${low_p:,.0f} (median ${med_p:,.0f}{f" · {finds_cnt:,} price finds below peer benchmark" if finds_cnt else ""}). Dealer confirmation is required before reservation.</p><details><summary>Featured vehicles &amp; market benchmark snapshot</summary><ul>{cards}</ul></details></section>')
         (output/group/(slug+'.html')).write_text(text)
         entries.append(href)
+    for x in top_vin_pages:
+        vin=x['vin']
+        v_href=f'{BASE}/v/{vin}.html'
+        v_label=f"{x['year']} Tesla {x['model']} {x['trim']} (VIN {vin})"
+        loc_text=f"{x['city']}, {x['state']}" if x.get('city') and x.get('state')!='US' else (x.get('city') or x.get('state') or 'US')
+        v_desc=f"{v_label} with {x['mileage']:,} mi in {loc_text}. Estimated vehicle price ${x['display_price']:,.0f} (Save ${x['savings_amount']:,.0f} vs. ${x['reference_price']:,.0f} peer benchmark across {x['reference_sample']} comparable listings); tax, title, and delivery quoted separately."
+        spec_items=[
+            f"<li><strong>VIN:</strong> {html.escape(vin)}</li>",
+            f"<li><strong>Estimated vehicle price:</strong> ${x['display_price']:,.0f} (Save ${x['savings_amount']:,.0f} vs. ${x['reference_price']:,.0f} peer benchmark · {x['reference_sample']} comparable peers)</li>",
+            f"<li><strong>Odometer:</strong> {x['mileage']:,} mi</li>",
+            *([f"<li><strong>Drivetrain:</strong> {html.escape(x['drivetrain'])}</li>"] if x.get('drivetrain') else []),
+            *([f"<li><strong>Build factory:</strong> Built in {html.escape(x['factory'])}</li>"] if x.get('factory') else []),
+            f"<li><strong>Vehicle location:</strong> {html.escape(loc_text)}</li>",
+        ]
+        v_intro=(
+            f'<section class="category-intro">'
+            f'<h1>{html.escape(v_label)}</h1>'
+            f'<p>Estimated vehicle price ${x["display_price"]:,.0f} · Save ${x["savings_amount"]:,.0f} below ${x["reference_price"]:,.0f} mileage-adjusted peer benchmark ({x["reference_sample"]} comparable listings). '
+            f'Vehicle price only; tax, title, registration, and delivery are quoted separately. Dealer confirmation is required before reservation.</p>'
+            f'<details><summary>VIN-decoded specifications &amp; benchmark details</summary><ul>{"".join(spec_items)}</ul></details>'
+            f'</section>'
+        )
+        v_text=template.replace('href="web/', 'href="../web/').replace('src="web/','src="../web/').replace('href="inventory.json"','href="../inventory.json"')
+        v_text=v_text.replace('data-preset=""',f'data-preset="{html.escape("model:"+x["model"],quote=True)}" data-initial-vin="{html.escape(vin,quote=True)}"')
+        v_text=v_text.replace('<title>Volts &amp; VINs | Shop Used Teslas Online</title>',f'<title>{html.escape(v_label)} — ${x["display_price"]:,.0f} (Save ${x["savings_amount"]:,.0f}) | Volts &amp; VINs</title>')
+        v_text=v_text.replace('<meta name="description" content="Explore used Tesla Model Y, Model 3, Model S, Model X, and Cybertruck listings. Compare vehicle photos, mileage, and estimated prices on Volts &amp; VINs.">',f'<meta name="description" content="{html.escape(v_desc,quote=True)}">')
+        v_text=v_text.replace('<meta property="og:title" content="Volts &amp; VINs | Shop Used Teslas Online">',f'<meta property="og:title" content="{html.escape(v_label)} — ${x["display_price"]:,.0f} | Volts &amp; VINs">')
+        v_text=v_text.replace('<meta property="og:description" content="Compare used Teslas by model, mileage, estimated price, and vehicle photos.">',f'<meta property="og:description" content="{html.escape(v_desc,quote=True)}">')
+        v_text=v_text.replace('<meta property="og:url" content="https://voltsandvins.com/">',f'<meta property="og:url" content="{v_href}">')
+        v_text=v_text.replace('<link rel="canonical" href="https://voltsandvins.com/">',f'<link rel="canonical" href="{v_href}">')
+        v_text=v_text.replace('<!-- STRUCTURED_DATA -->',schema_script(v_href,v_label,[x],v_desc,v_label))
+        v_text=v_text.replace('<!-- SEO_INTERNAL_LINKS -->',nav_links('../'))
+        v_text=v_text.replace('<!-- CATEGORY_CONTENT -->',v_intro)
+        (output/'v'/(vin+'.html')).write_text(v_text)
+        entries.append(v_href)
     ET.register_namespace('', 'http://www.sitemaps.org/schemas/sitemap/0.9')
     ns='{http://www.sitemaps.org/schemas/sitemap/0.9}'
     tree=ET.Element(ns+'urlset')
@@ -331,7 +369,7 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None):
         *[f'- [{label} ({len(sub):,} listings)]({BASE}/{g}/{s}.html)' for g,s,label,_,sub in categories if g=='deals'],
         '',
         '## Machine-Readable Feeds & Indexes',
-        f'- Fast AI Agent Filter & Search API (<15ms JSON): https://api.voltsandvins.com/api/search?model=Model+Y&max_price=36000&only_price_finds=true&limit=10',
+        f'- AI Agent Filter & Search API (Filtered JSON): https://api.voltsandvins.com/api/search?model=Model+Y&max_price=36000&only_price_finds=true&limit=10',
         f'- OpenAPI 3.1 Action Specification (ChatGPT / Claude / Gemini Tools): {BASE}/openapi.json',
         f'- Full Top-100 Price-Find VIN Digest: {BASE}/llms-full.txt',
         f'- XML Sitemap ({len(entries)} URLs): {BASE}/sitemap.xml',
@@ -366,7 +404,7 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None):
     }
     (output/'openapi.json').write_text(json.dumps(openapi_spec,indent=2)+'\n')
     find_rows=[
-        f"- **{x['year']} Tesla {x['model']} {x['trim']}** (VIN `{x['vin']}`) — Est. Price: `${x['display_price']:,.0f}` | Peer Benchmark: `${x['reference_price']:,.0f}` ({x['reference_sample']} peers) | **Save `${x['savings_amount']:,.0f}`** | {x['mileage']:,} mi | {x.get('drivetrain') or 'EV'} | {x.get('city') or ''}, {x['state']} | {BASE}/?vin={x['vin']}"
+        f"- **{x['year']} Tesla {x['model']} {x['trim']}** (VIN `{x['vin']}`) — Est. Price: `${x['display_price']:,.0f}` | Peer Benchmark: `${x['reference_price']:,.0f}` ({x['reference_sample']} peers) | **Save `${x['savings_amount']:,.0f}`** | {x['mileage']:,} mi | {x.get('drivetrain') or 'EV'} | {x.get('city') or ''}, {x['state']} | {BASE}/v/{x['vin']}.html"
         for x in top_finds
     ]
     (output/'llms-full.txt').write_text('\n'.join([
@@ -378,7 +416,7 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None):
         '## All Indexed Category, Model-Year & State Pages',
         *[f'- [{label} ({len(sub):,})]({BASE}/{g}/{s}.html)' for g,s,label,_,sub in categories],
     ])+'\n')
-    result={'published':len(items),'excluded':dict(excluded or {}),'category_pages':len(categories),'sitemap_urls':len(entries)}
+    result={'published':len(items),'excluded':dict(excluded or {}),'category_pages':len(categories),'vehicle_pages':len(top_vin_pages),'sitemap_urls':len(entries)}
     print(json.dumps(result))
     return result
 
