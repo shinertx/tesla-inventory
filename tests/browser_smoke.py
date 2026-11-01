@@ -36,16 +36,39 @@ def main():
                 page.select_option('#sort','savings');assert 'Save $' in page.locator('.price-win').first.inner_text()
                 results['price_discovery']=True
                 page.select_option('#sort','recommended');page.locator('[data-discover=all]').click()
+                page.locator('#load-more').click();assert page.locator('.card').count()==72
+                failed_vin=page.locator('.card').nth(36).get_attribute('data-vin')
+                page.evaluate('document.querySelectorAll(".card img")[36].dispatchEvent(new Event("error"))')
+                page.wait_for_function('(v)=>!document.querySelector(`.card[data-vin="${v}"]`)',arg=failed_vin)
+                assert page.locator('.card').count()==72;results['load_more_preserves_limit_on_image_error']=True
                 page.select_option('#model','Cybertruck');results['model_filter']=all('Cybertruck' in t for t in page.locator('.card h3').all_text_contents());assert results['model_filter']
+                page.locator('#reset').click();assert page.locator('.card').count()==36;results['filter_change_resets_limit']=True
+                page.select_option('#model','Cybertruck')
                 page.locator('.save').first.click();assert page.locator('#saved-count').inner_text()=='1'
                 page.locator('.card-main').first.click();page.wait_for_selector('#vehicle-dialog[open]')
                 page.locator('.verification-details summary').click()
                 detail=page.locator('#vehicle-content').inner_text();assert '97.4%' not in detail and '8.2mm' not in detail and '150-POINT CERTIFIED' not in detail
                 results['honest_vehicle_details']='No inspection report on file' in detail;assert results['honest_vehicle_details']
-                page.locator('#vehicle-request').click();page.locator('#deal-zip').fill('78201');page.locator('#deal-continue').click();page.wait_for_selector('#request-dialog[open]');assert page.locator('[name=state]').input_value()=='TX' and page.locator('[name=zip]').input_value()=='78201';results['zip_and_state_prefilled']=True;page.locator('[name=name]').fill('Browser Test Buyer');page.locator('[name=email]').fill('browser@example.test');page.locator('[name=consent]').check();page.locator('#submit-request').click()
+                page.locator('#tab-pricing').click();assert 'Estimated shipping' in page.locator('#vehicle-panel').inner_text()
+                page.locator('#tab-process').click();assert 'Preparing your deal' in page.locator('#vehicle-panel').inner_text()
+                page.locator('#tab-details').click()
+                page.locator('#vehicle-request').click();page.wait_for_selector('#deal-dialog[open]')
+                assert 'Estimate your total' in page.locator('#deal-summary').inner_text() and 'Monthly payment calculator' in page.locator('#deal-summary').inner_text()
+                page.locator('[data-deal-mode=finance]').click();page.select_option('#deal-down','5000');page.select_option('#deal-term','72')
+                assert 'not a credit offer' in page.locator('#deal-summary').inner_text()
+                page.locator('[data-deal-mode=cash]').click();results['deal_estimator_and_calculator']=True
+                page.locator('#deal-zip').fill('78201');page.locator('#deal-continue').click();page.wait_for_selector('#request-dialog[open]');assert page.locator('[name=state]').input_value()=='TX' and page.locator('[name=zip]').input_value()=='78201';results['zip_and_state_prefilled']=True;page.locator('[name=name]').fill('Browser Test Buyer');page.locator('[name=email]').fill('browser@example.test');page.locator('[name=consent]').check();page.locator('#submit-request').click()
                 page.wait_for_selector('#order-dialog[open]');assert 'Preparing your deal' in page.locator('#order-content').inner_text();results['durable_request']=True
                 access=page.evaluate('JSON.parse(sessionStorage.getItem("marketplace_order"))')
                 page.reload();page.wait_for_selector('.card');page.locator('[data-close=vehicle-dialog]').click();page.locator('#order-button').click();page.wait_for_selector('#order-dialog[open]');assert 'Preparing your deal' in page.locator('#order-content').inner_text();results['status_survives_reload']=True
+                order_path=base+'/api/orders/'+access['id']
+                page.route(order_path,lambda r:r.fulfill(status=503,content_type='application/json',body=json.dumps({'detail':'Temporary outage'})))
+                page.locator('[data-close=order-dialog]').click();page.locator('#order-button').click();page.locator('#retry-saved-order').wait_for()
+                assert page.evaluate('JSON.parse(sessionStorage.getItem("marketplace_order"))')==access
+                page.unroute(order_path);page.locator('#retry-saved-order').click();page.locator('#report-issue').wait_for()
+                assert 'Preparing your deal' in page.locator('#order-content').inner_text();results['temporary_outage_keeps_private_access']=True
+                page.locator('#switch-order').click();page.locator('#recover-id').fill(access['id']);page.locator('#recover-token').fill(access['token']);page.locator('#recover-form button[type=submit], #recover-form button.primary').click()
+                page.wait_for_selector('#report-issue');assert 'Preparing your deal' in page.locator('#order-content').inner_text();results['order_recovery']=True
                 page.locator('#report-issue').click();page.locator('#issue-description').fill('Please verify the charging adapters included with this vehicle.');page.locator('#send-issue').click();page.locator('#issue-form').wait_for(state='hidden');results['support_case']=True
                 page.locator('#cancel-order').click();page.get_by_role('heading',name='Request cancelled').wait_for();results['cancellation']=True
                 page.locator('[data-close=order-dialog]').click()

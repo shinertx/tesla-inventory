@@ -2,9 +2,16 @@
 
 ## Ownership and deployment
 
-The platform owns demand generation and transaction coordination. The fulfilling dealer owns the car and sells directly to the customer.
+The platform owns demand generation and transaction coordination. Source dealers supply vehicles. The disclosed licensed retail seller conducts each sale.
+
+The source dealer and retail seller can be different entities. Their signed agreements must define acquisition, title, funding, and settlement responsibilities.
 
 Host the API on persistent HTTPS infrastructure. GitHub Pages supports static shopping only.
+
+For a separate API host, set `PUBLIC_ORIGIN=https://voltsandvins.com` and configure the storefront's API base URL.
+Only that exact origin receives CORS permission. Customer requests use bearer authorization, without cross-site cookies.
+Keep the production database separate from the sandbox. Requests can be enabled while `CHECKOUT_ENABLED=false`.
+This stores real purchase requests. It does not enable deposits, vehicle holds, lender offers, or carrier bookings.
 
 Use one SQLite-backed application instance until migrating to a shared transactional database.
 

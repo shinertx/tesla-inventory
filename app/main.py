@@ -4,6 +4,7 @@ import hashlib, hmac, json, secrets, sqlite3, time, uuid
 from datetime import datetime, timezone
 from fastapi import FastAPI, Depends, Header, HTTPException, Request
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from .config import Settings, ROOT
@@ -49,6 +50,12 @@ def create_app(settings=None, payments=None):
     inventory,vehicles=_load_inventory(settings.inventory_path)
     app=FastAPI(title='Volts & VINs',docs_url=None,redoc_url=None)
     app.add_middleware(GZipMiddleware,minimum_size=500)
+    # The public static storefront may use a separate, narrowly scoped API host.
+    # Bearer tokens remain in explicit headers; cookies are never shared.
+    app.add_middleware(CORSMiddleware,allow_origins=[settings.origin],
+        allow_methods=['GET','POST','PUT','OPTIONS'],
+        allow_headers=['Authorization','Content-Type','Idempotency-Key'],
+        allow_credentials=False,max_age=600)
     app.state.store=store
     media=VehicleMedia(store,settings.sourcing_path)
 
@@ -173,10 +180,11 @@ def create_app(settings=None, payments=None):
         with store.connect() as c:
             approved=sum(bool(json.loads(r['profile']).get('verified')) for r in c.execute('SELECT profile FROM dealers'))
         onboarding='ready' if (approved and settings.platform_agreements_verified) else ('sandbox_test_only' if (approved and settings.is_test_sandbox) else 'pending')
+        payments_enabled=bool(settings.payments_ready and approved)
         return {'mode':'dealer_fulfillment','partner_onboarding_status':onboarding,
             'sandbox_mode':settings.is_test_sandbox,'test_mode':settings.stripe_key.startswith('sk_test_'),
-            'supported_states':settings.supported_states,'payments_enabled':bool(settings.payments_ready and approved),
-            'payment_methods':list(settings.payment_method_types),'ach_enabled':'us_bank_account' in settings.balance_payment_method_types or 'us_bank_account' in settings.payment_method_types,
+            'supported_states':settings.supported_states,'payments_enabled':payments_enabled,
+            'payment_methods':list(settings.payment_method_types),'ach_enabled':payments_enabled and ('us_bank_account' in settings.balance_payment_method_types or 'us_bank_account' in settings.payment_method_types),
             'balance_payment_methods':list(settings.balance_payment_method_types),'balance_payment_method':'us_bank_account','deposit_cents':DEPOSIT,'requests_enabled':True,'inventory_owner':'fulfilling_dealer'}
 
     @app.put('/api/admin/dealers/{dealer_id}',dependencies=[Depends(admin)])

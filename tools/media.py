@@ -2,13 +2,19 @@
 import json,re
 from html import unescape
 from urllib.parse import urlsplit
+from pathlib import Path
+
+_EXCLUSION_PATH=Path(__file__).resolve().parents[1]/'data/photo_exclusions.json'
+EXCLUDED_PHOTO_URLS=frozenset(json.loads(_EXCLUSION_PATH.read_text())) if _EXCLUSION_PATH.exists() else frozenset()
 
 
 def photo_url(value):
-    if not isinstance(value,str):return ''
+    if not isinstance(value,str) or value in EXCLUDED_PHOTO_URLS:return ''
     try:p=urlsplit(value)
     except ValueError:return ''
     if p.scheme!='https' or not p.hostname or p.username or p.password:return ''
+    # TrueCar's generic color/angle renders are not photos of a specific VIN.
+    if p.hostname=='static.tcimg.net' and p.path.startswith('/vehicles/primary/'):return ''
     if any(x in p.path.lower() for x in ('_default.','stockimages/','generic-features/','placeholder','no-image')):return ''
     if p.hostname=='static.cargurus.com' and 'width=320' in p.query:return f'https://{p.hostname}{p.path}'
     return value
