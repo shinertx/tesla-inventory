@@ -28,7 +28,7 @@ def main():
             for width in (1440,390):
                 page=browser.new_page(viewport={'width':width,'height':1000});errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
                 page.route('**/api/**',api)
-                page.route('https://js.stripe.com/endive/stripe.js',lambda route:route.fulfill(content_type='application/javascript',body='''window.Stripe=(key,account)=>{window.fixtureStripe={key,account};return {createEmbeddedCheckoutPage:async options=>{window.fixtureStripe.secret=await options.fetchClientSecret();window.fixtureComplete=options.onComplete;return {mount:selector=>{document.querySelector(selector).textContent='FIXTURE SECURE PAYMENT FORM'},destroy:()=>{window.fixtureDestroyed=true}}}}}'''))
+                page.route('https://js.stripe.com/endive/stripe.js',lambda route:route.fulfill(content_type='application/javascript',body='''window.Stripe=(key,account)=>{window.fixtureStripe={key,account};return {createEmbeddedCheckoutPage:async options=>{window.fixtureCreateCount=(window.fixtureCreateCount||0)+1;window.fixtureStripe.secret=await options.fetchClientSecret();window.fixtureComplete=options.onComplete;return {mount:selector=>{document.querySelector(selector).textContent='FIXTURE SECURE PAYMENT FORM'},destroy:()=>{window.fixtureDestroyed=true}}}}}'''))
                 page.goto(base);page.wait_for_selector('.card')
                 page.evaluate('sessionStorage.setItem("marketplace_order",JSON.stringify({id:"fixture-order",token:"fixture-access"}))')
                 page.locator('#order-button').click();page.locator('#order-dialog[open]').wait_for()
@@ -46,8 +46,16 @@ def main():
                 page.evaluate('window.fixtureComplete()');page.get_by_text('Secure checkout opened',exact=True).wait_for()
                 assert page.evaluate('window.fixtureDestroyed')
                 assert 'Deposit verified' not in page.locator('#order-content').inner_text()
+                assert not errors
+                order['state']='quoted';page.locator('#refresh-order').click();page.locator('#accept-quote').wait_for();page.locator('#accept-quote').check()
+                pending=[];page.route('**/api/orders/fixture-order/checkout',lambda r:pending.append(r))
+                with page.expect_request(lambda r:r.url.endswith('/checkout')):page.locator('#pay-deposit').click()
+                page.locator('[data-close=order-dialog]').click()
+                assert len(pending)==1;pending[0].fulfill(json={'mode':'embedded_page','publishable_key':'pk_test_fixture','account':'acct_fixtureDealer','client_secret':'fixture_stale_secret'})
+                page.wait_for_load_state('networkidle');assert page.evaluate('window.fixtureCreateCount')==1
+                assert not page.locator('#order-dialog').evaluate('(x)=>x.open')
                 assert not errors;page.close();calls.clear();order['state']='quoted'
             browser.close()
     finally:server.shutdown();server.server_close()
-    print(json.dumps({'fake_provider':True,'desktop_and_mobile_embedded':True,'no_redirect':True,'seller_disclosed':True,'acceptance_required':True,'client_callback_cannot_mark_paid':True}))
+    print(json.dumps({'fake_provider':True,'desktop_and_mobile_embedded':True,'no_redirect':True,'seller_disclosed':True,'acceptance_required':True,'client_callback_cannot_mark_paid':True,'late_checkout_cannot_mount_after_close':True}))
 if __name__=='__main__':main()
