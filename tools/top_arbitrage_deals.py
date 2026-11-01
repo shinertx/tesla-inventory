@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""Generate ranked Top Arbitrage Deals from .data/arbitrage_opportunities.json and inventory.json."""
-
+"""Rank private asking-price spread scenarios; no collected-profit or income claims."""
 from __future__ import annotations
 
 import argparse
@@ -15,125 +14,89 @@ def load_top_deals(
     models: tuple[str, ...] | None = None,
     only_live_marked_up: bool = True,
     limit: int = 50,
+    catalog_root: Path | None = None,
 ) -> list[dict]:
-    inv_path = ROOT / "inventory.json"
-    arb_path = ROOT / ".data" / "arbitrage_opportunities.json"
-
-    pub_items = {x["vin"]: x for x in json.loads(inv_path.read_text())["items"]}
-    arb_items = json.loads(arb_path.read_text())["items"]
-
-    deals: list[dict] = []
-    for a in arb_items:
-        vin = a["vin"]
-        p = pub_items.get(vin)
-        if not p:
+    root = Path(catalog_root or ROOT)
+    public = json.loads((root / 'inventory.json').read_text())['items']
+    opportunities = json.loads((root / '.data/arbitrage_opportunities.json').read_text())['items']
+    published = {item['vin']: item for item in public}
+    deals = []
+    for source in opportunities:
+        vehicle = published.get(source['vin'])
+        if not vehicle or (models and vehicle['model'] not in models):
             continue
-        if models and p["model"] not in models:
+        source_ask = source['source_asking_cents'] / 100
+        published_price = vehicle['display_price']
+        proposed_price = source['proposed_retail_cents'] / 100
+        reference = (source.get('reference_cents') or 0) / 100
+        scenario_price = published_price if only_live_marked_up else proposed_price
+        spread = round(scenario_price - source_ask, 2)
+        if spread < min_spread_dollars:
             continue
-
-        source_ask_dollars = a["source_asking_cents"] // 100
-        live_price_dollars = int(round(p["display_price"]))
-        proposed_dollars = a["proposed_retail_cents"] // 100
-        ref_dollars = (a.get("reference_cents") or 0) // 100
-
-        live_spread_dollars = live_price_dollars - source_ask_dollars
-        modeled_spread_dollars = a["modeled_gross_spread_cents"] // 100
-        effective_spread = live_spread_dollars if only_live_marked_up else modeled_spread_dollars
-
-        if effective_spread < min_spread_dollars:
-            continue
-
-        # 4-layer total gross profit estimate:
-        # Layer 1: Upfront mispriced markup (effective_spread)
-        # Layer 2: Wholesale negotiation discount ($1,000 conservative)
-        # Layer 3: AutoFi / CUDL lender reserve ($800 conservative)
-        # Layer 4: Shipping safety buffer ($200)
-        total_4layer_profit = effective_spread + 1000 + 800 + 200
-
-        deals.append(
-            {
-                "vin": vin,
-                "year": p["year"],
-                "model": p["model"],
-                "trim": p["trim"],
-                "mileage": p["mileage"],
-                "state": p.get("state") or "US",
-                "source_dealer": a.get("source_dealer") or "Source Dealer",
-                "source_url": a.get("source_url") or "",
-                "source_ask_dollars": source_ask_dollars,
-                "live_price_dollars": live_price_dollars,
-                "proposed_dollars": proposed_dollars,
-                "ref_dollars": ref_dollars,
-                "buyer_savings_dollars": max(0, ref_dollars - live_price_dollars),
-                "upfront_spread_dollars": effective_spread,
-                "total_4layer_profit_dollars": total_4layer_profit,
-                "review_flags": a.get("review_flags") or [],
-            }
-        )
-
-    deals.sort(key=lambda d: (d["upfront_spread_dollars"], -d["live_price_dollars"]), reverse=True)
+        deals.append({
+            'vin': source['vin'], 'year': vehicle['year'], 'model': vehicle['model'],
+            'trim': vehicle['trim'], 'mileage': vehicle['mileage'],
+            'state': vehicle.get('state') or 'US',
+            'source_dealer': source.get('source_dealer') or 'Source dealer not recorded',
+            'source_url': source.get('source_url') or '',
+            'source_ask_dollars': source_ask, 'live_price_dollars': published_price,
+            'proposed_dollars': proposed_price, 'ref_dollars': reference,
+            'buyer_savings_dollars': max(0, round(reference - scenario_price, 2)),
+            'modeled_gross_spread_dollars': spread,
+            'spread_basis': 'published_price_minus_source_ask' if only_live_marked_up else 'proposed_price_minus_source_ask',
+            'review_flags': source.get('review_flags') or [],
+        })
+    deals.sort(key=lambda deal: (deal['modeled_gross_spread_dollars'], -deal['live_price_dollars']), reverse=True)
     return deals[:limit]
 
 
-def write_markdown_report(output_path: Path, min_spread_dollars: int = 4000) -> dict:
-    all_live = load_top_deals(min_spread_dollars=min_spread_dollars, only_live_marked_up=True, limit=25)
-    m3_my_live = load_top_deals(
-        min_spread_dollars=min_spread_dollars,
-        models=("Model 3", "Model Y"),
-        only_live_marked_up=True,
-        limit=25,
-    )
-
+def write_markdown_report(output_path: Path | None = None, min_spread_dollars: int = 4000, *, catalog_root: Path | None = None) -> dict:
+    root = Path(catalog_root or ROOT)
+    private_root = (root / '.data').resolve()
+    output = Path(output_path or private_root / 'top-arbitrage-deals.md').resolve()
+    if not output.is_relative_to(private_root):
+        raise ValueError('Private deal reports must remain under .data; public output is refused')
+    all_deals = load_top_deals(min_spread_dollars=min_spread_dollars, limit=25, catalog_root=root)
+    volume = load_top_deals(min_spread_dollars=min_spread_dollars, models=('Model 3', 'Model Y'), limit=25, catalog_root=root)
     lines = [
-        "# Top Mispriced Tesla Arbitrage Deals (`+$4,000+` Upfront Spread)",
-        "",
-        "Generated from live [`inventory.json`](../inventory.json) and [`.data/arbitrage_opportunities.json`](../.data/arbitrage_opportunities.json).",
-        "- **Buyer Discount Policy (`PricingPolicy`):** Dynamic 50/50 buyer-seller surplus split above our `$2,300` floor (buyer saves `$500` to `$11,368` below peer market benchmark).",
-        "- **4-Layer Profit Formula:** `Upfront Mispriced Spread` + `$1,000 Wholesale Negotiation` + `$800 Lender Reserve` + `$200 Shipping Buffer`.",
-        "",
-        "## 1. Fast-Moving Volume Picks: Model 3 & Model Y (`+$4,000+` Upfront Markup)",
-        "",
-        "| VIN | Vehicle | Mi | St | Dealer Ask | Live V&V Price | Peer Ref | Buyer Saves | Upfront Spread | Est. 4-Layer Profit | Source Link |",
-        "|---|---|---:|---|---:|---:|---:|---:|---:|---:|---|",
+        '# Private Tesla asking-price spread scenarios', '',
+        f'Minimum modeled gross spread: ${min_spread_dollars:,.2f}. No upper spread cap.', '',
+        'Private operator report. Do not publish supplier identities, asking prices, or source links.',
+        'Modeled gross spread = published estimated vehicle price minus recorded source asking price, before all costs.',
+        'These are asking-price scenarios, not collected revenue, net profit, or completed-sale values.',
+        'No negotiation discount, lender reserve, or shipping income is assumed.',
+        'Source asking prices may be stale, conditional, or include unavailable incentives.',
+        'Availability, seller hold, exact equipment, condition, title, and fees require authentic evidence before a payable quote.',
+        'Reference comparisons use peer asking prices; they do not prove realized buyer savings.', '',
     ]
-    for d in m3_my_live:
-        link = f"[Listing]({d['source_url']})" if d["source_url"] else "N/A"
-        lines.append(
-            f"| `{d['vin']}` | {d['year']} {d['model']} {d['trim']} | {d['mileage']:,} | {d['state']} "
-            f"| `${d['source_ask_dollars']:,}` | **`${d['live_price_dollars']:,}`** | `${d['ref_dollars']:,}` "
-            f"| **`${d['buyer_savings_dollars']:,}`** | **`+${d['upfront_spread_dollars']:,}`** | **`+${d['total_4layer_profit_dollars']:,}`** | {link} |"
-        )
-
-    lines.extend(
-        [
-            "",
-            "## 2. Highest Dollar Spread Across All Models (Model S / X / Cybertruck / Y)",
-            "",
-            "| VIN | Vehicle | Mi | St | Dealer Ask | Live V&V Price | Peer Ref | Buyer Saves | Upfront Spread | Est. 4-Layer Profit | Source Link |",
-            "|---|---|---:|---|---:|---:|---:|---:|---:|---:|---|",
-        ]
-    )
-    for d in all_live:
-        link = f"[Listing]({d['source_url']})" if d["source_url"] else "N/A"
-        lines.append(
-            f"| `{d['vin']}` | {d['year']} {d['model']} {d['trim']} | {d['mileage']:,} | {d['state']} "
-            f"| `${d['source_ask_dollars']:,}` | **`${d['live_price_dollars']:,}`** | `${d['ref_dollars']:,}` "
-            f"| **`${d['buyer_savings_dollars']:,}`** | **`+${d['upfront_spread_dollars']:,}`** | **`+${d['total_4layer_profit_dollars']:,}`** | {link} |"
-        )
-
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text("\n".join(lines) + "\n")
-    return {"all_count": len(all_live), "m3_my_count": len(m3_my_live)}
+    for title, deals in [('Model 3 and Model Y', volume), ('All models', all_deals)]:
+        lines.extend([
+            '## ' + title, '',
+            '| VIN | Vehicle | Miles | State | Source asking price | Published estimate | Peer asking reference | Difference vs reference | Modeled gross spread before costs | Source link |',
+            '|---|---|---:|---|---:|---:|---:|---:|---:|---|',
+        ])
+        for deal in deals:
+            link = f"[Listing]({deal['source_url']})" if deal['source_url'] else 'Not recorded'
+            lines.append(
+                f"| `{deal['vin']}` | {deal['year']} {deal['model']} {deal['trim']} | {deal['mileage']:,} | {deal['state']} "
+                f"| ${deal['source_ask_dollars']:,.2f} | ${deal['live_price_dollars']:,.2f} | ${deal['ref_dollars']:,.2f} "
+                f"| ${deal['buyer_savings_dollars']:,.2f} | ${deal['modeled_gross_spread_dollars']:,.2f} | {link} |"
+            )
+        lines.append('')
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text('\n'.join(lines))
+    output.chmod(0o600)
+    return {'all_count': len(all_deals), 'm3_my_count': len(volume)}
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Filter top mispriced Tesla arbitrage deals.")
-    parser.add_argument("--min-spread", type=int, default=4000, help="Minimum upfront spread in dollars")
-    parser.add_argument("--out", type=Path, default=ROOT / "docs" / "TOP_ARBITRAGE_DEALS.md")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--min-spread', type=int, default=4000, help='Minimum modeled gross spread before costs, in dollars')
+    parser.add_argument('--out', type=Path, default=None, help='Private report path under .data (default: .data/top-arbitrage-deals.md)')
     args = parser.parse_args()
     stats = write_markdown_report(args.out, min_spread_dollars=args.min_spread)
-    print(f"Wrote {args.out} (Top M3/MY: {stats['m3_my_count']}, Top All: {stats['all_count']})")
+    print(f"Private report written (Model 3/Y: {stats['m3_my_count']}, all models: {stats['all_count']}).")
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

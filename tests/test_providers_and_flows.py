@@ -265,7 +265,7 @@ def test_top_arbitrage_deals_filter(tmp_path, monkeypatch):
     public_items, private_items = [], []
 
     def add_vehicle(vin, model, spread, savings=2000, modeled_spread=None, published=True):
-        price = 30000
+        price = max(30000, spread + 10000)
         if published:
             public_items.append({
                 'vin': vin, 'model': model, 'year': 2024, 'trim': 'Long Range',
@@ -273,7 +273,7 @@ def test_top_arbitrage_deals_filter(tmp_path, monkeypatch):
             })
         private_items.append({
             'vin': vin, 'source_asking_cents': (price - spread) * 100,
-            'proposed_retail_cents': price * 100,
+            'proposed_retail_cents': (price if modeled_spread is None else price - spread + modeled_spread) * 100,
             'reference_cents': (price + savings) * 100,
             'modeled_gross_spread_cents': (spread if modeled_spread is None else modeled_spread) * 100,
         })
@@ -286,6 +286,7 @@ def test_top_arbitrage_deals_filter(tmp_path, monkeypatch):
     add_vehicle('wrong-model', 'Model S', spread=9000)
     add_vehicle('not-published', 'Model Y', spread=9000, published=False)
     add_vehicle('modeled-only', 'Model 3', spread=0, modeled_spread=10000)
+    add_vehicle('uncapped', 'Cybertruck', spread=90000)
 
     (tmp_path / 'inventory.json').write_text(json.dumps({'items': public_items}))
     (tmp_path / '.data').mkdir()
@@ -297,10 +298,13 @@ def test_top_arbitrage_deals_filter(tmp_path, monkeypatch):
         only_live_marked_up=True, limit=10,
     )
     assert [d['vin'] for d in deals] == [f'eligible-{i}' for i in range(11, 1, -1)]
-    assert deals[0]['upfront_spread_dollars'] >= 4000
+    assert deals[0]['modeled_gross_spread_dollars'] >= 4000
     assert deals[0]['buyer_savings_dollars'] > 1500
     assert len({d['buyer_savings_dollars'] for d in deals}) >= 8
-    assert deals[0]['total_4layer_profit_dollars'] == deals[0]['upfront_spread_dollars'] + 2000
+    assert deals[0]['modeled_gross_spread_dollars'] == 5100
+    assert deals[0]['spread_basis'] == 'published_price_minus_source_ask'
+    assert top_arbitrage_deals.load_top_deals(min_spread_dollars=80000)[0]['modeled_gross_spread_dollars'] == 90000
+    assert all('total_4layer_profit_dollars' not in deal for deal in deals)
 
     all_live = top_arbitrage_deals.load_top_deals(
         min_spread_dollars=3500, models=('Model 3', 'Model Y'),
@@ -312,7 +316,26 @@ def test_top_arbitrage_deals_filter(tmp_path, monkeypatch):
         only_live_marked_up=False, limit=1,
     )
     assert modeled[0]['vin'] == 'modeled-only'
-    assert modeled[0]['upfront_spread_dollars'] == 10000
+    assert modeled[0]['modeled_gross_spread_dollars'] == 10000
+    assert modeled[0]['spread_basis'] == 'proposed_price_minus_source_ask'
+    assert modeled[0]['buyer_savings_dollars'] == 0
+
+    # The default operator report cannot overwrite the public documentation.
+    public_doc = tmp_path / 'docs' / 'TOP_ARBITRAGE_DEALS.md'
+    public_doc.parent.mkdir(); public_doc.write_text('Public operational pointer')
+    stats = top_arbitrage_deals.write_markdown_report(min_spread_dollars=3500)
+    report = tmp_path / '.data' / 'top-arbitrage-deals.md'
+    assert stats['all_count'] > 0 and report.is_file()
+    assert public_doc.read_text() == 'Public operational pointer'
+    assert report.stat().st_mode & 0o777 == 0o600
+    assert 'No negotiation discount, lender reserve, or shipping income is assumed.' in report.read_text()
+    with pytest.raises(ValueError, match='public output is refused'):
+        top_arbitrage_deals.write_markdown_report(public_doc)
+    assert public_doc.read_text() == 'Public operational pointer'
+
+    # Build jobs can report from an alternate catalog root without reading ROOT inputs.
+    monkeypatch.setattr(top_arbitrage_deals, 'ROOT', tmp_path / 'unrelated-root')
+    assert top_arbitrage_deals.write_markdown_report(report, catalog_root=tmp_path)['all_count'] > 0
 
 
 def test_pipeline_jobs_status_and_order_matcher(tmp_path):
@@ -361,7 +384,9 @@ def test_pipeline_jobs_status_and_order_matcher(tmp_path):
     assert packets[0]['source_dealer'] == 'Synthetic Source Dealer'
     assert packets[0]['source_dealer_price'] == 20000
     assert packets[0]['volts_retail_price'] == 25000
-    assert packets[0]['volts_upfront_spread'] == 5000
+    assert packets[0]['modeled_gross_spread_dollars'] == 5000
+    assert packets[0]['ancillary_income_assumed_dollars'] == 0
+    assert packets[0]['collected_revenue_established'] is False
     assert packets[0]['buyer_savings_badge'] == 1800
     status = json.loads(status_file.read_text())['jobs']['5_match_customer_orders']
     assert status['ok'] is True
