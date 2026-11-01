@@ -45,7 +45,7 @@ def main():
             state['catalog_reads'] += 1
             return r.fulfill(json={'meta': {'media_version': 'simple-fixture'}, 'items': [row]})
         if '/data/us_zip_centers.json' in url:
-            return r.fulfill(json={'zips': {'78201': ['TX', 0, 0], '78701': ['TX', 0, 0]}})
+            return r.fulfill(json={'zips': {'78201': ['TX', 0, 0], '78701': ['TX', 0, 0], '90210': ['CA', 0, 0]}})
         if '/media/' in url:
             return r.fulfill(json={row['vin']: [{'url': row['photo'], 'title': 'Fixture photo', 'category': 'photos'}]})
         if '/api/' in url:
@@ -127,6 +127,14 @@ def main():
                 assert '$21,735' in page.locator('#request-estimate').inner_text()
                 assert '$3,000' in page.locator('#request-estimate').inner_text()
                 assert page.locator('#submit-request').inner_text() == 'Request final price · $0 today'
+                page.locator('[name=zip]').fill('90210')
+                page.wait_for_function('()=>document.querySelector("#request-estimate").textContent.includes("90210")')
+                assert page.locator('[name=state]').input_value() == 'CA'
+                assert '$21,735' not in page.locator('#request-estimate').inner_text()
+                page.locator('[name=zip]').fill('12')
+                assert 'Enter a valid delivery ZIP' in page.locator('#request-estimate').inner_text()
+                assert '$21,735' not in page.locator('#request-estimate').inner_text()
+
                 page.locator('[name=name]').fill('Fixture Buyer'); page.locator('[name=email]').fill('fixture@example.test')
                 page.locator('[name=zip]').fill('78701'); page.locator('[name=payment_preference]').select_option('partner_financing')
                 page.locator('[name=consent]').check()

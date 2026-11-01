@@ -34,7 +34,7 @@ def schema_script(page_url, page_name, subset, description='', breadcrumb_name=N
         {'@type':'WebSite','@id':BASE+'/#website','url':BASE,'name':'Volts & VINs','publisher':{'@id':BASE+'/#organization'},
          'potentialAction':{'@type':'SearchAction','target':BASE+'/?q={search_term_string}','query-input':'required name=search_term_string'}},
         {'@type':'Dataset','name':f'{page_name} — Used Tesla VIN & Market Benchmark Index',
-         'description':description or f'VIN-verified catalog and mileage-adjusted peer price comparisons across {len(subset):,} used Tesla listings on Volts & VINs.',
+         'description':description or f'VIN-decoded catalog and mileage-adjusted peer price comparisons across {len(subset):,} used Tesla listings on Volts & VINs.',
          'url':page_url,'creator':{'@id':BASE+'/#organization'},'isAccessibleForFree':True,
          'keywords':['Used Tesla','Tesla Model Y','Tesla Model 3','Tesla Cybertruck','Tesla Model S','Tesla Model X','Used Tesla Price Benchmark','Tesla VIN Lookup']},
         {'@type':'ItemList','name':page_name,'url':page_url,'numberOfItems':len(subset),'itemListElement':[
@@ -59,7 +59,7 @@ def schema_script(page_url, page_name, subset, description='', breadcrumb_name=N
     if subset:
         graph.append({'@type':'FAQPage','mainEntity':[
             {'@type':'Question','name':f'How many listings are available in {page_name}?',
-             'acceptedAnswer':{'@type':'Answer','text':f'Volts & VINs currently indexes {len(subset):,} VIN-verified used Tesla listings in this view, with estimated vehicle prices starting at ${low_price:,.0f} and a median estimated price of ${med_price:,.0f} (tax, title, and delivery quoted separately).'}},
+             'acceptedAnswer':{'@type':'Answer','text':f'Volts & VINs currently indexes {len(subset):,} VIN-decoded used Tesla listings in this view, with estimated vehicle prices starting at ${low_price:,.0f} and a median estimated price of ${med_price:,.0f} (tax, title, and delivery quoted separately).'}},
             {'@type':'Question','name':'How does Volts & VINs calculate used Tesla buyer savings?',
              'acceptedAnswer':{'@type':'Answer','text':f'Each listing is compared against mileage-adjusted peer asking prices across matching Tesla model, year, trim, drivetrain, and mileage bands (minimum 5 comparable peers). In this view, {len(finds):,} vehicles are priced $500 or more below their peer benchmark{f" (up to ${max_save:,.0f} below benchmark)" if max_save else ""}. Vehicle savings apply to the vehicle price only; peer asking prices are not appraisals.'}},
             {'@type':'Question','name':'How does the $250 refundable Tesla reservation work?',
@@ -321,7 +321,7 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None):
         '## Key Marketplace Facts',
         f'- **Published VIN-Decoded Catalog**: {len(items):,} used Tesla vehicles (Model Y, Model 3, Model S, Model X, Cybertruck)',
         f'- **Peer-Benchmarked Price Finds**: {home_finds:,} listings priced `$500+` below mileage-adjusted peer asking prices (minimum 5 comparable peers in the same model, year, trim, drivetrain, and mileage band)',
-        '- **VIN-Decoded Specifications**: Every listing includes 17-character ISO 3779 VIN validation, VIN-derived build factory (Austin vs. Fremont), drivetrain (AWD vs. RWD), mileage, and location',
+        '- **VIN-Decoded Specifications**: Listings include VIN-derived build factory and drivetrain where decoded, with recorded mileage and vehicle location. Build factory is not the current vehicle location',
         '- **Purchase & Reservation Model**: Online deal builder with ZIP delivery distance estimation; `$250` refundable reservation deposit after licensed selling dealer confirmation and written hold (`dealer_fulfillment`)',
         '',
         '## Used Tesla Inventory & Benchmark Summary by Model',

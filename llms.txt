@@ -5,7 +5,7 @@
 ## Key Marketplace Facts
 - **Published VIN-Decoded Catalog**: 15,098 used Tesla vehicles (Model Y, Model 3, Model S, Model X, Cybertruck)
 - **Peer-Benchmarked Price Finds**: 1,154 listings priced `$500+` below mileage-adjusted peer asking prices (minimum 5 comparable peers in the same model, year, trim, drivetrain, and mileage band)
-- **VIN-Decoded Specifications**: Every listing includes 17-character ISO 3779 VIN validation, VIN-derived build factory (Austin vs. Fremont), drivetrain (AWD vs. RWD), mileage, and location
+- **VIN-Decoded Specifications**: Listings include VIN-derived build factory and drivetrain where decoded, with recorded mileage and vehicle location. Build factory is not the current vehicle location
 - **Purchase & Reservation Model**: Online deal builder with ZIP delivery distance estimation; `$250` refundable reservation deposit after licensed selling dealer confirmation and written hold (`dealer_fulfillment`)
 
 ## Used Tesla Inventory & Benchmark Summary by Model
