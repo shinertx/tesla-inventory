@@ -1,41 +1,42 @@
-# Current coordination checkpoint — October 31, 2026
+# Current handoff — November 1, 2026
 
-This replaces the earlier stale PR #1 checkpoint. Ben explicitly authorized Codex as chief of staff and focused agents working with Antigravity in the existing flow.
+This replaces the earlier stale checkpoints. Use current provider and deployment evidence before changing payment flags.
 
-## North star
+## Product and ownership
 
-Volts & VINs generates demand for used Teslas, identifies genuine price gaps, controls the branded customer experience, and earns agreed contribution after costs. Source dealers supply vehicles. A disclosed licensed Texas retail partner conducts sales while our own licensing remains pending. Do not assume source dealer and retail seller are the same entity. Source dealer names, costs, links, contacts, and platform spread stay private. Actual retail seller disclosures remain in required advertising, checkout and contracts. No trade-ins. The $250 reservation is credited toward purchase under clear refund terms.
+Volts & VINs controls the brand, demand generation, and customer experience. Source dealers supply vehicles. A disclosed licensed retail seller conducts each sale. These can be different entities.
 
-Use existing eligible JENNi accounts/infrastructure. No new accounts. Existing merchant credentials are not proof of automotive eligibility. Buyer-funded acquisition requires actual provider/partner acceptance. Dealer outreach remains unsent.
+Keep supplier names, source costs, links, and platform spread private. Retain required retail seller disclosures. No trade-ins. The $250 reservation is credited under its written refund terms.
 
-## Ownership
+Use existing eligible accounts and infrastructure. Create no new accounts. Existing JENNi connectivity does not establish automotive provider eligibility.
 
-- Antigravity: code, pricing/UX implementation, infrastructure/deployment, and provider adapters.
-- Codex: chief-of-staff coordination, independent acceptance checks, and read-only review agents. No concurrent application-source edits.
-- Existing shared plan: /Users/benjijmac/Documents/Codex/2026-10-30/musi/outputs/volts-and-vins-launch-plan.md
+Codex owns release integration and the isolated VM services. Antigravity's frontend commit dcb0e7c was integrated into PR #4. Coordinate new file ownership before concurrent writes.
 
-Continue the already authorized isolated HTTPS sandbox deployment without another A/B approval. Keep test funds and synthetic fixtures separate from production. Sandbox must be noindex, use persistent ORDERS_DB, protect admin endpoints, and use only existing-account Stripe TEST credentials. Return exact URL/commit/provider mode and secure verification access. Do not claim fake-provider tests prove Stripe integration.
+## Released and verified
 
-## Independent findings to incorporate
+- PR #4: https://github.com/shinertx/tesla-inventory/pull/4, merged as 8c581188a4133ce74ee96a42854b411bdf732fa6.
+- Public storefront: https://voltsandvins.com/. All 197 declared sitemap pages returned 200. HTML, JavaScript, CSS, and inventory matched the released files.
+- Production API: https://hank.jockeyvc.com/volts-api/api/. Backend 0aa6604; catalog efa5791; media version edfb5f199dd7. Requests enabled. Payments and ACH disabled. No Stripe credentials or synthetic seller in production.
+- Production uses a separate private persistent database, exact-origin CORS, bearer-protected customer records, and authenticated operator endpoints.
+- A marked browser test request was stored once, recovered after reload and private receipt entry, and cancelled. No checkout or payment was created.
+- Sandbox: https://hank.jockeyvc.com/volts-sandbox/. A new actual $250 Stripe TEST payment, signed webhook, customer cancellation, and automatic full refund succeeded. The same refund remained after restart. The refund retry timer is active. Its observed runs had an empty queue; outage retry was not proven against Stripe.
+- PR #4 CI: 107 Python tests and three browser suites passed. Fake-provider browser tests are separate from the actual Stripe TEST acceptance.
+- Pagination now preserves its expanded count after photo failure. Temporary API failures retain private order access.
 
-1. Public availability: the GitHub Pages URL redirects to voltsandvins.com, which currently shows Squarespace Coming Soon. Restore working public browsing using existing eligible hosting. Preserve sandbox isolation.
-2. Savings UX: current 15,097 catalog rows include 13,302 benchmarked rows but zero positive reference-price gaps and zero reservable vehicles. Buyer-savings defaults to zero. Fix supported savings allocation before adding badges. Show dollar gaps and comparison evidence on mobile; do not invent anchors or guarantees.
-3. Deposit ordering: distinct late success events for the SAME accepted payment can regress an advanced order into refund_pending in app/main.py:374-384. A bounded patch is ready for Antigravity review/application; no application files were edited by Codex.
+## Photo coverage
 
-Patch: /Users/benjijmac/Documents/Codex/2026-10-30/musi/outputs/preserve-accepted-deposit-events.patch
-Notes: /Users/benjijmac/Documents/Codex/2026-10-30/musi/work/deposit-ordering/README.md
-Baseline reproducer: 3 failures and 4 passes. Isolated patched selection: 9 passes including existing refund/revocation cases. Preserve canonical validations and first late-payment refunds. Apply only after checking current source and rerun the focused tests.
+Catalog: 15,097 vehicles; 10,436 multi-photo; 3,772 single-photo; 889 without photos.
 
-## Verified versus pending
+Validated recovery improved 60 VINs. Generic renders and confirmed missing image URLs were excluded. All non-photo vehicle fields, prices, savings, availability, and snapshot time were preserved.
 
-At commit 3c441b4, Codex independently confirmed 87 tests passed and desktop/mobile embedded checkout smoke passed with fake_provider=true. No real public Stripe test payment/refund is proven.
+Remaining limited galleries need accessible dealer/source feeds. A working URL does not prove every photo is current or licensed for reuse.
 
-Google site:voltsandvins.com returned no documents. Sitemap/IndexNow/schema do not establish indexing. Public storefront currently serves the registrar holding page.
+## Remaining launch requirements
 
-Last local API check: payments disabled; partner pending; supported_states empty. Live deposits require an actual seller agreement, approved payment account, supported state, reservable vehicle/complete quote/terms, public deployment, and provider payment/refund proof.
+1. Actual licensed retail seller onboarding, signed operating terms, and approved live payment account. Production currently has no approved seller.
+2. Existing eligible automotive transport and financing account access. Bounded JENNi/Flow inspection did not establish that access. Cloud metadata inspection also required reauthentication.
+3. Actual provider quote/application/booking responses, supported routes and states, expiry, and authenticated status updates. Current shipping, tax, and monthly payments are estimates.
+4. Source/dealer feeds for remaining photos and fresh availability. No supplier hold is implied by browsing.
+5. Operational ownership for pending requests, buyer/dealer notifications, documents, funding, title, and fulfillment. Status-recording endpoints do not prove those operations are automated.
 
-Infrastructure check: the locally active GCP project is jennipro-prod. meme-snipe-v19-vm was not listed in jennipro-prod or jennipro-dev. Compute Engine is disabled in jennipro-uat; Codex did not enable it. Verify the exact target project/zone and eligibility instead of assuming this VM is in the current JENNi project.
-
-## Communication
-
-Earlier sandbox constraints were delivered and acknowledged in the existing Antigravity chat. Later native UI submission is being interrupted by conversation switches. Hub fallback 80b764c5cd824095 is queued, without confirmed recipient acknowledgment. Do not claim the latest agent findings were consumed until acknowledged.
+No live deposit, lender-funded purchase, carrier booking, or completed vehicle delivery has been proven. Dealer outreach remains unsent.
