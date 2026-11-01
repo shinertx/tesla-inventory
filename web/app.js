@@ -112,7 +112,7 @@
     if(resetLimit!==false)limit=36;render();
   }
   function render(){
-    $('result-count').textContent=`${filtered.length.toLocaleString()} Tesla listings`;
+    $('result-count').textContent=`${filtered.length.toLocaleString()} Tesla ${filtered.length===1?'listing':'listings'}`;
     $('cards').innerHTML=filtered.slice(0,limit).map((x,i)=>`<article class="card" data-vin="${x.vin}"><div class="photo-wrap">${image(x,'',i<6)}${(x.photo_count||x.photos?.length)>1?`<span class="photo-count">▧ ${x.photo_count||x.photos.length} photos</span>`:''}<button class="save" data-save="${x.vin}" aria-label="${saved.has(x.vin)?'Remove saved':'Save'} ${esc(x.year+' '+x.model)}" aria-pressed="${saved.has(x.vin)}">${saved.has(x.vin)?'♥':'♡'}</button></div><a class="card-main" href="?vin=${x.vin}" data-open="${x.vin}"><h3>${x.year} Tesla ${esc(x.model)}</h3><div class="trim">${esc(x.trim)}</div><div class="card-specs"><span>${odometer(x)}</span>${x.drivetrain?`<span title="${esc(x.drivetrain_basis)}">${esc(x.drivetrain)}</span>`:''}${x.factory?`<span>${esc(x.factory)}</span>`:''}${x.hardware?`<span>${esc(x.hardware)} verified</span>`:''}</div><div class="card-price"><strong class="price">${dollars(x.display_price)}</strong><span>est.</span>${saving(x)>0?`<span class="price-win">Save ${dollars(saving(x))}</span>`:''}</div></a>${saving(x)>0?`<details class="card-benchmark"><summary>Vs. ${dollars(x.reference_price)} benchmark · ${x.reference_sample} peers · ${esc(benchDate(x))}</summary><p>Mileage-adjusted comparison across ${x.reference_sample} peer Tesla asking prices (${esc(benchDate(x))} snapshot). Vehicle price only; tax, title, and delivery are quoted separately. Peer asking prices are not appraisals or guaranteed resale values.</p></details>`:''}<div class="card-footer"><span>${esc(x.city||'Vehicle location')}${x.state!=='US'?', '+esc(x.state):''}${nearbyLabel(x)?`<small>${nearbyLabel(x)}</small>`:''}</span><span class="reserve-note">Build your deal →</span></div></article>`).join('');
     $('empty').hidden=filtered.length>0;$('load-more').hidden=limit>=filtered.length;
     attachImageFallbacks($('cards'));
@@ -338,6 +338,7 @@
   }
   function paintGallery(){
     $('gallery-prev').hidden=$('gallery-next').hidden=galleryPhotos.length<2;
+    $('photo-expand').hidden=!galleryPhotos.length;
     if(!galleryPhotos.length)return;const photo=galleryPhotos[galleryIndex];
     $('gallery-stage').innerHTML=`<img class="loaded" src="${esc(photo.url)}" alt="${esc(photo.title)}" referrerpolicy="no-referrer">`;
     watchGalleryImage($('gallery-stage').querySelector('img'));
@@ -445,8 +446,10 @@
     const reservableCount=items.filter(x=>x.reservable).length;
     if($('reservable-label'))$('reservable-label').textContent=reservableCount?`Reservable now (${reservableCount} seller-approved)`:'Reservable now (0 seller-approved · browsing discovery catalog)';
     if($('reservable-only'))$('reservable-only').disabled=!reservableCount;
+    if($('reservable-only'))$('reservable-only').closest('label').hidden=!reservableCount;
     document.querySelector('[data-discover=finds]').hidden=!items.some(x=>saving(x)>=500);
     for(const option of $('hardware').options){if(option.value){const count=items.filter(x=>x.hardware===option.value).length;option.disabled=!count;option.textContent=count?`${option.value} · ${count} verified`:`${option.value} — evidence needed`;}}
+    $('hardware').closest('label').hidden=!items.some(x=>x.hardware);
     options('model',[...new Set(items.map(x=>x.model))].sort());options('year',[...new Set(items.map(x=>x.year))].sort((a,b)=>b-a));options('state',[...new Set(items.map(x=>x.state))].filter(x=>x!=='US').sort());
     $('snapshot-status').textContent='Your next favorite is in here.';
     const preset=document.body.dataset.preset;if(preset){for(const part of preset.split(';')){const [key,value]=part.split(':');if(key==='discover'){discovery=value;document.querySelectorAll('[data-discover]').forEach(b=>b.classList.toggle('active',b.dataset.discover===value));}else if($(key))$(key).value=value;}}
