@@ -1,0 +1,31 @@
+name: Scheduled Catalog & Dynamic Pricing Refresh
+on:
+  schedule:
+    - cron: '17 */2 * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - name: Run 5-stage pipeline (Discover -> Enrich -> Reprice/Build -> Publish/IndexNow)
+        env:
+          ENABLE_GITHUB_PAGES_CNAME: 'true'
+          BUYER_SURPLUS_SHARE: '0.5'
+        run: |
+          git config user.name "volts-pipeline-bot"
+          git config user.email "bot@voltsandvins.com"
+          python tools/pipeline_jobs.py --job discover
+          python tools/pipeline_jobs.py --job enrich
+          python tools/pipeline_jobs.py --job build
+          python tools/pipeline_jobs.py --job publish --git-push

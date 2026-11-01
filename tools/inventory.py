@@ -43,8 +43,8 @@ def export(db_path,destination):
     # A bounded partial refresh must not discard unrelated source candidates.
     target=Path(destination)
     prior=json.loads(target.read_text()).get('items',[]) if target.exists() else []
-    managed_sources={r[0] for r in c.execute('SELECT DISTINCT source FROM listings')}
-    retained={x['vin']:x for x in prior if x.get('source') not in managed_sources}
+    inactive={(r[0],r[1]) for r in c.execute('SELECT vin,source FROM listings WHERE active=0')}
+    retained={x['vin']:x for x in prior if (x.get('vin'),x.get('source')) not in inactive}
     for (raw,) in rows:
         row=json.loads(raw)
         if row['vin'] not in seen:seen.add(row['vin']);retained[row['vin']]=row
