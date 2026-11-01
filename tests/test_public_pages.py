@@ -40,3 +40,24 @@ def test_catalog_version_changes_without_repricing(tmp_path):
     render_public_pages(data, tmp_path)
     assert version() != first
     assert data['items'][0]['display_price'] == 34948
+
+
+def test_top_price_find_vehicle_pages_render_with_initial_vin(tmp_path):
+    data = catalog()
+    data['items'][0]['display_price'] = 30149
+    data['items'][0]['reference_price'] = 33549
+    data['items'][0]['savings_amount'] = 3400
+    data['items'][0]['reference_sample'] = 21
+    result = render_public_pages(data, tmp_path)
+    assert result['vehicle_pages'] == 1
+    assert result['sitemap_urls'] == 5
+    v_page = tmp_path / 'v' / '7SAYGDED1RF039277.html'
+    assert v_page.is_file()
+    v_html = v_page.read_text()
+    assert 'data-initial-vin="7SAYGDED1RF039277"' in v_html
+    assert 'https://voltsandvins.com/v/7SAYGDED1RF039277.html' in v_html
+    assert 'Save $3,400' in v_html
+    assert 'Built in Fremont' in v_html
+    assert 'PRIVATE SUPPLIER NAME' not in v_html
+    assert 'https://voltsandvins.com/v/7SAYGDED1RF039277.html' in (tmp_path / 'sitemap.xml').read_text()
+

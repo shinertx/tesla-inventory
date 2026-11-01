@@ -1,3 +1,31 @@
+# Antigravity Checkpoint — Static `/v/{VIN}.html` Top 200 Vehicle Pages (November 1, 2026)
+
+- **Ownership Split Acknowledged:** Antigravity owned only `tools/build.py`, generated `/v/*.html` (`200` pages), `sitemap.xml`, `llms.txt` / `llms-full.txt`, static category links (`deals/*.html`, `models/*.html`, `states/*.html`, `years/*.html`), and `tests/test_public_pages.py`.
+- **Untouched Codex Files:** `app/main.py`, `app/models.py`, `app/providers.py`, `web/app.js`, `web/index.html`, `web/styles.css`, and `inventory.json` were left 100% untouched.
+- **Draft & Compliance Invariants Preserved:** Jockey remains an unverified draft placeholder only; all Texacars, AutoFi, and Super Dispatch inquiries remain drafts; no live payment enablement, new accounts, or vendor sends were made.
+- **Static VDP Implementation (`tools/build.py` + `v/*.html`):**
+  - Renders top `200` peer-benchmarked price-find Teslas (`savings_amount >= 500`, `reference_sample >= 5`) to `/v/{VIN}.html`.
+  - Sets `<body data-preset="model:{model}" data-initial-vin="{VIN}">` on every `/v/{VIN}.html` page so Codex's `web/app.js` bootstrap opens the exact VIN drawer automatically.
+  - Embeds canonical URL (`https://voltsandvins.com/v/{VIN}.html`), `Car` + `BreadcrumbList` + `FAQPage` JSON-LD, VIN-decoded build factory (`Built in {factory}` labeled distinctly from `Vehicle location`), peer benchmark savings, and required disclosures without leaking supplier names or listing links.
+  - Updates `sitemap.xml` (`397` total URLs = `1` home + `196` category + `200` `/v/{VIN}.html` pages), category featured links, and `llms.txt` / `llms-full.txt`.
+- **Verification Evidence:**
+  - `ENABLE_GITHUB_PAGES_CNAME=true python3 tools/build.py --public-catalog inventory.json` -> `{"published": 15098, "excluded": {}, "category_pages": 196, "vehicle_pages": 200, "sitemap_urls": 397}`
+  - `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q tests` -> `190 passed, 2 warnings` (including `test_top_price_find_vehicle_pages_render_with_initial_vin`).
+
+---
+
+# Active provider launch engineering — November 1, 2026
+
+Ben resumed launch work, then confirmed no dealer has agreed yet. Use Jockey only as an unverified draft label. All Texacars, AutoFi and Super Dispatch inquiries must remain DRAFTS. No account creation, paid plans, vendor sends or real-payment enablement is authorized from placeholder data.
+
+Ownership accepted in the native Tesla chat: Antigravity owns tools/build.py, static /v pages, sitemap and their tests. Codex owns app/main.py, app/models.py, app/providers.py and web/app.js for provider integrity, fresh private-order shipping estimates and hosted lender application states. Set body data-initial-vin on static VDPs; root has added support. Coordinate the final builder/pages refresh before publishing matching asset hashes.
+
+Root candidate codex/provider-launch-integrity removes fake legacy APR/booking/evidence; preserves the verified Super Dispatch client; adds sanitized, route-matched, expiring customer estimates; adds honest application_ready/application_submitted states and approved lender hosts. Production credentials remain absent and gates remain off.
+
+Latest evidence: existing Stripe public business identity is JENNi sandbox, using TEST access. Cache follow-up recovered zero new photos;886 have none and3,776 have one. Missing photo completion requires authorized source/dealer feeds. Owner inputs are prepared in the current Codex task outputs/launch-inputs-for-ben.md.
+
+--- Prior handoff ---
+
 # Active work split — November 1, 2026
 
 Ben confirmed the dealer, financing, and transport accounts do not exist yet. Antigravity owns obtaining those providers and dealer onboarding. Codex owns the remaining site functions and release integration. Do not repeat provider discovery in the functions task.
