@@ -12,6 +12,7 @@ from .models import PurchaseRequest, Quote, Transition, Cancellation, CheckoutAc
 from .store import Store
 from .payments import StripePayments
 from .media import VehicleMedia
+from .catalog import catalog_exclusions
 from .providers import SuperDispatchPricingClient, ProviderNotConfigured, ProviderUnavailable, UnsupportedRoute
 from pydantic import BaseModel, ConfigDict, StrictBool
 from dataclasses import asdict
@@ -106,6 +107,13 @@ def create_app(settings=None, payments=None, shipping=None):
         row=c.execute('SELECT * FROM orders WHERE id=?',(order_id,)).fetchone()
         if not row:raise HTTPException(404,'Request not found')
         return row
+
+    def require_vehicle_review_clear(vin):
+        try:excluded=catalog_exclusions(settings.inventory_path)
+        except ValueError:
+            raise HTTPException(503,'Vehicle history review status is unavailable. Please retry later.') from None
+        if vin in excluded:
+            raise HTTPException(409,'This vehicle is unavailable pending history review. Existing request access and support remain available.')
 
     def dealer_for(c,dealer_id):
         stored=c.execute('SELECT profile FROM dealers WHERE id=?',(dealer_id,)).fetchone()
@@ -296,6 +304,7 @@ def create_app(settings=None, payments=None, shipping=None):
 
     @app.get('/api/vehicles/{vin}/photos')
     def vehicle_photos(vin:str,request:Request):
+        require_vehicle_review_clear(vin)
         if vin not in vehicles:raise HTTPException(404,'Vehicle not found')
         if not store.rate_limit('media:'+digest(request.client.host if request.client else 'unknown'),limit=120):raise HTTPException(429,'Photo lookup limit reached')
         published=vehicles[vin].get('photos',[])
@@ -305,6 +314,7 @@ def create_app(settings=None, payments=None, shipping=None):
 
     @app.post('/api/requests',status_code=201)
     def purchase(body:PurchaseRequest,request:Request,idempotency_key:Annotated[str,Header()]):
+        require_vehicle_review_clear(body.vin)
         if not 16<=len(idempotency_key)<=100:raise HTTPException(400,'Use a unique request key')
         if body.vin not in vehicles:raise HTTPException(404,'Vehicle not in published inventory')
         expires=vehicles[body.vin].get('expires_at')
@@ -371,6 +381,7 @@ def create_app(settings=None, payments=None, shipping=None):
         if body.total_cents<DEPOSIT:raise HTTPException(409,'Deposit exceeds total')
         with store.transaction() as c:
             row=get_order(c,order_id)
+            require_vehicle_review_clear(row['vin'])
             if row['state'] not in ('requested','quoted','quote_expired'):raise HTTPException(409,'Order cannot be requoted')
             dealer=dealer_for(c,body.dealer_id)
             customer=json.loads(row['customer'])
@@ -396,6 +407,7 @@ def create_app(settings=None, payments=None, shipping=None):
         with store.transaction() as c:
             store.expire(c,now)
             row=order_access(c,order_id,authorization)
+            require_vehicle_review_clear(row['vin'])
             if row['state'] not in ('quoted','checkout_pending'):raise HTTPException(409,'A verified quote is required')
             dealer=dealer_for_order(c,row)
             destination=json.loads(row['customer']).get('state')
@@ -439,6 +451,7 @@ def create_app(settings=None, payments=None, shipping=None):
         now=int(time.time())
         with store.transaction() as c:
             row=order_access(c,order_id,authorization)
+            require_vehicle_review_clear(row['vin'])
             if row['state']!='dealer_confirmed':raise HTTPException(409,'Dealer order acceptance and signed contract are required before balance payment')
             if row['payment_preference']=='partner_financing' and row['financing_state']!='declined':
                 raise HTTPException(409,'Order is set to partner financing; switch to cash/ACH or complete lender funding')
