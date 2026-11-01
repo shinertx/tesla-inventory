@@ -11,7 +11,7 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
-from static_browser_smoke import PagesHandler
+from static_browser_smoke import PagesHandler, open_details
 from storefront_controls_browser_smoke import fixtures, SVG
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -166,11 +166,11 @@ def main():
                 assert len(state['pending']) == 1
                 state['pending'].pop().fulfill(status=201, json=dict(order, access_token=token))
                 state['hold_request'] = False
-                page.locator('#order-dialog[open]').wait_for(); page.locator('#copy-access').click()
+                page.locator('#order-dialog[open]').wait_for(); open_details(page, '#order-access'); page.locator('#copy-access').click()
                 private_link = page.evaluate('navigator.clipboard.readText()')
                 assert private_link.startswith(base) and '#request=' in private_link and token in private_link
                 with page.expect_download() as download:
-                    page.locator('#save-access').click()
+                    open_details(page, '#order-access'); page.locator('#save-access').click()
                 text = Path(download.value.path()).read_text()
                 assert 'Volts' in text and token in text and 'href=' in text and '.html' in download.value.suggested_filename
                 page.locator('[data-close=order-dialog]').click()
@@ -180,7 +180,7 @@ def main():
                 recovered.locator('#order-dialog[open]').wait_for()
                 assert '#' not in recovered.url and token not in recovered.url
                 assert recovered.evaluate('JSON.parse(sessionStorage.getItem("marketplace_order")).id') == order_id
-                recovered.locator('#switch-order').click()
+                open_details(recovered, '#order-access'); recovered.locator('#switch-order').click()
                 before = state['reads']
                 for invalid in ['https://other.example/#request=x&access=y', base+'wrong#request=x&access=y', 'not a URL']:
                     recovered.locator('#recover-link').fill(invalid); recovered.locator('#open-return-link').click()

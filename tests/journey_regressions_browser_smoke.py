@@ -90,9 +90,10 @@ def main():
                     order.update(state=phase, quote=quote, quote_version=1, payment_preference='cash')
                     order['balance_payment_state'] = 'paid' if phase in ('in_transit', 'completed') else 'unpaid'
                     page.locator('#refresh-order').click()
-                    page.wait_for_function('(text)=>document.querySelector("#order-content").textContent.includes(text)', arg={
-                        'quoted': 'Your written quote', 'deposit_paid': 'reservation is confirmed',
-                        'dealer_confirmed': 'purchase is accepted', 'in_transit': 'on its way', 'completed': 'purchase is complete'}[phase])
+                    page.get_by_role('heading', name={
+                        'quoted': 'Your final price is ready', 'deposit_paid': 'Deposit verified',
+                        'dealer_confirmed': 'Dealer accepted your purchase', 'in_transit': 'Carrier has the vehicle',
+                        'completed': 'Purchase complete'}[phase], exact=True).wait_for()
                     assert page.locator('#order-next-step').evaluate('(el)=>!!(el.compareDocumentPosition(document.querySelector("#order-access"))&Node.DOCUMENT_POSITION_FOLLOWING)')
                     assert page.locator('#order-payment-summary').is_visible()
                     due = page.locator('#order-amount-due').inner_text()

@@ -10,6 +10,13 @@ class PagesHandler(SimpleHTTPRequestHandler):
         return super().do_GET()
     def log_message(self,*args):pass
 
+def open_details(page, selector):
+    details=page.locator(selector)
+    details.wait_for(state='attached')
+    if not details.evaluate('(el)=>el.open'):
+        details.locator('summary').click()
+
+
 def main(out):
     out=Path(out);out.mkdir(parents=True,exist_ok=True)
     server=ThreadingHTTPServer(('127.0.0.1',0),functools.partial(PagesHandler,directory=str(ROOT)))

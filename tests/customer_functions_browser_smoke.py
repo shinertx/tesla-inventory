@@ -3,7 +3,7 @@ import functools,json,threading
 from pathlib import Path
 from http.server import ThreadingHTTPServer
 from playwright.sync_api import sync_playwright
-from static_browser_smoke import PagesHandler
+from static_browser_smoke import PagesHandler, open_details
 
 ROOT=Path(__file__).resolve().parents[1]
 SVG='<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800"><rect width="1200" height="800" fill="#dce5eb"/></svg>'
@@ -124,16 +124,16 @@ def main():
                 delayed=[];page.route('**/api/orders/fixture-order',lambda r:delayed.append(r))
                 with page.expect_request(lambda r:r.url.endswith('/api/orders/fixture-order')):
                     page.locator('#refresh-order').click()
-                page.locator('#switch-order').click();page.locator('#legacy-recovery summary').click();page.locator('#recover-id').fill('fixture-second');page.locator('#recover-token').fill('second-access');page.locator('#recover-form button.secondary').click()
+                open_details(page, '#order-access'); page.locator('#switch-order').click();page.locator('#legacy-recovery summary').click();page.locator('#recover-id').fill('fixture-second');page.locator('#recover-token').fill('second-access');page.locator('#recover-form button.secondary').click()
                 page.get_by_text('Request fixture-second',exact=True).wait_for()
                 assert len(delayed)==1;delayed[0].fulfill(json=state['order']);page.wait_for_load_state('networkidle')
                 assert 'Request fixture-second' in page.locator('#order-content').inner_text()
                 page.unroute('**/api/orders/fixture-order');state['order']['state']='requested'
-                page.locator('#switch-order').click();page.locator('#legacy-recovery summary').click();page.locator('#recover-id').fill('fixture-order');page.locator('#recover-token').fill('fixture-access');page.locator('#recover-form button.secondary').click();page.locator('#order-payment-pref').wait_for()
+                open_details(page, '#order-access'); page.locator('#switch-order').click();page.locator('#legacy-recovery summary').click();page.locator('#recover-id').fill('fixture-order');page.locator('#recover-token').fill('fixture-access');page.locator('#recover-form button.secondary').click();open_details(page, '.payment-settings');page.locator('#order-payment-pref').wait_for()
                 pending_preference=[];page.route('**/api/orders/fixture-order/payment-preference',lambda r:pending_preference.append(r))
                 with page.expect_request(lambda r:r.url.endswith('/payment-preference')):
-                    page.select_option('#order-payment-pref','partner_financing')
-                page.locator('#switch-order').click();page.locator('#legacy-recovery summary').click();page.locator('#recover-id').fill('fixture-second');page.locator('#recover-token').fill('second-access');page.locator('#recover-form button.secondary').click();page.get_by_text('Request fixture-second',exact=True).wait_for()
+                    open_details(page, '.payment-settings');page.select_option('#order-payment-pref','partner_financing')
+                open_details(page, '#order-access'); page.locator('#switch-order').click();page.locator('#legacy-recovery summary').click();page.locator('#recover-id').fill('fixture-second');page.locator('#recover-token').fill('second-access');page.locator('#recover-form button.secondary').click();page.get_by_text('Request fixture-second',exact=True).wait_for()
                 assert len(pending_preference)==1;pending_preference[0].fulfill(json={**state['order'],'payment_preference':'partner_financing'});page.wait_for_load_state('networkidle')
                 assert 'Request fixture-second' in page.locator('#order-content').inner_text()
                 results[f'late_order_responses_keep_current_request_{width}']=True
