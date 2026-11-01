@@ -14,6 +14,7 @@ class PurchaseRequest(StrictModel):
     demand_channel: str = Field(default="direct",pattern=r"^[a-z0-9_-]{1,60}$")
     campaign_id: str = Field(default="",max_length=100)
     payment_preference: Literal['cash','partner_financing'] = 'cash'
+    expected_vehicle_price_cents: int | None = Field(default=None, gt=0, le=100_000_000, strict=True)
     consent: Literal[True]
 
     @field_validator('email')

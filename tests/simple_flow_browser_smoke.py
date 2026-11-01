@@ -35,7 +35,8 @@ def main():
                display_price=20000, reference_price=23000, hardware=None, reservable=False)
     order_id, token = 'simple-fixture-order', 'simple-fixture-private-token'
     order = {'id': order_id, 'vin': row['vin'], 'state': 'requested', 'quote_version': 0,
-             'quote': None, 'payment_preference': 'cash', 'online_actions': []}
+             'quote': None, 'payment_preference': 'cash', 'online_actions': [], 'vehicle': dict(row),
+             'price_commitment': {'vehicle_price_cents': 2000000, 'scope': 'vehicle_price_only'}}
     state = {'malformed': False, 'posts': 0, 'reads': 0, 'visits': [], 'unexpected': [], 'hold_request': False, 'pending': [], 'catalog_reads': 0}
     results = {'local_fixtures': True, 'real_providers': False, 'real_payments': False, 'viewports': {}, 'javascript_errors': []}
 
@@ -56,6 +57,7 @@ def main():
                 return r.fulfill(json={'recorded': True})
             if path == 'requests':
                 state['posts'] += 1
+                assert r.request.post_data_json['expected_vehicle_price_cents'] == 2000000
                 if state['hold_request']:
                     state['pending'].append(r)
                     return
@@ -92,11 +94,14 @@ def main():
                     assert page.locator('#mobile-filters').get_attribute('aria-expanded') == 'false'
                 card = page.locator(f'[data-price="{row["vin"]}"]')
                 assert card.inner_text() == 'Review price'
+                assert 'est.' not in page.locator('.card-price').first.inner_text()
                 card.click(); page.locator('#deal-dialog[open]').wait_for()
                 assert not page.locator('#vehicle-dialog').evaluate('(el)=>el.open')
                 visible_button(page, '#deal-continue')
                 page.locator('#deal-back').click(); page.locator('#vehicle-dialog[open]').wait_for()
                 visible_button(page, '#vehicle-request')
+                assert 'Estimated vehicle price' not in page.locator('.vehicle-summary').inner_text()
+                assert 'Vehicle price' in page.locator('.vehicle-summary').inner_text()
                 assert page.locator('#vehicle-request').inner_text() == 'Review price'
                 page.locator('#vehicle-content').evaluate('(el)=>el.scrollTop=el.scrollHeight')
                 visible_button(page, '#vehicle-request')
@@ -174,7 +179,9 @@ def main():
                 assert len(state['pending']) == 1
                 state['pending'].pop().fulfill(status=201, json=dict(order, access_token=token))
                 state['hold_request'] = False
-                page.locator('#order-dialog[open]').wait_for(); open_details(page, '#order-access'); page.locator('#copy-access').click()
+                page.locator('#order-dialog[open]').wait_for()
+                assert re.search(r'\$20,000(?:\.00)? or lower', page.locator('#order-vehicle-price').inner_text())
+                open_details(page, '#order-access'); page.locator('#copy-access').click()
                 private_link = page.evaluate('navigator.clipboard.readText()')
                 assert private_link.startswith(base) and '#request=' in private_link and token in private_link
                 with page.expect_download() as download:
@@ -183,9 +190,13 @@ def main():
                 assert 'Volts' in text and token in text and 'href=' in text and '.html' in download.value.suggested_filename
                 page.locator('[data-close=order-dialog]').click()
                 context.close()
+                row['display_price'], row['reference_price'] = 25000, 29000
                 fresh = browser.new_context(viewport={'width': width, 'height': 844}); fresh.route('**/*', route); fresh.add_init_script('window.ENABLE_VISIT_BEACON=true')
                 recovered = fresh.new_page(); recovered.goto(private_link)
                 recovered.locator('#order-dialog[open]').wait_for()
+                assert re.search(r'\$20,000(?:\.00)? or lower', recovered.locator('#order-vehicle-price').inner_text())
+                assert 'Save $3,000.00' in recovered.locator('.order-vehicle-card').inner_text()
+                assert '9,000' not in recovered.locator('.order-vehicle-card').inner_text()
                 assert '#' not in recovered.url and token not in recovered.url
                 assert recovered.evaluate('JSON.parse(sessionStorage.getItem("marketplace_order")).id') == order_id
                 open_details(recovered, '#order-access'); recovered.locator('#switch-order').click()
@@ -200,6 +211,7 @@ def main():
                 assert recovered.evaluate('document.documentElement.scrollWidth<=innerWidth')
                 assert not any(token in v or 'access=' in v for v in state['visits'])
                 fresh.close()
+                row['display_price'], row['reference_price'] = 20000, 23000
                 results['viewports'][str(width)] = {'card_footer_direct_price': True, 'back_preserves_draft': True,
                     'close_buttons': True, 'sticky_footers_start_end': True, 'flow_input_bounds': True, 'estimate_math': True,
                     'malformed_response_no_payment_claim': True, 'pending_post_guards_navigation': True, 'private_copy_download_recovery': True,

@@ -24,7 +24,7 @@ class Shipping:
 
 def setup(tmp_path,**changes):
     inventory=tmp_path/'inventory.json'
-    inventory.write_text(json.dumps({'items':[{'vin':VIN,'model':'Model Y','year':2024,'city':'Dallas','state':'TX'}]}))
+    inventory.write_text(json.dumps({'items':[{'vin':VIN,'display_price':29000,'model':'Model Y','year':2024,'city':'Dallas','state':'TX'}]}))
     settings=Settings(db_path=tmp_path/'orders.db',inventory_path=inventory,origin='https://voltsandvins.com',
                       admin_token=TOKEN,super_dispatch_api_key='fixture-private-key',shipping_estimates_enabled=True)
     settings=replace(settings,**changes)

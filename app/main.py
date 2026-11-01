@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Annotated
 import hashlib, hmac, json, secrets, sqlite3, time, uuid
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from datetime import datetime, timezone
 from fastapi import FastAPI, Depends, Header, HTTPException, Request
 from fastapi.middleware.gzip import GZipMiddleware
@@ -42,11 +43,13 @@ def _load_inventory(path):
     stat=path.stat()
     key=(str(path),stat.st_mtime_ns,stat.st_size)
     if _INVENTORY_CACHE.get('key')!=key:
-        inv=json.loads(path.read_text())
+        raw=path.read_bytes()
+        inv=json.loads(raw)
         _INVENTORY_CACHE['key']=key
         _INVENTORY_CACHE['inv']=inv
         _INVENTORY_CACHE['vehicles']={x['vin']:x for x in inv['items']}
-    return _INVENTORY_CACHE['inv'],_INVENTORY_CACHE['vehicles']
+        _INVENTORY_CACHE['revision']=hashlib.sha256(raw).hexdigest()
+    return _INVENTORY_CACHE['inv'],_INVENTORY_CACHE['vehicles'],_INVENTORY_CACHE['revision']
 
 class ShippingEstimateRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
@@ -57,7 +60,7 @@ def create_app(settings=None, payments=None, shipping=None):
     settings=settings or Settings.from_env()
     store=Store(settings.db_path)
     payments=payments or StripePayments(settings)
-    inventory,vehicles=_load_inventory(settings.inventory_path)
+    inventory,vehicles,inventory_revision=_load_inventory(settings.inventory_path)
     app=FastAPI(title='Volts & VINs',docs_url=None,redoc_url=None)
     app.add_middleware(GZipMiddleware,minimum_size=500)
     # The public static storefront may use a separate, narrowly scoped API host.
@@ -115,6 +118,34 @@ def create_app(settings=None, payments=None, shipping=None):
         if vin in excluded:
             raise HTTPException(409,'This vehicle is unavailable pending history review. Existing request access and support remain available.')
 
+    def catalog_price_cents(value):
+        if type(value) not in (int,float):
+            raise HTTPException(409,'Vehicle price is unavailable. Review an updated listing before requesting this vehicle.')
+        try:
+            amount=Decimal(str(value))
+            if not amount.is_finite() or not 0<amount<=1_000_000:raise ValueError()
+            cents=int((amount*100).quantize(Decimal('1'),rounding=ROUND_HALF_UP))
+            if cents<=0:raise ValueError()
+            return cents
+        except (InvalidOperation,ValueError):
+            raise HTTPException(409,'Vehicle price is unavailable. Review an updated listing before requesting this vehicle.') from None
+
+    def saved_price_commitment(row,strict=True):
+        if row['price_commitment'] is None:return None  # No fabricated history for pre-migration requests.
+        try:
+            saved=json.loads(row['price_commitment'])
+            amount=saved['vehicle_price_cents']
+            if type(amount) is not int or not 0<amount<=100_000_000:raise ValueError()
+            return saved
+        except (ValueError,TypeError,KeyError):
+            if not strict:return None
+            raise HTTPException(409,'Saved vehicle price requires review before this request can proceed.') from None
+
+    def protect_vehicle_price(row,quote_price):
+        saved=saved_price_commitment(row)
+        if saved and quote_price>saved['vehicle_price_cents']:
+            raise HTTPException(409,'Quote vehicle price exceeds the price saved with this request. Honor the saved price or mark this vehicle unavailable.')
+
     def dealer_for(c,dealer_id):
         stored=c.execute('SELECT profile FROM dealers WHERE id=?',(dealer_id,)).fetchone()
         if not stored:raise HTTPException(409,'Fulfilling dealer has not been onboarded')
@@ -170,9 +201,11 @@ def create_app(settings=None, payments=None, shipping=None):
     def public(row,c):
         q=json.loads(row['quote']) if row['quote'] and row['workflow_model']=='dealer_fulfillment' else None
         summary=None
+        commitment=saved_price_commitment(row,strict=False)
         v=vehicles.get(row['vin'],{})
-        ref_price=v.get('reference_price')
-        ref_sample=int(v.get('reference_sample') or 0)
+        comparison=commitment.get('comparison',{}) if commitment else v
+        ref_price=comparison.get('reference_price')
+        ref_sample=int(comparison.get('reference_sample') or 0)
         ref_cents=int(round(ref_price*100)) if ref_price and ref_sample>=5 else None
         if q:
             parsed=Quote.model_validate(q)
@@ -185,16 +218,17 @@ def create_app(settings=None, payments=None, shipping=None):
                 balance_after_deposit_cents=parsed.total_cents-DEPOSIT,
                 reference_price_cents=ref_cents,
                 reference_sample=ref_sample if ref_cents else 0,
-                benchmark_date=v.get('benchmark_date'),
+                benchmark_date=comparison.get('benchmark_date'),
                 vehicle_savings_cents=max(0,ref_cents-parsed.vehicle_price_cents) if ref_cents else 0,
                 terms={k:q[k] for k in ['buyers_guide_reference','warranty_terms_reference','return_terms_reference','deposit_terms_reference']})
         vehicle_summary={'vin':row['vin'],'year':v.get('year'),'model':v.get('model'),'trim':v.get('trim'),
-            'mileage':v.get('mileage'),'display_price':v.get('display_price'),
+            'mileage':v.get('mileage'),'display_price':commitment['vehicle_price_cents']/100 if commitment else v.get('display_price'),
             'reference_price':ref_price if ref_cents else None,'reference_sample':ref_sample if ref_cents else 0,
-            'benchmark_date':v.get('benchmark_date'),'photo':v.get('photo'),'city':v.get('city'),'state':v.get('state')} if v and v.get('model') else None
+            'benchmark_date':comparison.get('benchmark_date'),'photo':v.get('photo'),'city':v.get('city'),'state':v.get('state')} if v and v.get('model') else None
         financing=json.loads(row['financing_detail']) if row['financing_detail'] else {'state':row['financing_state']}
         transport=json.loads(row['transport_detail']) if row['transport_detail'] else {'state':row['transport_state']}
         return {'id':row['id'],'vin':row['vin'],'state':row['state'],'quote':summary,
+                'price_commitment':{'vehicle_price_cents':commitment['vehicle_price_cents'],'scope':'vehicle_price_only'} if commitment else None,
                 'vehicle':vehicle_summary,'refund_submitted':bool(row['refund_id']),
                 'quote_version':row['quote_version'],'action_due_at':row['action_due_at'],
                 'payment_preference':row['payment_preference'],'balance_payment_state':row['balance_payment_state'],
@@ -344,7 +378,7 @@ def create_app(settings=None, payments=None, shipping=None):
         if expires and datetime.fromisoformat(expires).timestamp()<=time.time():raise HTTPException(409,'This source snapshot has expired; refresh the vehicle first')
         if not store.rate_limit(digest(request.client.host if request.client else 'unknown')):
             raise HTTPException(429,'Too many requests. Try again later.')
-        raw=body.model_dump_json();request_hash=digest(raw);now=int(time.time())
+        raw=body.model_dump_json(exclude_none=True);request_hash=digest(raw);now=int(time.time())
         # Token derivation permits an idempotent retry without storing a plaintext bearer token.
         token=hmac.new(idempotency_key.encode(),raw.encode(),hashlib.sha256).hexdigest()
         with store.transaction() as c:
@@ -352,13 +386,20 @@ def create_app(settings=None, payments=None, shipping=None):
             if row:
                 if row['request_hash']!=request_hash:raise HTTPException(409,'Request key already used')
                 return {**public(row,c),'access_token':token}
+            vehicle=vehicles[body.vin]
+            advertised=catalog_price_cents(vehicle.get('display_price'))
+            if body.expected_vehicle_price_cents is not None and body.expected_vehicle_price_cents!=advertised:
+                raise HTTPException(409,'Vehicle price changed. Review the updated listing price before submitting your request.')
+            commitment={'vehicle_price_cents':advertised,'catalog_revision':inventory_revision,
+                        'catalog_built_at':inventory.get('meta',{}).get('built_at'),'captured_at':now,
+                        'comparison':{key:vehicle.get(key) for key in ('pricing_basis','reference_price','reference_sample','benchmark_date','savings_amount')}}
             store.expire(c,now)
             if c.execute('SELECT 1 FROM holds WHERE vin=?',(body.vin,)).fetchone():
                 raise HTTPException(409,'This vehicle is already reserved or sold. Choose another listing.')
             order_id=str(uuid.uuid4())
             c.execute('INSERT INTO orders(id,access_hash,request_key,request_hash,vin,customer,state,created_at,updated_at,action_due_at,payment_preference) '
                 'VALUES(?,?,?,?,?,?,?,?,?,?,?)',(order_id,digest(token),digest(idempotency_key),request_hash,body.vin,raw,'requested',now,now,now+86400,body.payment_preference))
-            c.execute("UPDATE orders SET workflow_model='dealer_fulfillment' WHERE id=?",(order_id,))
+            c.execute("UPDATE orders SET workflow_model='dealer_fulfillment',price_commitment=? WHERE id=?",(json.dumps(commitment,sort_keys=True),order_id))
             store.event(c,order_id,'request_received',{'vin':body.vin,'demand_channel':body.demand_channel,'campaign_id':body.campaign_id,'payment_preference':body.payment_preference},True)
             return {**public(get_order(c,order_id),c),'access_token':token}
 
@@ -405,6 +446,7 @@ def create_app(settings=None, payments=None, shipping=None):
         with store.transaction() as c:
             row=get_order(c,order_id)
             require_vehicle_review_clear(row['vin'])
+            protect_vehicle_price(row,body.vehicle_price_cents)
             if row['state'] not in ('requested','quoted','quote_expired'):raise HTTPException(409,'Order cannot be requoted')
             dealer=dealer_for(c,body.dealer_id)
             customer=json.loads(row['customer'])

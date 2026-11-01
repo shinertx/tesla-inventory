@@ -59,7 +59,7 @@ def schema_script(page_url, page_name, subset, description='', breadcrumb_name=N
     if subset:
         graph.append({'@type':'FAQPage','mainEntity':[
             {'@type':'Question','name':f'How many listings are available in {page_name}?',
-             'acceptedAnswer':{'@type':'Answer','text':f'Volts & VINs currently indexes {len(subset):,} VIN-decoded used Tesla listings in this view, with estimated vehicle prices starting at ${low_price:,.0f} and a median estimated price of ${med_price:,.0f} (tax, title, and delivery quoted separately).'}},
+             'acceptedAnswer':{'@type':'Answer','text':f'Volts & VINs currently indexes {len(subset):,} VIN-decoded used Tesla listings in this view, with vehicle prices starting at ${low_price:,.0f} and a median vehicle price of ${med_price:,.0f} (tax, title, and delivery quoted separately).'}},
             {'@type':'Question','name':'How does Volts & VINs calculate used Tesla buyer savings?',
              'acceptedAnswer':{'@type':'Answer','text':f'Each listing is compared against mileage-adjusted peer asking prices across matching Tesla model, year, trim, drivetrain, and mileage bands (minimum 5 comparable peers). In this view, {len(finds):,} vehicles are priced $500 or more below their peer benchmark{f" (up to ${max_save:,.0f} below benchmark)" if max_save else ""}. Vehicle savings apply to the vehicle price only; peer asking prices are not appraisals.'}},
             {'@type':'Question','name':'How does the $250 refundable Tesla reservation work?',
@@ -270,7 +270,7 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None):
         def card_li(x):
             save_note=f" (Save ${x['savings_amount']:,.0f} vs. ${x['reference_price']:,.0f} peer benchmark)" if x.get('savings_amount',0)>=500 and x.get('reference_sample',0)>=5 else ''
             v_link=f'../v/{x["vin"]}.html' if x['vin'] in top_vin_set else f'../?vin={x["vin"]}'
-            return f'<li><a href="{v_link}">{html.escape(str(x["year"])+" "+x["model"]+" "+x["trim"])}</a> — ${x["display_price"]:,.0f}{save_note}, {x["mileage"]:,} mi, {html.escape(x.get("city") or x["state"])}; estimated vehicle price, tax, title and delivery quoted separately.</li>'
+            return f'<li><a href="{v_link}">{html.escape(str(x["year"])+" "+x["model"]+" "+x["trim"])}</a> — ${x["display_price"]:,.0f}{save_note}, {x["mileage"]:,} mi, {html.escape(x.get("city") or x["state"])}; vehicle price, tax, title and delivery quoted separately.</li>'
         cards=''.join(card_li(x) for x in subset[:24])
         text=template.replace('href="web/', 'href="../web/').replace('src="web/','src="../web/').replace('href="inventory.json"','href="../inventory.json"')
         text=text.replace('data-preset=""',f'data-preset="{html.escape(preset,quote=True)}"')
@@ -290,10 +290,10 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None):
         v_href=f'{BASE}/v/{vin}.html'
         v_label=f"{x['year']} Tesla {x['model']} {x['trim']} (VIN {vin})"
         loc_text=f"{x['city']}, {x['state']}" if x.get('city') and x.get('state')!='US' else (x.get('city') or x.get('state') or 'US')
-        v_desc=f"{v_label} with {x['mileage']:,} mi in {loc_text}. Estimated vehicle price ${x['display_price']:,.0f} (Save ${x['savings_amount']:,.0f} vs. ${x['reference_price']:,.0f} peer benchmark across {x['reference_sample']} comparable listings); tax, title, and delivery quoted separately."
+        v_desc=f"{v_label} with {x['mileage']:,} mi in {loc_text}. Vehicle price ${x['display_price']:,.0f} (Save ${x['savings_amount']:,.0f} vs. ${x['reference_price']:,.0f} peer benchmark across {x['reference_sample']} comparable listings); tax, title, and delivery quoted separately."
         spec_items=[
             f"<li><strong>VIN:</strong> {html.escape(vin)}</li>",
-            f"<li><strong>Estimated vehicle price:</strong> ${x['display_price']:,.0f} (Save ${x['savings_amount']:,.0f} vs. ${x['reference_price']:,.0f} peer benchmark · {x['reference_sample']} comparable peers)</li>",
+            f"<li><strong>Vehicle price:</strong> ${x['display_price']:,.0f} (Save ${x['savings_amount']:,.0f} vs. ${x['reference_price']:,.0f} peer benchmark · {x['reference_sample']} comparable peers)</li>",
             f"<li><strong>Odometer:</strong> {x['mileage']:,} mi</li>",
             *([f"<li><strong>Drivetrain:</strong> {html.escape(x['drivetrain'])}</li>"] if x.get('drivetrain') else []),
             *([f"<li><strong>Build factory:</strong> Built in {html.escape(x['factory'])}</li>"] if x.get('factory') else []),
@@ -302,7 +302,7 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None):
         v_intro=(
             f'<section class="category-intro">'
             f'<h1>{html.escape(v_label)}</h1>'
-            f'<p>Estimated vehicle price ${x["display_price"]:,.0f} · Save ${x["savings_amount"]:,.0f} below ${x["reference_price"]:,.0f} mileage-adjusted peer benchmark ({x["reference_sample"]} comparable listings). '
+            f'<p>Vehicle price ${x["display_price"]:,.0f} · Save ${x["savings_amount"]:,.0f} below ${x["reference_price"]:,.0f} mileage-adjusted peer benchmark ({x["reference_sample"]} comparable listings). '
             f'Vehicle price only; tax, title, registration, and delivery are quoted separately. Dealer confirmation is required before reservation.</p>'
             f'<details><summary>VIN-decoded specifications &amp; benchmark details</summary><ul>{"".join(spec_items)}</ul></details>'
             f'</section>'
