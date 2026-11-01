@@ -276,24 +276,33 @@ def send_deal_alert_email(
     vv_price = packet.get("volts_retail_price")
     savings = packet.get("buyer_savings_badge") or 0
     src_url = packet.get("source_url") or "https://voltsandvins.com/?vin=" + vin
-    subject = f"[Volts & VINs Deal Alert] {vehicle} ({vin}) — Est. +${profit_4:,} Profit" if profit_4 else f"[Volts & VINs Order Request] {vehicle} ({vin})"
-    text_body = (
-        f"New Customer Reservation Request on Volts & VINs\n"
-        f"=================================================\n"
-        f"Order ID: {packet.get('order_id')}\n"
-        f"Buyer: {packet.get('buyer_name')} | {packet.get('buyer_email')} | {packet.get('buyer_phone')} | ZIP {packet.get('buyer_zip')}\n\n"
-        f"Vehicle: {vehicle}\n"
-        f"VIN: {vin}\n"
-        f"Volts & VINs URL: https://voltsandvins.com/?vin={vin}\n\n"
-        f"Arbitrage Economics:\n"
-        f"- Source Dealer: {packet.get('source_dealer') or 'See source link'}\n"
-        f"- Source Dealer Ask: ${src_price:,}\n" if src_price else ""
-    ) + (
-        f"- Volts & VINs Retail Price: ${vv_price:,} (Buyer Badge: Save ${savings:,})\n" if vv_price else ""
-    ) + (
-        f"- Upfront Arbitrage Spread: +${spread:,}\n"
-        f"- Est. 4-Layer Total Profit: +${profit_4:,}\n" if spread else ""
-    ) + f"- Direct Source Listing Link: {src_url}\n"
+    subject = (
+        f"[Volts & VINs Deal Alert] {vehicle} ({vin}) — Est. +${profit_4:,} Profit"
+        if profit_4
+        else f"[Volts & VINs Order Request] {vehicle} ({vin})"
+    )
+    lines = [
+        "New Customer Reservation Request on Volts & VINs",
+        "=================================================",
+        f"Order ID: {packet.get('order_id')}",
+        f"Buyer: {packet.get('buyer_name')} | {packet.get('buyer_email')} | {packet.get('buyer_phone')} | ZIP {packet.get('buyer_zip')}",
+        "",
+        f"Vehicle: {vehicle}",
+        f"VIN: {vin}",
+        f"Volts & VINs URL: https://voltsandvins.com/?vin={vin}",
+        "",
+        "Arbitrage & Source Dealer Breakdown:",
+        f"- Source Dealer: {packet.get('source_dealer') or 'See source link'}",
+    ]
+    if src_price:
+        lines.append(f"- Source Dealer Ask: ${src_price:,}")
+    if vv_price:
+        lines.append(f"- Volts & VINs Retail Price: ${vv_price:,} (Buyer Badge: Save ${savings:,})")
+    if spread:
+        lines.append(f"- Upfront Arbitrage Spread: +${spread:,}")
+        lines.append(f"- Est. 4-Layer Total Profit: +${profit_4:,}")
+    lines.append(f"- Direct Source Listing Link: {src_url}")
+    text_body = "\n".join(lines) + "\n"
 
     payload = json.dumps({
         "personalizations": [{"to": [{"email": to_email}]}],
@@ -395,7 +404,12 @@ def job_match_customer_orders(
                     "source_url": arb.get("source_url") or "",
                 }
                 packets.append(packet)
-                if r["id"] not in already_sent:
+                is_test_or_cancelled = (
+                    r["state"] == "cancelled"
+                    or "SITE TEST" in str(packet.get("buyer_name", "")).upper()
+                    or str(packet.get("buyer_email", "")).endswith(".test")
+                )
+                if r["id"] not in already_sent and not is_test_or_cancelled:
                     if send_deal_alert_email(packet, to_email=alert_email):
                         conn.execute(
                             "INSERT OR IGNORE INTO order_alerts_sent (order_id, recipient, sent_at) VALUES (?, ?, ?)",
