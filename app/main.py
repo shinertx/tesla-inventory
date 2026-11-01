@@ -4,6 +4,7 @@ import hashlib, hmac, json, secrets, sqlite3, time, uuid
 from datetime import datetime, timezone
 from fastapi import FastAPI, Depends, Header, HTTPException, Request
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from .config import Settings, ROOT
@@ -49,6 +50,12 @@ def create_app(settings=None, payments=None):
     inventory,vehicles=_load_inventory(settings.inventory_path)
     app=FastAPI(title='Volts & VINs',docs_url=None,redoc_url=None)
     app.add_middleware(GZipMiddleware,minimum_size=500)
+    # The public static storefront may use a separate, narrowly scoped API host.
+    # Bearer tokens remain in explicit headers; cookies are never shared.
+    app.add_middleware(CORSMiddleware,allow_origins=[settings.origin],
+        allow_methods=['GET','POST','PUT','OPTIONS'],
+        allow_headers=['Authorization','Content-Type','Idempotency-Key'],
+        allow_credentials=False,max_age=600)
     app.state.store=store
     media=VehicleMedia(store,settings.sourcing_path)
 
