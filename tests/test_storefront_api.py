@@ -13,7 +13,7 @@ VIN = '7SAYGDED1RF039277'
 
 def configured(tmp_path):
     inventory = tmp_path / 'inventory.json'
-    inventory.write_text(json.dumps({'items': [{'vin': VIN}]}))
+    inventory.write_text(json.dumps({'items': [{'vin': VIN, 'display_price': 29000}]}))
     return Settings(origin=ORIGIN, inventory_path=inventory,
                     db_path=tmp_path / 'orders.db')
 

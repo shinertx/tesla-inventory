@@ -66,7 +66,7 @@ def quote_body():
 
 def test_real_stripe_sdk_objects_normalize_across_deposit_and_refund(tmp_path, monkeypatch):
     inv = tmp_path / "inventory.json"
-    inv.write_text(json.dumps({"items": [{"vin": VIN}]}))
+    inv.write_text(json.dumps({"items": [{"vin": VIN, "display_price": 29000}]}))
     settings = Settings(
         db_path=tmp_path / "orders.db",
         inventory_path=inv,

@@ -37,7 +37,7 @@ class Payments:
 
 @pytest.fixture
 def setup(tmp_path):
-    inv=tmp_path/'inventory.json';inv.write_text(json.dumps({'items':[{'vin':VIN}]}))
+    inv=tmp_path/'inventory.json';inv.write_text(json.dumps({'items':[{'vin':VIN,'display_price':29000}]}))
     settings=Settings(db_path=tmp_path/'orders.db',inventory_path=inv,admin_token=TOKEN,
         platform_agreements_verified=True,supported_states=('TX',),checkout_enabled=True,stripe_key='sk_test_fixture',stripe_publishable_key='pk_test_fixture',webhook_secret='whsec_fixture')
     payments=Payments();app=create_app(settings,payments)
