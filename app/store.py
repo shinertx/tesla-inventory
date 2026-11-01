@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 from pathlib import Path
 import json, sqlite3, time
+from .models import canonical_reference
 
 SCHEMA = '''
 CREATE TABLE IF NOT EXISTS orders (
@@ -114,6 +115,7 @@ class Store:
 
     def connect(self):
         c = sqlite3.connect(self.path, timeout=15)
+        c.create_function('canonical_reference',1,canonical_reference,deterministic=True)
         c.row_factory = sqlite3.Row
         c.execute('PRAGMA foreign_keys=ON')
         return c

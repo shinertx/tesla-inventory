@@ -1,10 +1,10 @@
 """Observational funding reconciliation. No transfers, captures, refunds, or payouts."""
 import hashlib
 import json
-from .models import Quote
+from .models import Quote, canonical_reference
 
 CREDITED_STATES={'deposit_paid','dealer_confirmed','dealer_funded','in_transit','delivered','settlement_pending','completed'}
-CLOSED_STATES={'cancelled','refunded','completed'}
+REFUND_REVIEW_STATES={'cancelled','refunded','refund_pending'}
 CASH_RECORD_STATES={'deposit_paid','dealer_confirmed','dealer_funded','in_transit','delivered','settlement_pending'}
 
 
@@ -32,18 +32,21 @@ def _legacy_lender_proceeds(c,row):
         amount=detail['funded_amount_cents']
         if detail['state']!='lender_funded' or type(amount) is not int or not 0<amount<=100_000_000:raise ValueError()
         for other in c.execute('SELECT financing_detail FROM orders WHERE id!=? AND financing_detail IS NOT NULL',(row['id'],)):
-            if json.loads(other[0]).get('reference')==detail.get('reference'):return 0,True
+            if canonical_reference(json.loads(other[0]).get('reference'))==canonical_reference(detail.get('reference')):return 0,True
         if '_quote_version' in detail or '_seller_key' in detail:
             matched=detail.get('_quote_version')==row['quote_version'] and detail.get('_seller_key')==seller_key(row)
         else:
             # Historical API events establish ordering without inventing a historical snapshot.
             funded=c.execute("SELECT id,detail FROM events WHERE order_id=? AND kind='financing_lender_funded' ORDER BY id DESC LIMIT 1",(row['id'],)).fetchone()
             quote=c.execute("SELECT id,detail FROM events WHERE order_id=? AND kind='quote_approved' ORDER BY id DESC LIMIT 1",(row['id'],)).fetchone()
-            matched=bool(funded and quote and funded['id']>quote['id'] and json.loads(funded['detail'])==detail
+            historical=json.loads(funded['detail']) if funded else {}
+            historical={**historical,'reference':canonical_reference(historical.get('reference'))}
+            normalized={**detail,'reference':canonical_reference(detail.get('reference'))}
+            matched=bool(funded and quote and funded['id']>quote['id'] and historical==normalized
                          and json.loads(quote['detail']).get('dealer_id')==row['dealer_id']
                          and c.execute("SELECT COUNT(*) FROM events WHERE order_id=? AND kind='quote_approved'",(row['id'],)).fetchone()[0]==row['quote_version'])
         return (amount,False) if matched else (0,True)
-    except (ValueError,TypeError,KeyError):return 0,True
+    except (ValueError,TypeError,KeyError,AttributeError):return 0,True
 
 
 
@@ -53,17 +56,45 @@ def lender_head(c,row):
 
 
 def lender_proceeds(c,row):
-    contexts={}
+    contexts={};represented_refs=set();represented_events=set()
     for observation in c.execute('SELECT * FROM lender_funding_observations WHERE order_id=? ORDER BY seq DESC',(row['id'],)):
         context=(observation['quote_version'],observation['dealer_id'],observation['seller_key'])
         contexts.setdefault(context,observation)
-    if contexts:
-        current=(row['quote_version'],row['dealer_id'],seller_key(row))
-        head=contexts.get(current)
-        prior=sum(item['amount_cents'] for context,item in contexts.items() if context!=current)
-        return (head['amount_cents'] if head else 0),bool(prior),prior,bool(head and head['kind']=='correction')
-    amount,review=_legacy_lender_proceeds(c,row)
-    return amount,review,0,False
+        represented_refs.add(canonical_reference(observation['reference']))
+        if observation['prior_reference']:represented_refs.add(canonical_reference(observation['prior_reference']))
+        if observation['legacy_prior_event_id']:represented_events.add(observation['legacy_prior_event_id'])
+    current=(row['quote_version'],row['dealer_id'],seller_key(row))
+    head=contexts.get(current)
+    allocated=head['amount_cents'] if head else 0
+    prior=sum(item['amount_cents'] for context,item in contexts.items() if context!=current)
+    represented_contexts={(context[0],context[1]) for context in contexts}
+    legacy={};version=0;dealer=None;ambiguous=False
+    # Historical funded events are cumulative snapshots within their actual preceding quote.
+    # Read them alongside registry heads, not only until the first registry row appears.
+    for event in c.execute("SELECT id,kind,detail FROM events WHERE order_id=? AND kind IN ('quote_approved','financing_lender_funded') ORDER BY id",(row['id'],)):
+        if event['kind']=='quote_approved':version+=1;dealer=None
+        try:
+            detail=json.loads(event['detail'])
+            if not isinstance(detail,dict):raise ValueError()
+            if event['kind']=='quote_approved':
+                dealer=detail.get('dealer_id');continue
+            reference=canonical_reference(detail.get('reference'))
+            if event['id'] in represented_events or reference in represented_refs:continue
+            amount=detail.get('funded_amount_cents')
+            if type(amount) is not int or not 0<amount<=100_000_000 or not isinstance(reference,str) or len(reference)<5 or detail.get('state')!='lender_funded':raise ValueError()
+            if version<1 or not isinstance(dealer,str) or not dealer:raise ValueError()
+            context=(version,dealer)
+            if context in represented_contexts:continue  # A current net registry snapshot replaces its older cumulative history.
+            legacy[context]=amount
+        except (ValueError,TypeError,KeyError):ambiguous=True
+    if not head:
+        existing,review=_legacy_lender_proceeds(c,row)
+        ambiguous=ambiguous or review
+        if existing:
+            allocated=existing
+            legacy.pop((row['quote_version'],row['dealer_id']),None)
+    prior+=sum(legacy.values())
+    return allocated,bool(prior or ambiguous),prior,bool(head and head['kind']=='correction')
 
 
 class FundingRuleError(ValueError):
@@ -75,19 +106,19 @@ def observe_lender_snapshot(c,row,body,now):
     identity={'order_id':row['id'],'quote_version':row['quote_version'],'dealer_id':row['dealer_id'],
               'seller_key':seller_key(row),'amount_cents':body.funded_amount_cents,'provider':body.provider,'currency':'USD'}
     fingerprint=hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()
-    existing=c.execute('SELECT * FROM lender_funding_observations WHERE reference=?',(body.reference,)).fetchone()
+    existing=c.execute('SELECT * FROM lender_funding_observations WHERE canonical_reference(reference)=?',(body.reference,)).fetchone()
     if existing:
         if existing['kind']!='funding' or existing['payload_hash']!=fingerprint:
             raise FundingRuleError('Lender funding reference is already bound to another amount, order, quote, or seller')
         # Replaying an older observation must not replace a newer reconciliation head.
         head=lender_head(c,row)
-        if not head or head['reference']!=existing['reference']:
+        if not head or canonical_reference(head['reference'])!=canonical_reference(existing['reference']):
             raise FundingRuleError('A newer lender reconciliation exists; the old funding snapshot cannot replace it')
         return
     for event in c.execute("SELECT id,detail FROM events WHERE order_id=? AND kind='financing_lender_funded' ORDER BY id DESC",(row['id'],)):
         try:historical=json.loads(event['detail'])
         except (ValueError,TypeError):continue
-        if historical.get('reference')!=body.reference:continue
+        if canonical_reference(historical.get('reference'))!=body.reference:continue
         if c.execute('SELECT 1 FROM lender_funding_observations WHERE legacy_prior_event_id=?',(event['id'],)).fetchone():
             raise FundingRuleError('Historical lender funding has been reconciled; its old snapshot cannot be replayed')
         version=c.execute("SELECT COUNT(*) FROM events WHERE order_id=? AND kind='quote_approved' AND id<?",(row['id'],event['id'])).fetchone()[0]
@@ -131,11 +162,11 @@ def funding_summary(c,row,deposit_cents=25000):
     overpaid=max(0,received-quote.total_cents)
     in_flight_conflict=bool((cash or lender or unallocated or prior_lender)
         and row['balance_payment_state'] in {'checkout_open','ach_processing','payment_review'})
-    review=bool(lender_review or balance_review or unallocated or prior_lender or overpaid or (corrected and remaining>0)
+    review=bool(lender_review or balance_review or unallocated or prior_lender or overpaid or (corrected and remaining>0 and row['state'] not in REFUND_REVIEW_STATES)
                 or in_flight_conflict
                 or row['balance_payment_state']=='payment_review'
-                or (row['state'] in CLOSED_STATES and cash>0)
-                or (row['state'] in {'dealer_funded','in_transit','delivered','settlement_pending'} and remaining))
+                or (row['state'] in REFUND_REVIEW_STATES and (cash or lender or balance))
+                or (row['state'] in {'dealer_funded','in_transit','delivered','settlement_pending','completed'} and remaining))
     checkout_allowed=bool(row['state']=='dealer_confirmed' and not (cash or lender or balance or review or remaining==0)
         and row['balance_payment_state'] not in {'ach_processing','paid'}
         and (row['payment_preference']=='cash' or row['financing_state']=='declined'))

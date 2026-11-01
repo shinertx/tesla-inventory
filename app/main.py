@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from .config import Settings, ROOT
-from .models import PurchaseRequest, Quote, Transition, Cancellation, CheckoutAcceptance, BalanceCheckoutAcceptance, PaymentPreferenceUpdate, FinancingUpdate, TransportUpdate, SellerHold, CustomerCase, CaseResolution, AccessRecovery, Dealer, Settlement, SettlementReversal, OnlineAction, BuyerCashReceipt, BuyerCashReversal, LenderFundingCorrection
+from .models import PurchaseRequest, Quote, Transition, Cancellation, CheckoutAcceptance, BalanceCheckoutAcceptance, PaymentPreferenceUpdate, FinancingUpdate, TransportUpdate, SellerHold, CustomerCase, CaseResolution, AccessRecovery, Dealer, Settlement, SettlementReversal, OnlineAction, BuyerCashReceipt, BuyerCashReversal, LenderFundingCorrection, canonical_reference
 from .store import Store
 from .payments import StripePayments
 from .media import VehicleMedia
@@ -729,27 +729,27 @@ def create_app(settings=None, payments=None, shipping=None):
                 'funding_summary':funding_summary(c,row,DEPOSIT),'observational_only':True,'money_moved':False}
 
     def existing_cash_entry(c,row,reference,payload_hash,kind):
-        entry=c.execute('SELECT * FROM buyer_cash_entries WHERE reference=?',(reference,)).fetchone()
+        entry=c.execute('SELECT * FROM buyer_cash_entries WHERE canonical_reference(reference)=?',(reference,)).fetchone()
         if entry and (entry['order_id']!=row['id'] or entry['payload_hash']!=payload_hash or entry['kind']!=kind):
             raise HTTPException(409,'Funding reference is already recorded with another order or payload')
         return entry
 
     def check_cash_reference(c,reference,allow_lender_order=None):
         identifiers=('payment_id','balance_payment_id','checkout_id','balance_checkout_id','refund_id')
-        if c.execute('SELECT 1 FROM orders WHERE '+' OR '.join(key+'=?' for key in identifiers),tuple(reference for _ in identifiers)).fetchone():
+        if c.execute('SELECT 1 FROM orders WHERE '+' OR '.join('canonical_reference('+key+')=?' for key in identifiers),tuple(reference for _ in identifiers)).fetchone():
             raise HTTPException(409,'A deposit or balance-payment reference cannot be counted as additional buyer cash')
-        if c.execute('SELECT 1 FROM buyer_cash_entries WHERE reference=?',(reference,)).fetchone():
+        if c.execute('SELECT 1 FROM buyer_cash_entries WHERE canonical_reference(reference)=?',(reference,)).fetchone():
             raise HTTPException(409,'Funding reference is already reserved by a cash observation')
-        for entry in c.execute('SELECT order_id FROM lender_funding_observations WHERE reference=?',(reference,)):
+        for entry in c.execute('SELECT order_id FROM lender_funding_observations WHERE canonical_reference(reference)=?',(reference,)):
             if entry['order_id']!=allow_lender_order:raise HTTPException(409,'Lender funding reference cannot be reused for another observation')
         for record in c.execute('SELECT id,financing_detail FROM orders WHERE financing_detail IS NOT NULL'):
             if record['id']==allow_lender_order:continue
-            try:used=json.loads(record['financing_detail']).get('reference')==reference
+            try:used=canonical_reference(json.loads(record['financing_detail']).get('reference'))==reference
             except (ValueError,TypeError,AttributeError):used=False
             if used:raise HTTPException(409,'A lender funding reference cannot be counted as additional buyer cash')
         for record in c.execute("SELECT order_id,detail FROM events WHERE kind='financing_lender_funded'"):
             if record['order_id']==allow_lender_order:continue
-            try:used=json.loads(record['detail']).get('reference')==reference
+            try:used=canonical_reference(json.loads(record['detail']).get('reference'))==reference
             except (ValueError,TypeError,AttributeError):used=False
             if used:raise HTTPException(409,'A historical lender reference is already reserved and cannot be reused')
 
@@ -822,7 +822,7 @@ def create_app(settings=None, payments=None, shipping=None):
         now=int(time.time());fingerprint=digest(body.model_dump_json())
         with store.transaction() as c:
             row=get_order(c,order_id)
-            existing=c.execute('SELECT * FROM lender_funding_observations WHERE reference=?',(body.correction_reference,)).fetchone()
+            existing=c.execute('SELECT * FROM lender_funding_observations WHERE canonical_reference(reference)=?',(body.correction_reference,)).fetchone()
             if existing:
                 if existing['kind']!='correction' or existing['order_id']!=order_id or existing['payload_hash']!=fingerprint:
                     raise HTTPException(409,'Correction reference is already recorded with another order or payload')
@@ -830,16 +830,16 @@ def create_app(settings=None, payments=None, shipping=None):
             if row['workflow_model']!='dealer_fulfillment' or not row['quote']:
                 raise HTTPException(409,'A seller quote is required for lender reconciliation')
             if body.observed_at>now:raise HTTPException(409,'A funding correction cannot be observed in the future')
-            prior=c.execute('SELECT * FROM lender_funding_observations WHERE reference=? AND order_id=?',(body.expected_prior_reference,order_id)).fetchone()
+            prior=c.execute('SELECT * FROM lender_funding_observations WHERE canonical_reference(reference)=? AND order_id=?',(body.expected_prior_reference,order_id)).fetchone()
             legacy_event_id=None
             if not prior:
                 if lender_head(c,row):raise HTTPException(409,'A newer lender reconciliation exists; review its reference before correcting it')
                 funds=funding_summary(c,row,DEPOSIT);detail=json.loads(row['financing_detail'] or '{}')
-                if not funds or funds['lender_funded_cents']<=0 or detail.get('reference')!=body.expected_prior_reference or body.quote_version!=row['quote_version'] or body.dealer_id!=row['dealer_id']:
+                if not funds or funds['lender_funded_cents']<=0 or canonical_reference(detail.get('reference'))!=body.expected_prior_reference or body.quote_version!=row['quote_version'] or body.dealer_id!=row['dealer_id']:
                     raise HTTPException(409,'Legacy lender observation binding requires accounting review; no historical funds have been inferred')
                 for event in c.execute("SELECT id,detail FROM events WHERE order_id=? AND kind='financing_lender_funded' ORDER BY id DESC",(order_id,)):
                     actual=json.loads(event['detail'])
-                    if actual.get('reference')==body.expected_prior_reference and actual.get('funded_amount_cents')==funds['lender_funded_cents'] and actual.get('provider')==detail.get('provider'):
+                    if canonical_reference(actual.get('reference'))==body.expected_prior_reference and actual.get('funded_amount_cents')==funds['lender_funded_cents'] and actual.get('provider')==detail.get('provider'):
                         legacy_event_id=event['id'];break
                 if legacy_event_id is None:raise HTTPException(409,'An actual historical funded event is required for this correction')
                 # This is a new correction linked to a real old event, never a fabricated historical receipt.
@@ -848,7 +848,7 @@ def create_app(settings=None, payments=None, shipping=None):
                 raise HTTPException(409,'Correction must match the original observation quote and selling dealer')
             head=c.execute('SELECT * FROM lender_funding_observations WHERE order_id=? AND quote_version=? AND dealer_id=? AND seller_key=? ORDER BY seq DESC LIMIT 1',
                 (order_id,prior['quote_version'],prior['dealer_id'],prior['seller_key'])).fetchone()
-            if not legacy_event_id and (not head or head['reference']!=body.expected_prior_reference):
+            if not legacy_event_id and (not head or canonical_reference(head['reference'])!=body.expected_prior_reference):
                 raise HTTPException(409,'Lender observation changed. Review the latest recorded observation before correcting it')
             if legacy_event_id:head=prior
             current_context=prior['quote_version']==row['quote_version'] and prior['dealer_id']==row['dealer_id'] and prior['seller_key']==seller_key(row)

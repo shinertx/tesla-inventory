@@ -6,6 +6,18 @@ from .transport_rules import validate_windows
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
 
+def canonical_reference(value):
+    return value.strip() if isinstance(value,str) else value
+
+class FundingIdentifiersModel(StrictModel):
+    @model_validator(mode='before')
+    @classmethod
+    def normalize_funding_identifiers(cls,values):
+        if not isinstance(values,dict):return values
+        fields={'reference','receipt_reference','reversal_reference','correction_reference',
+                'expected_prior_reference','evidence_reference','receipt_id'}
+        return {key:canonical_reference(value) if key in fields else value for key,value in values.items()}
+
 class PurchaseRequest(StrictModel):
     vin: str = Field(pattern=r'^[A-HJ-NPR-Z0-9]{17}$')
     name: str = Field(min_length=2, max_length=100)
@@ -163,7 +175,7 @@ class BalanceCheckoutAcceptance(StrictModel):
             raise ValueError('Explicit ACH authorization or terms acceptance is required')
         return self
 
-class FinancingUpdate(StrictModel):
+class FinancingUpdate(FundingIdentifiersModel):
     state: Literal['application_ready','application_submitted','prequalified','conditional_approval','contract_signed','lender_funded','declined']
     provider: str = Field(min_length=2,max_length=80)
     reference: str = Field(min_length=5,max_length=500)
@@ -194,7 +206,7 @@ class FinancingUpdate(StrictModel):
             raise ValueError('Use the canonical actual remittance ID, not an application or evidence URL')
         return self
 
-class BuyerCashReceipt(StrictModel):
+class BuyerCashReceipt(FundingIdentifiersModel):
     currency: Literal['USD']
     quote_version: int = Field(gt=0,strict=True)
     dealer_id: str = Field(min_length=3,max_length=60)
@@ -217,7 +229,7 @@ class BuyerCashReceipt(StrictModel):
         if value is not True:raise ValueError('Explicit true settlement and deposit-exclusion attestations are required')
         return value
 
-class BuyerCashReversal(StrictModel):
+class BuyerCashReversal(FundingIdentifiersModel):
     currency: Literal['USD']
     quote_version: int = Field(gt=0,strict=True)
     dealer_id: str = Field(min_length=3,max_length=60)
@@ -233,7 +245,7 @@ class BuyerCashReversal(StrictModel):
         if value.lower().startswith(('https://','http://')):raise ValueError('Use the actual return or correction remittance ID')
         return value
 
-class LenderFundingCorrection(StrictModel):
+class LenderFundingCorrection(FundingIdentifiersModel):
     currency: Literal['USD']
     quote_version: int = Field(gt=0,strict=True)
     dealer_id: str = Field(min_length=3,max_length=60)
