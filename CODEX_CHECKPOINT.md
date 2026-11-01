@@ -1,3 +1,19 @@
+# Non-payment fulfillment fixes — November 1, 2026
+
+Ben directed Codex to ignore Stripe and finish the rest. No account/payment setup changes are included. Restricted-key work remains isolated and unmerged.
+
+Root owns app/main.py funding/privacy integration, web/app.js delivery copy, generated pages and final release. Financing guard rejects short recorded funding at dealer_funded, in_transit and dispatched/delivered carrier markers. Customer projections remove internal references, notes and raw carrier costs. Web shows the accepted quote delivery price.
+
+The dealer gallery importer defaults offline, validates real image bytes only with explicit authorization/hosts, and writes new private review files. Its output-overwrite finding was reproduced, fixed and reviewed. No real feed was supplied; zero new photos recovered. Catalog/prices/media/exclusions are unchanged.
+
+277 Python tests and desktop/mobile journey regressions pass. Actual financing/transport access is still absent. Mixed loan plus additional cash down payment requires separately reconciled receipts; it is not inferred from the calculator.
+
+Pricing release6195372 is already live on both backends and Pages. All397 pages/529 artifacts matched. Marked actual $0 request7fdb80ef was created, showed protected34948.00, cancelled and its two internal notifications acknowledged. No payment or hold occurred.
+
+Antigravity received the non-Stripe work split in the existing Tesla chat; its task is one bounded shipping finding, with no duplicate edits or credential audits. Inquiries remain drafts and Jockey remains an unverified draft label.
+
+--- Prior release ---
+
 # Clear vehicle price release in progress — November 1, 2026
 
 Codex owns price-protection API/store migration, web pricing labels, build copy and generated pages. Antigravity acknowledged this split in its existing Tesla conversation. New requests save the vehicle price and benchmark; stale browser prices fail409; quotes cannot raise the saved vehicle price. Legacy requests retain their explicit quote behavior without fabricated historical guarantees. Catalog/prices/media remain unchanged.

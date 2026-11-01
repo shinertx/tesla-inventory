@@ -112,6 +112,7 @@ def main():
                 for phase in ('quoted', 'deposit_paid', 'dealer_confirmed', 'in_transit', 'completed'):
                     order.update(state=phase, quote=quote, quote_version=1, payment_preference='cash')
                     order['balance_payment_state'] = 'paid' if phase in ('in_transit', 'completed') else 'unpaid'
+                    order['transport'] = {'state': 'dispatched', 'provider': 'Fixture carrier', 'rate_cents': 40000, 'quote_expires_at': now+600, 'notes': 'PRIVATE DISPATCH NOTE'} if phase == 'in_transit' else {'state': 'unquoted'}
                     page.locator('#refresh-order').click()
                     page.get_by_role('heading', name={
                         'quoted': 'Your final price is ready', 'deposit_paid': 'Deposit verified',
@@ -121,6 +122,11 @@ def main():
                     assert page.locator('#order-payment-summary').is_visible()
                     due = page.locator('#order-amount-due').inner_text()
                     if phase in ('in_transit', 'completed'): assert '$0.00' in due
+                    if phase == 'in_transit':
+                        text = page.locator('#order-content').inner_text()
+                        assert 'Your delivery price' in text and '$600.00' in text
+                        assert 'Carrier rate' not in text and '$400.00' not in text
+                        assert 'Rate quote expires' not in text and 'PRIVATE DISPATCH NOTE' not in text
                     elif phase == 'quoted':
                         assert '$250.00' in due
                         page.locator('#review-order-quote').click(); page.locator('#accept-quote').wait_for(state='visible')
@@ -134,7 +140,7 @@ def main():
                 results['viewports'][str(width)] = {'factory_and_vehicle_location_distinct': True,
                     'explicit_two_to_three_comparison': True, 'fourth_choice_not_silently_omitted': True,
                     'next_steps_above_account_controls': True, 'finance_preference_not_application': True,
-                    'customer_shipping_estimate_expires': True, 'hosted_financing_ready_not_approval': True,
+                    'customer_shipping_estimate_expires': True, 'private_carrier_cost_hidden': True, 'hosted_financing_ready_not_approval': True,
                     'settled_balance_current_due_zero': True, 'review_buttons_open_correct_section': True}
             assert not results['javascript_errors'], results['javascript_errors']
             browser.close()
