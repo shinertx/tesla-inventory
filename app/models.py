@@ -1,9 +1,22 @@
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 import re
+from .transport_rules import validate_windows
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+
+def canonical_reference(value):
+    return value.strip() if isinstance(value,str) else value
+
+class FundingIdentifiersModel(StrictModel):
+    @model_validator(mode='before')
+    @classmethod
+    def normalize_funding_identifiers(cls,values):
+        if not isinstance(values,dict):return values
+        fields={'reference','receipt_reference','reversal_reference','correction_reference',
+                'expected_prior_reference','evidence_reference','receipt_id'}
+        return {key:canonical_reference(value) if key in fields else value for key,value in values.items()}
 
 class PurchaseRequest(StrictModel):
     vin: str = Field(pattern=r'^[A-HJ-NPR-Z0-9]{17}$')
@@ -162,12 +175,13 @@ class BalanceCheckoutAcceptance(StrictModel):
             raise ValueError('Explicit ACH authorization or terms acceptance is required')
         return self
 
-class FinancingUpdate(StrictModel):
+class FinancingUpdate(FundingIdentifiersModel):
     state: Literal['application_ready','application_submitted','prequalified','conditional_approval','contract_signed','lender_funded','declined']
     provider: str = Field(min_length=2,max_length=80)
     reference: str = Field(min_length=5,max_length=500)
-    approved_amount_cents: int = Field(default=0,ge=0,le=100_000_000)
-    funded_amount_cents: int = Field(default=0,ge=0,le=100_000_000)
+    approved_amount_cents: int = Field(default=0,ge=0,le=100_000_000,strict=True)
+    funded_amount_cents: int = Field(default=0,ge=0,le=100_000_000,strict=True)
+    quote_version: int | None = Field(default=None,gt=0,strict=True)
     stipulations: list[str] = Field(default_factory=list,max_length=20)
     application_url: str = Field(default='',max_length=2048)
 
@@ -188,18 +202,75 @@ class FinancingUpdate(StrictModel):
             raise ValueError('Application readiness or submission is not approval or funded proceeds')
         if self.state=='lender_funded' and self.funded_amount_cents<=0:
             raise ValueError('Lender-funded state requires positive funded_amount_cents')
+        if self.state=='lender_funded' and self.reference.lower().startswith(('https://','http://')):
+            raise ValueError('Use the canonical actual remittance ID, not an application or evidence URL')
         return self
+
+class BuyerCashReceipt(FundingIdentifiersModel):
+    currency: Literal['USD']
+    quote_version: int = Field(gt=0,strict=True)
+    dealer_id: str = Field(min_length=3,max_length=60)
+    amount_cents: int = Field(gt=0,le=100_000_000,strict=True)
+    receipt_reference: str = Field(min_length=5,max_length=500,pattern=r'^[^\r\n]+$')
+    evidence_reference: str = Field(min_length=5,max_length=500,pattern=r'^[^\r\n]+$')
+    settled_at: int = Field(gt=0,strict=True)
+    settled: Literal[True]
+    excludes_reservation_deposit: Literal[True]
+
+    @field_validator('receipt_reference')
+    @classmethod
+    def actual_remittance_id(cls,value):
+        if value.lower().startswith(('https://','http://')):raise ValueError('Use the canonical actual remittance ID; evidence URLs belong in evidence_reference')
+        return value
+
+    @field_validator('settled','excludes_reservation_deposit',mode='before')
+    @classmethod
+    def actual_attestation(cls,value):
+        if value is not True:raise ValueError('Explicit true settlement and deposit-exclusion attestations are required')
+        return value
+
+class BuyerCashReversal(FundingIdentifiersModel):
+    currency: Literal['USD']
+    quote_version: int = Field(gt=0,strict=True)
+    dealer_id: str = Field(min_length=3,max_length=60)
+    receipt_id: str = Field(min_length=8,max_length=100)
+    amount_cents: int = Field(gt=0,le=100_000_000,strict=True)
+    reversal_reference: str = Field(min_length=5,max_length=500,pattern=r'^[^\r\n]+$')
+    evidence_reference: str = Field(min_length=5,max_length=500,pattern=r'^[^\r\n]+$')
+    observed_at: int = Field(gt=0,strict=True)
+
+    @field_validator('reversal_reference')
+    @classmethod
+    def actual_remittance_id(cls,value):
+        if value.lower().startswith(('https://','http://')):raise ValueError('Use the actual return or correction remittance ID')
+        return value
+
+class LenderFundingCorrection(FundingIdentifiersModel):
+    currency: Literal['USD']
+    quote_version: int = Field(gt=0,strict=True)
+    dealer_id: str = Field(min_length=3,max_length=60)
+    expected_prior_reference: str = Field(min_length=5,max_length=500,pattern=r'^[^\r\n]+$')
+    correction_reference: str = Field(min_length=5,max_length=500,pattern=r'^[^\r\n]+$')
+    evidence_reference: str = Field(min_length=5,max_length=500,pattern=r'^[^\r\n]+$')
+    net_settled_cents: int = Field(ge=0,le=100_000_000,strict=True)
+    observed_at: int = Field(gt=0,strict=True)
+
+    @field_validator('correction_reference')
+    @classmethod
+    def actual_remittance_id(cls,value):
+        if value.lower().startswith(('https://','http://')):raise ValueError('Use the canonical correction/remittance ID, not an evidence URL')
+        return value
 
 class TransportUpdate(StrictModel):
     state: Literal['quoted','carrier_accepted','dispatched','delivered','exception']
     provider: str = Field(min_length=2,max_length=80)
     quote_reference: str = Field(min_length=5,max_length=500)
-    rate_cents: int = Field(ge=0,le=2_000_000)
-    quote_expires_at: int
-    pickup_window_start: int | None = None
-    pickup_window_end: int | None = None
-    delivery_window_start: int | None = None
-    delivery_window_end: int | None = None
+    rate_cents: int = Field(ge=0,le=2_000_000,strict=True)
+    quote_expires_at: int = Field(strict=True)
+    pickup_window_start: int | None = Field(default=None,strict=True)
+    pickup_window_end: int | None = Field(default=None,strict=True)
+    delivery_window_start: int | None = Field(default=None,strict=True)
+    delivery_window_end: int | None = Field(default=None,strict=True)
     carrier_acceptance_reference: str = Field(default='',max_length=500)
     bol_reference: str = Field(default='',max_length=500)
     tracking_url: str = Field(default='',max_length=2048)
@@ -216,6 +287,7 @@ class TransportUpdate(StrictModel):
 
     @model_validator(mode='after')
     def check_carrier_progression(self):
+        validate_windows(self.model_dump())
         if self.state in ('carrier_accepted','dispatched','delivered'):
             if len(self.carrier_acceptance_reference)<5:
                 raise ValueError('Carrier acceptance requires carrier_acceptance_reference')

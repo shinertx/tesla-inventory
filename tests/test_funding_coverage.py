@@ -1,9 +1,10 @@
 """Recorded settled funds must cover financed vehicle release; private evidence stays private."""
 import json
 import time
+import uuid
 
 import pytest
-from test_transactions import setup, request, customer, approve, checkout, event, auth, admin, status, t_body
+from test_transactions import setup, request, customer, approve, checkout, event, auth, admin, status, t_body, record_cash_balance, accept_fixture_transport
 
 
 def prepared(setup, financed=True):
@@ -17,7 +18,7 @@ def prepared(setup, financed=True):
 
 
 def record_funding(client, order, amount, state='lender_funded', **changes):
-    body = {'state': state, 'provider': 'Fixture lender', 'reference': 'PRIVATE_FUNDING_REFERENCE',
+    body = {'state': state, 'provider': 'Fixture lender', 'reference': 'PRIVATE_FUNDING_REFERENCE-'+str(uuid.uuid4()),
             'funded_amount_cents': amount, **changes}
     result = client.post('/api/admin/orders/' + order['id'] + '/financing', json=body, headers=admin())
     assert result.status_code == 200, result.text
@@ -56,6 +57,7 @@ def test_exact_or_greater_settled_lender_proceeds_allow_release(setup, extra):
     client, _, _, order, quote = prepared(setup)
     record_funding(client, order, quote['balance_after_deposit_cents']+extra)
     assert advance(client, order, 'dealer_confirmed').status_code == 200
+    accept_fixture_transport(client,order)
     assert advance(client, order, 'dealer_funded').status_code == 200
     assert status(client, order) == 'in_transit'
 
@@ -78,8 +80,10 @@ def test_legacy_funded_state_and_carrier_markers_cannot_skip_coverage(setup, mar
     body = {**dispatch_body(), 'state': marker}
     assert client.post(endpoint, json=body, headers=admin()).status_code == 409
     record_funding(client, order, quote['balance_after_deposit_cents'])
+    accept_fixture_transport(client,order)
+    if marker=='delivered':assert advance(client,order,'dealer_funded').status_code==200
     assert client.post(endpoint, json=body, headers=admin()).status_code == 200
-    assert advance(client, order, 'dealer_funded').status_code == 200
+    if marker=='dispatched':assert advance(client, order, 'dealer_funded').status_code == 200
 
 
 @pytest.mark.parametrize('marker', ['dispatched', 'delivered'])
@@ -109,7 +113,9 @@ def test_deposit_is_not_assumed_when_no_credited_payment_is_recorded(setup):
 
 def test_existing_cash_receipt_and_settled_ach_paths_remain_available(setup):
     client, _, _, order, _ = prepared(setup, financed=False)
+    record_cash_balance(client,order)
     assert advance(client, order, 'dealer_confirmed').status_code == 200
+    accept_fixture_transport(client,order)
     assert advance(client, order, 'dealer_funded').status_code == 200
 
 
@@ -118,6 +124,7 @@ def test_full_recorded_ach_covers_financed_order_without_assuming_loan_proceeds(
     # Simulate the existing canonical full-balance settlement record, not a down payment.
     with store.transaction() as db:
         db.execute("UPDATE orders SET balance_payment_state='paid',balance_payment_id='pi_fixture_settled_full_balance' WHERE id=?", (order['id'],))
+        store.event(db,order['id'],'balance_payment_settled',{'balance_payment_id':'pi_fixture_settled_full_balance','amount_cents':3156250-25000})
     assert advance(client, order, 'dealer_confirmed').status_code == 200
 
 

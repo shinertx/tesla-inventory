@@ -1,3 +1,19 @@
+# Loan and cash reconciliation integration — November 1, 2026
+
+Codex owns the buyer cash receipt/reversal ledger, cumulative lender observations/corrections, customer funding summary, shipping rules and release integration. Antigravity prepared a provider handoff. Reviewed canonical provider instructions are in docs/PROVIDER_ACCESS_HANDOFF.md; the older artifact had incorrect CLI/booking details.
+
+The new ledger records observations only. It moves no money, expires no provider session, and initiates no refund. Actual bank/remittance references are reserved across funding types and orders. Current quote/seller binding, idempotent retries and immutable corrections protect the funding total. Earlier-context funds remain visible for reconciliation. Open full-balance conflicts block new payment/release actions.
+
+Shipping rules reject impossible/incomplete windows and lifecycle regressions. Recorded accepted bookings remain valid after their original rate quote expires. Customer UI shows settled reservation, loan and cash credits separately and keeps closed records free of collection actions.
+
+Core implementation and reviewed follow-ups through e9634b6 pass 394 Python tests. All eight browser suites pass, including mobile funding cases. Review fixes separate completed versus cancelled money, preserve legacy prior-context loan amounts, and normalize remittance IDs before validation and hashing. Source catalog, prices, media and exclusion data remain unchanged.
+
+Ben later asked to sign into Stripe. Sign-in completed in the existing JENNi account after his authenticator entry. No account, credential, gateway or provider settings changed; the restricted-key branch remains unmerged.
+
+Actual retail seller/provider access and authorized gallery feeds remain absent. No new photos were recovered. Vendor inquiries remain drafts; Jockey stays an unverified label. Runtime acceptance will use a new clearly synthetic sandbox order, real authenticated bookkeeping HTTP calls and restart checks, with no provider/financial calls.
+
+--- Previous release ---
+
 # Non-payment fulfillment fixes — November 1, 2026
 
 Ben directed Codex to ignore Stripe and finish the rest. No account/payment setup changes are included. Restricted-key work remains isolated and unmerged.
