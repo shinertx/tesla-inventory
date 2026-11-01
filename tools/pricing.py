@@ -8,11 +8,13 @@ class PricingPolicy:
     minimum_contribution_cents: int = 0
     platform_cost_floor_cents: int = 0
     minimum_buyer_savings_cents: int = 50000
+    buyer_surplus_share: float = 0.0
 
     def __post_init__(self):
         if (self.buyer_savings_cents<0 or self.minimum_comparables<3
             or self.minimum_contribution_cents<0 or self.platform_cost_floor_cents<0
-            or self.minimum_buyer_savings_cents<0):
+            or self.minimum_buyer_savings_cents<0
+            or not (0.0<=self.buyer_surplus_share<1.0)):
             raise ValueError('Invalid pricing policy')
 
 def propose_price(dealer_net_cents,reference_cents=None,sample_size=0,platform_cost_cents=None,policy=None):
@@ -28,7 +30,10 @@ def propose_price(dealer_net_cents,reference_cents=None,sample_size=0,platform_c
         discount=0
     elif required_spread>0:
         surplus=max(0,raw_gap-required_spread)
-        discount=min((surplus//100)*100,policy.buyer_savings_cents)
+        base_discount=min((surplus//100)*100,policy.buyer_savings_cents)
+        extra_surplus=max(0,surplus-policy.buyer_savings_cents)
+        extra_discount=(int(round(extra_surplus*policy.buyer_surplus_share))//100)*100 if policy.buyer_surplus_share>0 else 0
+        discount=base_discount+extra_discount
         if discount<min(policy.minimum_buyer_savings_cents,policy.buyer_savings_cents):
             discount=0
     else:

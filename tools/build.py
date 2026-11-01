@@ -19,6 +19,7 @@ PRICING_POLICY=PricingPolicy(
     minimum_contribution_cents=int(os.getenv('MIN_CONTRIBUTION_CENTS','100000')),
     platform_cost_floor_cents=int(os.getenv('PLATFORM_COST_FLOOR_CENTS','130000')),
     minimum_buyer_savings_cents=int(os.getenv('MIN_BUYER_SAVINGS_CENTS','50000')),
+    buyer_surplus_share=float(os.getenv('BUYER_SURPLUS_SHARE','0.5')),
 )
 
 def schema_script(page_url, page_name, subset, description='', breadcrumb_name=None):

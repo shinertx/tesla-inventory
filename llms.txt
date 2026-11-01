@@ -9,17 +9,17 @@
 - **Purchase & Reservation Model**: Online deal builder with ZIP delivery distance estimation; `$250` refundable reservation deposit after licensed selling dealer confirmation and written hold (`dealer_fulfillment`)
 
 ## Used Tesla Inventory & Benchmark Summary by Model
-- **Tesla Cybertruck**: 249 listings | Low: `$62,000` | Median: `$82,757` | Price Finds (`$500+` below peer benchmark): 49 | Browse: https://voltsandvins.com/models/cybertruck.html
-- **Tesla Model 3**: 6,436 listings | Low: `$10,995` | Median: `$26,579` | Price Finds (`$500+` below peer benchmark): 340 | Browse: https://voltsandvins.com/models/model-3.html
-- **Tesla Model S**: 1,387 listings | Low: `$10,014` | Median: `$33,147` | Price Finds (`$500+` below peer benchmark): 134 | Browse: https://voltsandvins.com/models/model-s.html
+- **Tesla Cybertruck**: 249 listings | Low: `$62,000` | Median: `$82,181` | Price Finds (`$500+` below peer benchmark): 49 | Browse: https://voltsandvins.com/models/cybertruck.html
+- **Tesla Model 3**: 6,436 listings | Low: `$10,995` | Median: `$26,521` | Price Finds (`$500+` below peer benchmark): 340 | Browse: https://voltsandvins.com/models/model-3.html
+- **Tesla Model S**: 1,387 listings | Low: `$10,014` | Median: `$33,122` | Price Finds (`$500+` below peer benchmark): 134 | Browse: https://voltsandvins.com/models/model-s.html
 - **Tesla Model X**: 1,584 listings | Low: `$13,800` | Median: `$40,990` | Price Finds (`$500+` below peer benchmark): 243 | Browse: https://voltsandvins.com/models/model-x.html
-- **Tesla Model Y**: 5,441 listings | Low: `$16,000` | Median: `$34,193` | Price Finds (`$500+` below peer benchmark): 402 | Browse: https://voltsandvins.com/models/model-y.html
+- **Tesla Model Y**: 5,441 listings | Low: `$16,000` | Median: `$34,153` | Price Finds (`$500+` below peer benchmark): 402 | Browse: https://voltsandvins.com/models/model-y.html
 
 ## High-Intent Deal & Configuration Hubs
 - [Used Tesla Price Finds Below Market Benchmark (1,168 listings)](https://voltsandvins.com/deals/price-finds.html)
-- [Used Teslas Under $25,000 (3,718 listings)](https://voltsandvins.com/deals/under-25000.html)
-- [Used Teslas Under $30,000 (7,342 listings)](https://voltsandvins.com/deals/under-30000.html)
-- [Used Teslas Under $35,000 (9,975 listings)](https://voltsandvins.com/deals/under-35000.html)
+- [Used Teslas Under $25,000 (3,722 listings)](https://voltsandvins.com/deals/under-25000.html)
+- [Used Teslas Under $30,000 (7,343 listings)](https://voltsandvins.com/deals/under-30000.html)
+- [Used Teslas Under $35,000 (9,984 listings)](https://voltsandvins.com/deals/under-35000.html)
 - [Low-Mileage Used Teslas Under 30,000 Miles (3,279 listings)](https://voltsandvins.com/deals/low-mileage.html)
 - [Used All-Wheel Drive (AWD) Teslas (7,996 listings)](https://voltsandvins.com/deals/awd.html)
 - [Used Rear-Wheel Drive (RWD) Teslas (4,323 listings)](https://voltsandvins.com/deals/rwd.html)
