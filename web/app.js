@@ -159,7 +159,7 @@
   }
   function applyFilters(resetLimit=true){
     const search=$('search').value.trim().toLowerCase();
-    filtered=items.filter(x=>(!$('photos-only').checked||(!!x.photo&&!failedPhotos.has(x.vin)))&&(discovery!=='finds'||saving(x)>=500)&&(!$('model').value||x.model===$('model').value)&&(!$('year').value||x.year===Number($('year').value))&&(!$('state').value||x.state===$('state').value)&&(!$('drivetrain').value||x.drivetrain===$('drivetrain').value)&&(!$('trim-family').value||x.trim_family===$('trim-family').value)&&(!$('factory').value||x.factory===$('factory').value)&&(!$('hardware').value||x.hardware===$('hardware').value)&&x.display_price<=Number($('price').value)&&x.mileage<=Number($('mileage').value)&&($('mileage').value==='999999'||x.mileage>0)&&(!$('saved-only').checked||saved.has(x.vin))&&(!$('reservable-only')?.checked||!!x.reservable)&&(!search||[x.vin,x.model,x.trim,x.stock_number,x.city,x.state,x.drivetrain,x.factory].join(' ').toLowerCase().includes(search)));
+    filtered=items.filter(x=>(!$('photos-only').checked||(!!x.photo&&!failedPhotos.has(x.vin)))&&(discovery!=='finds'||saving(x)>=500)&&(!$('model').value||x.model===$('model').value)&&(!$('year').value||x.year===Number($('year').value))&&(!$('state').value||x.state===$('state').value)&&(!$('drivetrain').value||x.drivetrain===$('drivetrain').value)&&(!$('trim-family').value||x.trim_family===$('trim-family').value)&&(!$('factory').value||x.factory===$('factory').value)&&(!$('hardware').value||x.hardware===$('hardware').value)&&x.display_price<=Number($('price').value)&&x.mileage<=Number($('mileage').value)&&($('mileage').value==='999999'||x.mileage>0)&&(!$('saved-only').checked||saved.has(x.vin))&&(!search||[x.vin,x.model,x.trim,x.stock_number,x.city,x.state,x.drivetrain,x.factory].join(' ').toLowerCase().includes(search)));
     const sort=$('sort').value;
     filtered.sort((a,b)=>sort==='recommended'?rank(b)-rank(a)||a.vin.localeCompare(b.vin):sort==='savings'?saving(b)-saving(a)||rank(b)-rank(a)||a.display_price-b.display_price||a.vin.localeCompare(b.vin):sort==='distance'?(distance(a)??Infinity)-(distance(b)??Infinity)||rank(b)-rank(a):sort==='price-desc'?b.display_price-a.display_price:sort==='mileage'?a.mileage-b.mileage:sort==='year'?b.year-a.year:a.display_price-b.display_price);
     if(sort==='recommended')filtered=varied(filtered);
@@ -212,7 +212,7 @@
         try{await resolveZip(val);}catch(error){if(activeVIN===stock&&$('vehicle-zip-error'))$('vehicle-zip-error').textContent=error.message;}
       });
     }
-    if(tab==='process')$('vehicle-panel').innerHTML=['Choose your Tesla','Review your complete written price','Authorize a $250 card hold','Choose cash or financing','Sign and track delivery'].map(label=>`<div class="order-stage">${esc(label)}</div>`).join('')+'<p>Your card hold becomes available with a verified vehicle and complete quote. Uncaptured holds are released; captured deposits follow your accepted refund terms.</p>';
+    if(tab==='process')$('vehicle-panel').innerHTML=['Choose your Tesla','Review the complete price','Reserve','Arrange payment','Sign','Track delivery'].map(label=>`<div class="order-stage">${esc(label)}</div>`).join('')+'<p>Volts &amp; VINs remains your main contact throughout. Your complete quote and purchase documents identify the confirmed licensed seller. Your card hold becomes available with a verified vehicle and complete quote; uncaptured holds are released and captured deposits follow your accepted refund terms.</p>';
   }
   let requestDraft=null,requestSubmitting=false;
   function paintDeal(){
@@ -229,15 +229,15 @@
     const x=byVIN.get(vin);if(!x)return;activeVIN=vin;trackVisit('deal_estimator',vin);
     try{const d=JSON.parse(localStorage.getItem('marketplace_deal')||'null');if(d&&d.vin===vin&&d.mode)dealMode=d.mode;}catch{}
     paintDeal();$('deal-zip').value=zip;$('deal-zip').required=!apiReady;
-    $('deal-message').textContent=zipState()?`Estimate for ${zip}. Next step: lock this price & request the HW4/HW3 screen check ($0 today).`:'Enter your 5-digit ZIP to estimate shipping & tax, then lock this price & request the HW4/HW3 screen check ($0 today).';
-    $('deal-continue').textContent=apiReady?'Check availability & lock price · $0':'Save price';
+    $('deal-message').textContent=zipState()?`Estimate for ${zip}. Next step: get your complete Volts & VINs quote.`:'Enter your 5-digit ZIP to estimate shipping & tax, then get your complete quote.';
+    $('deal-continue').textContent=apiReady?'Get your complete quote':'Save price';
     close('vehicle-dialog');open('deal-dialog');$('deal-scroll').scrollTop=0;
   }
   $('deal-back').addEventListener('click',()=>{close('deal-dialog');showVehicle(activeVIN);});
   $('deal-zip').addEventListener('input',async e=>{
     const val=e.target.value.trim(),vin=activeVIN;
     if(/^\d{5}$/.test(val)&&val!==zip){
-      try{if(!await resolveZip(val)||activeVIN!==vin||!$('deal-dialog').open||$('deal-zip').value!==val)return;paintDeal();$('deal-message').textContent=`Estimate for ${val}. Next step: lock this price & request the HW4/HW3 screen check ($0 today).`;}catch(error){if(activeVIN===vin&&$('deal-dialog').open&&$('deal-zip').value===val)$('deal-message').textContent=error.message;}
+      try{if(!await resolveZip(val)||activeVIN!==vin||!$('deal-dialog').open||$('deal-zip').value!==val)return;paintDeal();$('deal-message').textContent=`Estimate for ${val}. Next step: get your complete Volts & VINs quote.`;}catch(error){if(activeVIN===vin&&$('deal-dialog').open&&$('deal-zip').value===val)$('deal-message').textContent=error.message;}
     }
   });
   $('deal-form').addEventListener('submit',async e=>{
@@ -300,8 +300,8 @@
     try{
       const order=await api('requests',{method:'POST',headers:{'Idempotency-Key':requestKey},body:JSON.stringify({stock_id:activeVIN,expected_vehicle_price_cents:Math.round(byVIN.get(activeVIN).display_price*100),name:data.get('name'),email:data.get('email'),phone:data.get('phone'),state:String(data.get('state')||zipState()).toUpperCase(),zip:data.get('zip'),payment_preference:data.get('payment_preference')||'cash',demand_channel:channel(),campaign_id:new URLSearchParams(location.search).get('utm_campaign')?.slice(0,100)||'',consent:data.get('consent')==='on'})});
       rememberAccess({id:order.id,token:order.access_token});requestDraft=null;requestSubmitting=false;
-      form.reset();close('request-dialog');showOrder(order);notify('Your final price request is saved. $0 paid today.');
-    }catch(error){$('request-error').textContent=error.message;}finally{requestSubmitting=false;b.disabled=false;b.textContent='Request final price · $0 today';navigation.forEach(control=>control.disabled=false);}
+      form.reset();close('request-dialog');showOrder(order);notify('Your Volts & VINs quote request is saved.');
+    }catch(error){$('request-error').textContent=error.message;}finally{requestSubmitting=false;b.disabled=false;b.textContent='Get your Volts & VINs quote';navigation.forEach(control=>control.disabled=false);}
   });
   function renderRecoverOrder(initialError=''){
     stopOrderPoll();
@@ -622,9 +622,9 @@
     $('model').value=['Model Y','Model 3','Cybertruck'].includes(discovery)?discovery:'';
     $('price').value=discovery==='under25'?'25000':discovery==='under30'?'30000':'999999';$('mileage').value=discovery==='lowmiles'?'30000':'999999';$('search').value='';applyFilters();
   }));
-  ['model','year','state','price','mileage','sort','saved-only','photos-only','reservable-only','drivetrain','trim-family','factory','hardware'].forEach(id=>$(id)?.addEventListener('change',applyFilters));
+  ['model','year','state','price','mileage','sort','saved-only','photos-only','drivetrain','trim-family','factory','hardware'].forEach(id=>$(id)?.addEventListener('change',applyFilters));
   let searchTimer;$('search').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(applyFilters,140);});
-  $('reset').addEventListener('click',()=>{['model','year','state','search','drivetrain','trim-family','factory','hardware'].forEach(id=>$(id).value='');$('price').value='999999';$('mileage').value='999999';$('saved-only').checked=false;if($('reservable-only'))$('reservable-only').checked=false;discovery='all';document.querySelectorAll('[data-discover]').forEach(b=>b.classList.toggle('active',b.dataset.discover==='all'));$('photos-only').checked=true;applyFilters();});
+  $('reset').addEventListener('click',()=>{['model','year','state','search','drivetrain','trim-family','factory','hardware'].forEach(id=>$(id).value='');$('price').value='999999';$('mileage').value='999999';$('saved-only').checked=false;discovery='all';document.querySelectorAll('[data-discover]').forEach(b=>b.classList.toggle('active',b.dataset.discover==='all'));$('photos-only').checked=true;applyFilters();});
   $('load-more').addEventListener('click',()=>{limit+=36;render();});
   $('saved-button').addEventListener('click',showShortlist);
   function toggleFilters(expanded){$('filters').classList.toggle('expanded',expanded);$('mobile-filters').setAttribute('aria-expanded',String(expanded));}
@@ -653,23 +653,19 @@
     const paymentsOn=!!(apiReady&&config?.payments_enabled);
     $('purchase-availability').hidden=true;
     $('purchase-availability').textContent='';
-    $('business-status').textContent=paymentsOn?'Find your Tesla · Estimate your total · $250 refundable reservation after quote approval':(apiReady?'Find your Tesla · Estimate your total · Monthly payment calculator · Request a dealer quote':'15,000+ Used Teslas Nationwide · Estimate Your Total · Monthly Payment Calculator');
+    $('business-status').textContent=paymentsOn?'Choose your Tesla · Review the complete price · Reserve with a $250 card hold after quote approval':(apiReady?'Choose your Tesla · Review the complete price · Get your Volts & VINs quote':'15,000+ Used Teslas Nationwide · Estimate Your Total · Monthly Payment Calculator');
     $('order-button').hidden=false;$('order-button').textContent=apiReady?'Track my request':'Saved price';
-    $('hero-description').textContent='Compare Teslas, review your total, and request your final price online.';
+    $('hero-description').textContent='Compare Teslas, review the complete price, and get your Volts & VINs quote.';
     if(items.length)applyFilters(false);
     const button=$('vehicle-request');if(button){button.disabled=false;button.textContent='Review price';}
     if($('deal-zip'))$('deal-zip').required=!apiReady;
-    if($('deal-dialog')?.open)$('deal-continue').textContent=apiReady?'Check availability & lock price · $0':'Save price';
+    if($('deal-dialog')?.open)$('deal-continue').textContent=apiReady?'Get your complete quote':'Save price';
   }
   purchaseAvailability();
   api('config').then(c=>{config=c;apiReady=!!c.requests_enabled;purchaseAvailability();}).catch(()=>{apiReady=false;purchaseAvailability();}).finally(()=>{if(restoredPrivateLink)refreshOrder();else if(privateLinkError){renderRecoverOrder(privateLinkError);open('order-dialog');}});
   fetch(new URL('inventory.json?v='+(document.querySelector('meta[name="volts-catalog-version"]')?.content||new URL(scriptURL).searchParams.get('v')||'current'),rootURL)).then(r=>{if(!r.ok)throw new Error('Inventory unavailable');return r.json();}).then(async payload=>{
     mediaVersion=payload.meta?.media_version||'';snapshotDate=payload.meta?.built_at||'';
     items=(await Promise.all(payload.items.filter(x=>!x.expires_at||new Date(x.expires_at).getTime()>Date.now()).map(publicItem))).filter(Boolean);byVIN=new Map(items.map(x=>[x.stock_id,x]));saved=new Set((await Promise.all([...saved].map(publicStockID))).filter(Boolean));updateSaved();
-    const reservableCount=items.filter(x=>x.reservable).length;
-    if($('reservable-label'))$('reservable-label').textContent=reservableCount?`Reservable now (${reservableCount} seller-approved)`:'Reservable now (0 seller-approved · browsing discovery catalog)';
-    if($('reservable-only'))$('reservable-only').disabled=!reservableCount;
-    if($('reservable-only'))$('reservable-only').closest('label').hidden=!reservableCount;
     document.querySelector('[data-discover=finds]').hidden=!items.some(x=>saving(x)>=500);
     for(const option of $('hardware').options){if(option.value){const count=items.filter(x=>x.hardware===option.value).length;option.disabled=!count;option.textContent=count?`${option.value} · ${count} verified`:`${option.value} — evidence needed`;}}
     $('hardware').closest('label').hidden=!items.some(x=>x.hardware);

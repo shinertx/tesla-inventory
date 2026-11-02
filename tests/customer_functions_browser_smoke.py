@@ -59,7 +59,7 @@ def main():
                 context.add_init_script('localStorage.setItem("marketplace_saved",'+json.dumps(json.dumps([x['vin'] for x in rows]+[STALE]))+')')
                 page=context.new_page();page.on('pageerror',lambda error:errors.append(str(error)))
                 page.goto(base);page.wait_for_selector('.card')
-                assert not page.locator('#hardware').is_visible() and not page.locator('#reservable-only').is_visible()
+                assert not page.locator('#hardware').is_visible() and page.locator('#reservable-only').count()==0
                 page.locator('#saved-button').click();assert page.locator('.shortlist-unavailable').count()==1
                 page.locator('[data-remove-unavailable]').click();assert page.locator('#saved-count').inner_text()=='3'
                 page.locator('[data-compare-select]').nth(0).check();page.locator('[data-compare-select]').nth(1).check();page.locator('[data-compare-select]').nth(2).check();page.locator('#compare-saved').click();text=page.locator('#compare-content').inner_text()
@@ -90,8 +90,8 @@ def main():
                 page.reload();page.locator('#photo-expand').wait_for(state='visible')
                 page.locator('[data-close=vehicle-dialog]').click()
                 if width==390:page.locator('#mobile-filters').click()
-                assert page.locator('#hardware').is_visible() and page.locator('#reservable-only').is_visible()
-                page.locator('#photos-only').uncheck();page.select_option('#hardware','HW4');page.locator('#reservable-only').check()
+                assert page.locator('#hardware').is_visible() and page.locator('#reservable-only').count()==0
+                page.locator('#photos-only').uncheck();page.select_option('#hardware','HW4')
                 assert page.locator('#result-count').inner_text()=='1 Tesla listing'
                 results[f'eligible_controls_restore_{width}']=True
                 context.close()

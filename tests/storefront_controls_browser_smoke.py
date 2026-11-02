@@ -125,7 +125,7 @@ def main():
                     ('hardware','HW4',lambda x:x['hardware']=='HW4')]:
                     reset();page.select_option('#'+selector,value);expect_rows([x for x in photographed if predicate(x)])
                 checks['year_state_price_mileage_hardware_filters']=True
-                reset();page.locator('#reservable-only').check();expect_rows([rows[0]])
+                assert page.locator('#reservable-only').count()==0
                 reset();page.locator('#photos-only').uncheck();expect_rows(rows)
                 page.locator('#photos-only').check();expect_rows(photographed)
                 checks['photos_and_reservable_toggles']=True
