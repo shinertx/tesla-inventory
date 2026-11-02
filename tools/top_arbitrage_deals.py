@@ -5,8 +5,11 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT))
+from app.catalog import stock_id_for
 
 
 def load_top_deals(
@@ -19,10 +22,12 @@ def load_top_deals(
     root = Path(catalog_root or ROOT)
     public = json.loads((root / 'inventory.json').read_text())['items']
     opportunities = json.loads((root / '.data/arbitrage_opportunities.json').read_text())['items']
-    published = {item['vin']: item for item in public}
+    published = {item.get('stock_id') or item.get('vin'): item for item in public}
     deals = []
     for source in opportunities:
-        vehicle = published.get(source['vin'])
+        try:identity=stock_id_for(source['vin'])
+        except ValueError:identity=source['vin']  # Legacy private fixtures are not VIN repairs.
+        vehicle = published.get(identity) or published.get(source['vin'])
         if not vehicle or (models and vehicle['model'] not in models):
             continue
         source_ask = source['source_asking_cents'] / 100

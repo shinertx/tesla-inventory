@@ -24,7 +24,7 @@ def main():
             browser=p.chromium.launch()
             for width in (1440,390):
                 for mode in ('platform','dealer_direct'):
-                    order={'id':'fixture-order','vin':item['vin'],'state':'quoted','quote_version':1,
+                    order={'id':'fixture-order','stock_id':item['stock_id'],'masked_vin':item['masked_vin'],'state':'quoted','quote_version':1,
                            'quote':quote,'online_actions':[],'deposit_collection_mode':mode,
                            'deposit_collector_legal_name':'JENNI PRO INC' if mode=='platform' else 'FIXTURE RETAIL SELLER'}
                     calls=[]
@@ -56,8 +56,9 @@ def main():
                     assert 'FIXTURE RETAIL SELLER' in page.locator('#order-quote').inner_text()
                     assert page.locator('#pay-deposit').inner_text()=='Reserve for $250'
                     if mode=='platform':
-                        assert 'charged by JENNI PRO INC' in page.locator('#deposit-collector').inner_text()
-                        assert 'Refunds follow the accepted reservation terms.' in page.locator('#deposit-collector').inner_text()
+                        assert 'JENNI PRO INC' in page.locator('#deposit-collector').inner_text()
+                        assert 'Your reservation payment provider is' in page.locator('#deposit-collector').inner_text()
+                        assert 'accepted terms explain collection and release.' in page.locator('#deposit-collector').inner_text()
                     else:assert page.locator('#deposit-collector').count()==0
                     page.locator('#pay-deposit').click();assert not calls
                     page.locator('#accept-quote').check();page.locator('#pay-deposit').click()

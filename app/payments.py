@@ -38,22 +38,33 @@ class StripePayments:
             raise ValueError('Platform collector legal name is not configured')
         if platform and not self.dealer_can_charge(order['payment_account']):
             raise ValueError('Platform payment account identity or charging capability is not verified')
+        capture_method=order.get('deposit_capture_method',getattr(self.settings,'deposit_capture_method','automatic'))
+        if capture_method not in ('automatic','manual'):raise ValueError('Invalid deposit capture method')
+        manual=capture_method=='manual'
+        methods=list(self.settings.payment_method_types)
+        if manual and methods!=['card']:raise ValueError('Manual reservation holds require card payments')
+        message=(f'Authorized by {collector.strip()} for Volts & VINs. '
+                 'This $250 card hold is not charged now. Uncaptured holds are released under the reservation terms.' if manual else
+                 f'Charged by {collector.strip()} for Volts & VINs. This $250 reservation deposit is refundable under the accepted reservation terms.')
         branding=({'branding_settings':{'display_name':'Volts & VINs'},
-            'custom_text':{'submit':{'message':f'Charged by {collector.strip()} for Volts & VINs. This $250 reservation deposit is refundable under the accepted reservation terms.'}}} if platform else {})
+            'custom_text':{'submit':{'message':message}}} if platform else {})
         presentation=({'ui_mode':'embedded_page','redirect_on_completion':'never'}
             if self.settings.checkout_ui_mode=='embedded_page' else {
                 'ui_mode':'hosted_page','success_url':self.settings.origin+'/?checkout=returned',
                 'cancel_url':self.settings.origin+'/?checkout=cancelled'})
-        methods=list(self.settings.payment_method_types)
         options={'payment_method_options':{'us_bank_account':{'financial_connections':{'permissions':['payment_method']},'verification_method':'automatic'}}} if 'us_bank_account' in methods else {}
+        metadata={'order_id':order['id'],'quote_version':str(order['quote_version']),'vin':order['vin'],
+                  'payment_stage':'deposit','brand':'Volts & VINs'}
+        if manual:
+            options['payment_intent_data']={'capture_method':'manual','metadata':metadata}
+        from .catalog import stock_id_for
         return _as_dict(stripe.checkout.Session.create(
             **scope, mode='payment',
             payment_method_types=methods, client_reference_id=order['id'],
-            metadata={'order_id':order['id'],'quote_version':str(order['quote_version']),'vin':order['vin'],
-                'payment_stage':'deposit','brand':'Volts & VINs'},
+            metadata=metadata,
             line_items=[{'price_data':{'currency':'usd','unit_amount':25000,
-                'product_data':{'name':('Volts & VINs — $250 refundable reservation deposit' if platform else 'Refundable vehicle reservation deposit'),
-                    'description':f"VIN {order['vin']}; quote {order['quote_version']}"}},'quantity':1}],
+                'product_data':{'name':('Volts & VINs — $250 reservation card hold' if manual else ('Volts & VINs — $250 refundable reservation deposit' if platform else 'Refundable vehicle reservation deposit')),
+                    'description':f"Stock {stock_id_for(order['vin'])}; quote {order['quote_version']}"}},'quantity':1}],
             expires_at=expires_at,
             **options,
             **branding,
@@ -91,6 +102,17 @@ class StripePayments:
 
     def retrieve_checkout(self, session_id, account):
         return _as_dict(stripe.checkout.Session.retrieve(session_id,**self._scope(account)))
+
+    def retrieve_payment_intent(self, payment_id, account):
+        return _as_dict(stripe.PaymentIntent.retrieve(payment_id,expand=['latest_charge'],**self._scope(account)))
+
+    def capture_authorization(self, order):
+        return _as_dict(stripe.PaymentIntent.capture(order['payment_id'],amount_to_capture=25000,
+            **self._scope(order['payment_account']),idempotency_key=f"capture:{order['id']}:{order['quote_version']}:deposit"))
+
+    def release_authorization(self, order):
+        return _as_dict(stripe.PaymentIntent.cancel(order['payment_id'],
+            **self._scope(order['payment_account']),idempotency_key=f"release:{order['id']}:{order['quote_version']}:deposit"))
 
     def refund(self, order):
         return _as_dict(stripe.Refund.create(payment_intent=order['payment_id'],amount=25000,

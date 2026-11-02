@@ -18,6 +18,7 @@ import os
 import sqlite3
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -31,6 +32,8 @@ from tools.inventory import ingest, export
 from tools.build import build as build_catalog
 from tools.top_arbitrage_deals import load_top_deals, write_markdown_report
 from tools.indexnow import ping_indexnow, load_sitemap_urls
+from app.catalog import stock_id_for, VIN_PATTERN
+from tools.public_site import public_files, is_public_artifact, VIN_RE
 
 
 DEFAULT_PARTITIONS = [
@@ -143,7 +146,7 @@ def job_discover_vehicles(
 def job_enrich_media(
     *,
     snapshot_path: Path = ROOT / ".data/source_snapshot.json",
-    gallery_path: Path = ROOT / "data/vehicle_photos.json",
+    gallery_path: Path = ROOT / ".data/vehicle_photos.json",
     status_file: Path = ROOT / ".data/jobs_status.json",
     max_new_fetches: int = 10,
 ) -> dict:
@@ -155,8 +158,13 @@ def job_enrich_media(
         _write_job_status(status_file, "2_enrich_media", res)
         return res
     rows = json.loads(snapshot_path.read_text()).get("items", [])
-    galleries = json.loads(gallery_path.read_text()) if gallery_path.exists() else {}
+    if any(isinstance(row,dict) and row.get('stock_id') and not row.get('vin') for row in rows):
+        res={"ok":False,"reason":"private_vin_source_required"}
+        _write_job_status(status_file,"2_enrich_media",res)
+        return res
+    galleries = _private_gallery_cache(gallery_path)
     added = 0
+    updated = 0
     multi = 0
     for row in rows:
         vin = row.get("vin", "")
@@ -166,23 +174,43 @@ def job_enrich_media(
         merged = normalize_photos(existing + row.get("photos", []))
         if not merged and row.get("photo_url"):
             merged = normalize_photos([row["photo_url"]])
-        if merged and vin not in galleries:
+        if merged and merged!=existing:
+            updated+=int(vin in galleries)
+            added+=int(vin not in galleries)
             galleries[vin] = merged
-            added += 1
         if len(galleries.get(vin, [])) > 1:
             multi += 1
-    if added > 0:
-        gallery_path.parent.mkdir(parents=True, exist_ok=True)
+    if added > 0 or updated > 0 or (galleries and not gallery_path.exists()):
+        gallery_path.parent.mkdir(parents=True, exist_ok=True,mode=0o700)
         gallery_path.write_text(json.dumps(galleries, separators=(",", ":")))
+        gallery_path.chmod(0o600)
     result = {
         "ok": True,
         "catalog_vins_checked": len(rows),
         "galleries_total": len(galleries),
         "multi_photo_vins": multi,
         "new_galleries_indexed": added,
+        "existing_galleries_updated": updated,
     }
     _write_job_status(status_file, "2_enrich_media", result)
     return result
+
+
+def _private_gallery_cache(gallery_path: Path) -> dict:
+    """Seed future media jobs from original private arrays, never proxy/public shards."""
+    from tools.media import normalize_photos
+    galleries=json.loads(gallery_path.read_text()) if gallery_path.exists() else {}
+    if not isinstance(galleries,dict) or any(not VIN_PATTERN.fullmatch(str(vin)) for vin in galleries):
+        raise ValueError('Private gallery cache requires complete VIN identities')
+    transaction_path=gallery_path.parent/'transaction_inventory.json'
+    if transaction_path.exists():
+        for row in json.loads(transaction_path.read_text()).get('items',[]):
+            vin=row.get('vin')
+            if not VIN_PATTERN.fullmatch(str(vin)):
+                raise ValueError('Private transaction inventory requires complete VIN identities')
+            photos=normalize_photos((galleries.get(vin) or [])+(row.get('photos') or []))
+            if photos:galleries[vin]=photos
+    return galleries
 
 
 def job_reprice_and_build(
@@ -200,15 +228,24 @@ def job_reprice_and_build(
         source_rows = json.loads(snapshot_path.read_text()).get("items", [])
         source_count = len({row.get("vin") for row in source_rows if isinstance(row, dict) and row.get("vin")})
         existing_path = output_dir / "inventory.json"
-        existing_count = len(json.loads(existing_path.read_text()).get("items", [])) if existing_path.exists() else 0
+        existing_items=json.loads(existing_path.read_text()).get("items", []) if existing_path.exists() else []
+        existing_count = len(existing_items)
     except (OSError, ValueError, AttributeError, TypeError):
-        source_count, existing_count = 0, 0
+        source_count, existing_count,existing_items = 0, 0,[]
     if not source_count or source_count < existing_count * .8:
         result = {"ok": False, "reason": "source_coverage_requires_review", "source_vins": source_count,
                   "existing_catalog_vins": existing_count, "published_unchanged": True}
         _write_job_status(status_file, "3_reprice_and_build", result)
         return result
-    manifest = build_catalog(source=snapshot_path, output=output_dir)
+    if any(row.get('stock_id') and not row.get('vin') for row in existing_items) and not (output_dir/'.data/transaction_inventory.json').exists():
+        result={"ok":False,"reason":"private_transaction_inventory_required","published_unchanged":True}
+        _write_job_status(status_file,"3_reprice_and_build",result)
+        return result
+    gallery_path=output_dir/'.data/vehicle_photos.json'
+    galleries=_private_gallery_cache(gallery_path)
+    gallery_path.parent.mkdir(parents=True,exist_ok=True,mode=0o700)
+    gallery_path.write_text(json.dumps(galleries,separators=(',',':')));gallery_path.chmod(0o600)
+    manifest = build_catalog(source=snapshot_path, output=output_dir,gallery_source=gallery_path)
     docs_out = output_dir / ".data/top-arbitrage-deals.md"
     write_markdown_report(docs_out, min_spread_dollars=min_spread_dollars, catalog_root=output_dir)
     deals = load_top_deals(min_spread_dollars=min_spread_dollars, limit=1000, catalog_root=output_dir)
@@ -237,30 +274,33 @@ def job_publish_and_index(
     """Job 4: Optionally commit/push updated static catalog and submit deployed URLs to IndexNow; acceptance does not prove indexing."""
     indexnow_res = {}
     git_res = {"pushed": False}
-    public_artifacts = ["inventory.json", "llms.txt", "llms-full.txt", "index.html", "deals", "models", "states", "years", "sitemap.xml", "robots.txt", "media", "data/vehicle_photos.json"]
-    # Optional generated artifacts must travel with their catalog and sitemap.
-    public_artifacts += [name for name in ("v", "browse", "openapi.json", "CNAME", "voltsandvins-indexnow-key.txt", "search-release.json")
-                         if (repo_dir / name).exists()]
     if git_push:
         try:
+            public_artifacts={path.relative_to(repo_dir.resolve()).as_posix() for path in public_files(repo_dir)}
             status = subprocess.run(
-                ["git", "status", "--porcelain", "--", *public_artifacts],
+                ["git", "status", "--porcelain=v1", "-z", "--untracked-files=all", "--no-renames"],
                 cwd=repo_dir,
                 capture_output=True,
                 text=True,
                 check=False,
             )
-            if status.stdout.strip():
-                subprocess.run(
-                    ["git", "add", "--", *public_artifacts],
-                    cwd=repo_dir,
-                    check=True,
-                )
-                subprocess.run(
-                    ["git", "commit", "--only", "-m", f"Automated catalog & dynamic pricing refresh ({_utc_now()[:16]}Z)", "--", *public_artifacts],
-                    cwd=repo_dir,
-                    check=True,
-                )
+            if status.returncode:raise ValueError('Public git status is unavailable')
+            selected=[]
+            records=status.stdout.split('\0') if '\0' in status.stdout else status.stdout.splitlines()
+            for record in records:
+                if len(record)<4:continue
+                code,path=record[:2],record[3:]
+                if path in public_artifacts or ('D' in code and is_public_artifact(path) and not (repo_dir/path).exists()):
+                    selected.append(path)
+            if selected:
+                # NUL pathspecs avoid argument limits. Literal matching cannot stage nearby private paths.
+                with tempfile.NamedTemporaryFile() as pathspec:
+                    pathspec.write(b''.join(path.encode()+b'\0' for path in sorted(set(selected))));pathspec.flush()
+                    scope=['--pathspec-from-file='+pathspec.name,'--pathspec-file-nul']
+                    env={**os.environ,'GIT_LITERAL_PATHSPECS':'1'}
+                    subprocess.run(["git","add",*scope],cwd=repo_dir,check=True,env=env)
+                    subprocess.run(["git","commit","--only","-m",f"Automated catalog & dynamic pricing refresh ({_utc_now()[:16]}Z)",*scope],
+                                   cwd=repo_dir,check=True,env=env)
                 subprocess.run(["git", "push", "origin", "HEAD:main"], cwd=repo_dir, check=True)
                 git_res = {"pushed": True}
             else:
@@ -288,7 +328,9 @@ def job_publish_and_index(
                 elif public_sitemap != sitemap.read_bytes():
                     indexnow_res = {"deferred": True, "reason": "public_sitemap_not_deployed"}
                 else:
-                    indexnow_res = ping_indexnow(urls=load_sitemap_urls(sitemap))
+                    urls=load_sitemap_urls(sitemap)
+                    indexnow_res=({"deferred":True,"reason":"public_vin_urls_require_migration"}
+                                  if any(VIN_RE.search(url) for url in urls) else ping_indexnow(urls=urls))
             except Exception as exc:
                 partial = getattr(exc, "result", None)
                 indexnow_res = {**partial, "error": str(exc)[:160]} if isinstance(partial, dict) else {
@@ -376,7 +418,7 @@ def job_match_customer_orders(
     *,
     orders_db: Path = Path(os.getenv("ORDERS_DB", str(ROOT / ".data/orders.db"))),
     arb_path: Path = ROOT / ".data/arbitrage_opportunities.json",
-    inv_path: Path = ROOT / "inventory.json",
+    inv_path: Path = ROOT / ".data/transaction_inventory.json",
     packets_out: Path = ROOT / ".data/deal_packets.json",
     status_file: Path = ROOT / ".data/jobs_status.json",
     alert_email: str = os.getenv("ALERT_EMAIL_TO", "ben@jockeyvc.com"),
@@ -397,6 +439,7 @@ def job_match_customer_orders(
             pass
 
     inv_by_vin = {}
+    inv_by_stock = {}
     if inv_path.exists():
         try:
             for item in json.loads(inv_path.read_text()).get("items", []):
@@ -404,6 +447,15 @@ def job_match_customer_orders(
                     inv_by_vin[item["vin"]] = item
         except Exception:
             pass
+    published_path=inv_path.parent.parent/'inventory.json' if inv_path.parent.name=='.data' else inv_path
+    published_available=published_path.exists()
+    published_by_vin={}
+    if published_available:
+        try:
+            for item in json.loads(published_path.read_text()).get('items',[]):
+                if item.get('stock_id'):inv_by_stock[item['stock_id']]=item
+                elif item.get('vin'):published_by_vin[item['vin']]=item
+        except (OSError,ValueError,TypeError):pass
 
     packets = []
     emails_sent = 0
@@ -427,7 +479,10 @@ def job_match_customer_orders(
                 except Exception:
                     cust = {}
                 arb = arb_by_vin.get(vin, {})
-                inv = inv_by_vin.get(vin, {})
+                try:stock_id=stock_id_for(vin)
+                except ValueError:stock_id=None
+                inv = (inv_by_stock.get(stock_id) or published_by_vin.get(vin,{})
+                       if published_available else inv_by_vin.get(vin,{}))
                 source_cents = arb.get("source_asking_cents")
                 source_cents = source_cents if type(source_cents) is int and source_cents > 0 else None
                 published_price = inv.get("display_price")
@@ -469,6 +524,7 @@ def job_match_customer_orders(
                         emails_sent += 1
     packets_out.parent.mkdir(parents=True, exist_ok=True)
     packets_out.write_text(json.dumps({"updated_at": _utc_now(), "packets": packets}, indent=2))
+    packets_out.chmod(0o600)
     result = {
         "ok": True,
         "orders_scanned": len(packets),

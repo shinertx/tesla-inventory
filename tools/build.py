@@ -8,7 +8,8 @@ import xml.etree.ElementTree as ET
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 from tools.inventory import valid_vin
-from app.catalog import public_catalog
+from app.catalog import (public_catalog, public_photo, catalog_exclusions, stock_id_for, media_shard,
+                         masked_vin_for, title_risk_reasons)
 from tools.media import photo_url,normalize_photos
 from tools.features import vehicle_features
 from tools.pricing import PricingPolicy,propose_price,mileage_reference
@@ -37,12 +38,12 @@ def schema_script(page_url, page_name, subset, description='', breadcrumb_name=N
                 '@type':'Car','name':f"{x['year']} Tesla {x['model']} {x['trim']}",
                 'brand':{'@type':'Brand','name':'Tesla'},'model':x['model'],'vehicleModelDate':str(x['year']),
                 'vehicleConfiguration':x['trim'],'fuelType':'Electricity',
-                'vehicleIdentificationNumber':x['vin'],'itemCondition':'https://schema.org/UsedCondition',
+                'sku':x['stock_id'],'itemCondition':'https://schema.org/UsedCondition',
                 'mileageFromOdometer':{'@type':'QuantitativeValue','value':x['mileage'],'unitCode':'SMI'},
                 **({'driveWheelConfiguration':'https://schema.org/'+{'AWD':'AllWheelDriveConfiguration','RWD':'RearWheelDriveConfiguration'}[x['drivetrain']]} if x.get('drivetrain') in ('AWD','RWD') else {}),
                 **({'image':x['photo']} if x.get('photo') else {}),
-                **({'offers':{'@type':'Offer','priceCurrency':'USD','price':x['display_price'],'availability':'https://schema.org/InStock','url':f"{BASE}/v/{x['vin']}.html"}} if x.get('reservable') else {}),
-                'url':f"{BASE}/v/{x['vin']}.html"
+                **({'offers':{'@type':'Offer','priceCurrency':'USD','price':x['display_price'],'availability':'https://schema.org/InStock','url':f"{BASE}/v/{x['stock_id']}.html"}} if x.get('reservable') else {}),
+                'url':f"{BASE}/v/{x['stock_id']}.html"
             }} for i,x in enumerate(subset[:24])
         ]}
     ]
@@ -95,7 +96,7 @@ def build(source=None,output=ROOT,now=None,gallery_source=None):
         vin=x.get('vin','')
         if not valid_vin(vin) or vin in seen:excluded['invalid_or_duplicate_vin']+=1;continue
         seen.add(vin)
-        if x.get('risk_flag') or vin in blocked:excluded['title_or_condition_risk']+=1;continue
+        if title_risk_reasons(x) or vin in blocked:excluded['title_or_condition_risk']+=1;continue
         age=timestamp(x.get('observed_at') or x.get('imported_at'))
         if not age or age<now-timedelta(days=7):excluded['expired_snapshot']+=1;continue
         price=x.get('asking_price');mileage=x.get('mileage')
@@ -110,11 +111,11 @@ def build(source=None,output=ROOT,now=None,gallery_source=None):
         hold_until=x.get('seller_hold_until')
         hold_ts=hold_until if isinstance(hold_until,int) else (int(timestamp(hold_until).timestamp()) if timestamp(hold_until) else 0)
         hold_active=hold_ts>int(now.timestamp())+1800
-        reservable=bool(x.get('agreed_dealer_net_cents') and x.get('supplier_commitment_reference') and x.get('configuration_evidence_reference') and hold_active and x.get('title_status')=='clean_verified')
+        reservable=bool(x.get('agreed_dealer_net_cents') and x.get('supplier_commitment_reference') and x.get('configuration_evidence_reference') and x.get('title_history_reference') and hold_active and x.get('title_status')=='clean_verified')
         photos=normalize_photos(galleries.get(vin,[]) or x.get('photos',[]))
         items.append({'vin':vin,'model':x['model'],'year':x['year'],
             'trim':customer_trim(x.get('dealer_trim'),x['model']),'mileage':mileage,'display_price':price,
-            'stock_number':'TSL-'+vin[-6:],'pricing_status':'estimate','city':x.get('city') or '',
+            'stock_number':stock_id_for(vin),'pricing_status':'estimate','city':x.get('city') or '',
             'state':x.get('state') or 'US','photo':photos[0]['url'] if photos else photo_url(x.get('photo_url')),'photos':photos,
             'fulfillment':'dealer_owned','source_observed_at':x.get('observed_at'),'benchmark_date':(age or now).date().isoformat(),
             'expires_at':(age+timedelta(days=7)).isoformat(),'reservable':reservable,
@@ -171,23 +172,69 @@ def build(source=None,output=ROOT,now=None,gallery_source=None):
     payload={'meta':{'built_at':now.isoformat(),'count':len(items),'reservable_count':sum(1 for x in items if x.get('reservable')),'mode':'dealer_fulfillment',
         'partner_onboarding_status':'pending','excluded':dict(excluded),'availability_note':'Listings require seller, title, condition, and price verification.'},'items':items}
     output.mkdir(parents=True,exist_ok=True)
-    # Keep the first customer download small. Fetch only the selected gallery shard.
+    migrated=migrate_public_catalog(payload,output,shards={},render=True,excluded=excluded)
+    return migrated['private']
+
+
+def migrate_public_catalog(catalog,output=ROOT,*,shards=None,render=False,excluded=None):
+    """Move public VIN identities to stock IDs without repricing or collecting sources.
+
+    Existing gallery arrays are preserved. The VIN-keyed transaction inventory stays
+    private so checkout never needs to recover an identity from public data.
+    """
+    output=Path(output);output.mkdir(parents=True,exist_ok=True)
+    private_dir=output/'.data';private_dir.mkdir(parents=True,exist_ok=True,mode=0o700)
+    private_path=private_dir/'transaction_inventory.json'
+    prior={}
+    if private_path.is_file():
+        prior={stock_id_for(x['vin']):x for x in json.loads(private_path.read_text()).get('items',[])}
+    if shards is None:
+        shards={p.stem:json.loads(p.read_text()) for p in (output/'media').glob('*.json')}
+    gallery_lookup={key:photos for values in shards.values() for key,photos in values.items()}
+    blocked=catalog_exclusions(output/'inventory.json')
+    private_items=[];published_shards={};seen=set();filtered=0
+    for original in catalog.get('items',[]):
+        row=dict(original)
+        if not row.get('vin'):
+            old=prior.get(row.get('stock_id'))
+            if not old:raise ValueError('Private transaction identity is required for catalog migration')
+            row={**old,**row,'vin':old['vin']}
+            # A repeated public refresh must not replace an original source URL with its relay URL.
+            if str(row.get('photo','')).startswith('https://api.voltsandvins.com/api/vehicles/'):
+                originals=[old.get('photo')]+[p.get('url') for p in old.get('photos',[]) if isinstance(p,dict)]
+                original=next((u for u in originals if public_photo(old['vin'],{'url':u})['url']==row['photo']),None)
+                if not original:raise ValueError('Private source image is required for catalog migration')
+                row['photo']=original
+            row['photos']=old.get('photos',[])
+        vin=row['vin'];stock=stock_id_for(vin)
+        if stock in seen:raise ValueError('Duplicate public stock identity')
+        seen.add(stock)
+        if vin in blocked or title_risk_reasons(row):filtered+=1;continue
+        photos=normalize_photos(row.get('photos') or gallery_lookup.get(stock) or gallery_lookup.get(vin) or [])
+        if not photos and int(row.get('photo_count') or 0)>1:
+            raise ValueError('Existing vehicle gallery is missing; migration stopped')
+        masked=masked_vin_for(vin)
+        row.update(stock_id=stock,stock_number=stock,masked_vin=masked,photos=photos,
+                   photo_count=len(photos) or int(bool(row.get('photo'))))
+        private_items.append(row)
+        if photos:published_shards.setdefault(media_shard(stock),{})[stock]=[public_photo(vin,photo) for photo in photos]
+    meta={**catalog.get('meta',{}),'count':len(private_items),
+          'reservable_count':sum(x.get('reservable') is True for x in private_items)}
+    meta['media_version']=hashlib.sha256(json.dumps(published_shards,sort_keys=True,separators=(',',':')).encode()).hexdigest()[:12]
+    private={'meta':meta,'items':private_items}
+    # The .data directory is ignored by Git and omitted from public deployment.
+    private_path.write_text(json.dumps(private,separators=(',',':')))
+    private_path.chmod(0o600)
+    public=public_catalog(private)
+    for item in public['items']:item.pop('photos',None)
     media_dir=output/'media';media_dir.mkdir(exist_ok=True)
-    shards={}
-    for item in items:
-        photos=item.get('photos',[])
-        item['photo_count']=len(photos) or int(bool(item.get('photo')))
-        if photos:shards.setdefault(format(int(item['vin'][-3:])%128,'02x'),{})[item['vin']]=photos
-    for path in media_dir.glob('*.json'):
-        if path.stem not in shards:path.unlink()
-    for shard,values in shards.items():
+    for old in media_dir.glob('*.json'):
+        if old.stem not in published_shards:old.unlink()
+    for shard,values in published_shards.items():
         (media_dir/(shard+'.json')).write_text(json.dumps(values,sort_keys=True,separators=(',',':')))
-    payload['meta']['media_version']=hashlib.sha256(json.dumps(shards,sort_keys=True,separators=(',',':')).encode()).hexdigest()[:12]
-    index=public_catalog(payload)
-    for item in index['items']:item.pop('photos',None)
-    (output/'inventory.json').write_text(json.dumps(index,separators=(',',':')))
-    render_public_pages(index,output,excluded=excluded)
-    return payload
+    (output/'inventory.json').write_text(json.dumps(public,separators=(',',':')))
+    if render:render_public_pages(public,output,excluded=excluded)
+    return {'private':private,'public':public,'shards':published_shards,'excluded_count':filtered}
 
 def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
     """Refresh discovery pages from published data without repricing or fetching sources."""
@@ -196,7 +243,7 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
     now=now or datetime.now(timezone.utc)
     items=[x for x in catalog['items'] if not x.get('expires_at') or (timestamp(x['expires_at']) and timestamp(x['expires_at'])>now)]
     template=(ROOT/'web/index.html').read_text()
-    for asset in ('app.js','styles.css'):
+    for asset in ('app.js','pricing.js','legacy-redirect.js','styles.css'):
         version=hashlib.sha256((ROOT/'web'/asset).read_bytes()).hexdigest()[:12]
         template=template.replace('web/'+asset,'web/'+asset+'?v='+version)
     catalog_version=hashlib.sha256(json.dumps(catalog,separators=(',',':')).encode()).hexdigest()[:12]
@@ -243,7 +290,7 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
     home_desc=f"Compare {len(items):,} VIN-decoded used Tesla Model Y, Model 3, Model S, Model X, and Cybertruck listings ({home_finds:,} priced $500+ below mileage-adjusted peer benchmarks) on Volts & VINs."
     root_html=template.replace('<!-- STRUCTURED_DATA -->',schema_script(BASE+'/','Volts & VINs Used Tesla Inventory',items,home_desc)).replace('<!-- SEO_INTERNAL_LINKS -->',nav_links(''))
     (output/'index.html').write_text(root_html)
-    vehicle_pages=sorted(items,key=lambda x:x['vin'])
+    vehicle_pages=sorted(items,key=lambda x:x['stock_id'])
     for group in ('models','years','states','deals','v','browse'):
         folder=output/group;folder.mkdir(exist_ok=True)
         for obsolete in folder.glob('*.html'):obsolete.unlink()
@@ -256,7 +303,7 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
         desc=f"Browse {len(subset):,} {label} listings starting at ${low_p:,.0f} (median ${med_p:,.0f}). Compare VIN-decoded specs, photos, and {finds_cnt:,} peer-benchmarked price finds{f' saving up to ${max_save:,.0f}' if max_save>=500 else ''} on Volts & VINs."
         def card_li(x):
             save_note=f" (Save ${x['savings_amount']:,.0f} vs. ${x['reference_price']:,.0f} peer benchmark)" if x.get('savings_amount',0)>=500 and x.get('reference_sample',0)>=5 else ''
-            v_link=f'../v/{x["vin"]}.html'
+            v_link=f'../v/{x["stock_id"]}.html'
             return f'<li><a href="{v_link}">{html.escape(str(x["year"])+" "+x["model"]+" "+x["trim"])}</a> — ${x["display_price"]:,.0f}{save_note}, {x["mileage"]:,} mi, {html.escape(x.get("city") or x["state"])}; vehicle price, tax, title and delivery quoted separately.</li>'
         cards=''.join(card_li(x) for x in subset[:24])
         text=template.replace('href="web/', 'href="../web/').replace('src="web/','src="../web/').replace('href="inventory.json"','href="../inventory.json"')
@@ -274,16 +321,16 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
         (output/group/(slug+'.html')).write_text(text)
         entries.append(href)
     for x in vehicle_pages:
-        vin=x['vin']
-        v_href=f'{BASE}/v/{vin}.html'
-        v_label=f"{x['year']} Tesla {x['model']} {x['trim']} (VIN {vin})"
+        stock=x['stock_id']
+        v_href=f'{BASE}/v/{stock}.html'
+        v_label=f"{x['year']} Tesla {x['model']} {x['trim']} (Stock {stock})"
         loc_text=f"{x['city']}, {x['state']}" if x.get('city') and x.get('state')!='US' else (x.get('city') or x.get('state') or 'US')
         has_benchmark=bool(x.get('reference_price') and x.get('reference_sample',0)>=5)
         has_savings=has_benchmark and x.get('savings_amount',0)>=500
         benchmark_note=(f"Save ${x['savings_amount']:,.0f} vs. ${x['reference_price']:,.0f} mileage-adjusted peer benchmark ({x['reference_sample']} comparable listings). " if has_savings else (f"Mileage-adjusted peer benchmark ${x['reference_price']:,.0f} ({x['reference_sample']} comparable listings). " if has_benchmark else 'A reliable peer price benchmark is not available for this listing. '))
         v_desc=f"{x['year']} Tesla {x['model']} {x['trim']} with {x['mileage']:,} miles in {loc_text}. Vehicle price ${x['display_price']:,.0f}. {benchmark_note}Tax, title, and delivery quoted separately."
         spec_items=[
-            f"<li><strong>VIN:</strong> {html.escape(vin)}</li>",
+            f"<li><strong>VIN:</strong> {html.escape(x.get('masked_vin') or 'Available after reservation')}</li>",
             f"<li><strong>Vehicle price:</strong> ${x['display_price']:,.0f}</li>",
             f"<li><strong>Odometer:</strong> {x['mileage']:,} mi</li>",
             *([f"<li><strong>Drivetrain:</strong> {html.escape(x['drivetrain'])}</li>"] if x.get('drivetrain') else []),
@@ -304,8 +351,8 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
         )
         v_text=template.replace('href="web/', 'href="../web/').replace('src="web/','src="../web/').replace('href="inventory.json"','href="../inventory.json"')
         v_text=v_text.replace('<h1>Find your next Tesla.</h1>','<h2>Find your next Tesla.</h2>')
-        v_text=v_text.replace('data-preset=""',f'data-preset="{html.escape("model:"+x["model"],quote=True)}" data-initial-vin="{html.escape(vin,quote=True)}"')
-        v_title=f'{x["year"]} Tesla {x["model"]} — ${x["display_price"]:,.0f} | {vin} | Volts & VINs'
+        v_text=v_text.replace('data-preset=""',f'data-preset="{html.escape("model:"+x["model"],quote=True)}" data-initial-stock-id="{html.escape(stock,quote=True)}"')
+        v_title=f'{x["year"]} Tesla {x["model"]} — ${x["display_price"]:,.0f} | {stock} | Volts & VINs'
         v_text=v_text.replace('<title>Volts &amp; VINs | Shop Used Teslas Online</title>',f'<title>{html.escape(v_title)}</title>')
         v_text=v_text.replace('<meta name="description" content="Explore used Tesla Model Y, Model 3, Model S, Model X, and Cybertruck listings. Compare vehicle photos, mileage, and vehicle prices on Volts &amp; VINs.">',f'<meta name="description" content="{html.escape(v_desc,quote=True)}">')
         v_text=v_text.replace('<meta property="og:title" content="Volts &amp; VINs | Shop Used Teslas Online">',f'<meta property="og:title" content="{html.escape(v_label)} — ${x["display_price"]:,.0f} | Volts &amp; VINs">')
@@ -314,11 +361,11 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
         v_text=v_text.replace('<link rel="canonical" href="https://voltsandvins.com/">',f'<link rel="canonical" href="{v_href}">')
         if x.get('photo'):
             v_text=v_text.replace('</head>',f'<meta property="og:image" content="{html.escape(x["photo"],quote=True)}"></head>')
-        vehicle_schema=schema_script(v_href,v_label,[x],v_desc,v_label).replace(f'{BASE}/?vin={vin}',v_href)
+        vehicle_schema=schema_script(v_href,v_label,[x],v_desc,v_label).replace(f'{BASE}/?vin={stock}',v_href)
         v_text=v_text.replace('<!-- STRUCTURED_DATA -->',vehicle_schema)
         v_text=v_text.replace('<!-- SEO_INTERNAL_LINKS -->',nav_links('../'))
         v_text=v_text.replace('<!-- CATEGORY_CONTENT -->',v_intro)
-        (output/'v'/(vin+'.html')).write_text(v_text)
+        (output/'v'/(stock+'.html')).write_text(v_text)
         entries.append(v_href)
     # A finite HTML directory reaches every VIN and category without JavaScript.
     chunks=[vehicle_pages[i:i+100] for i in range(0,len(vehicle_pages),100)] or [[]]
@@ -327,7 +374,7 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
         url=f'{BASE}/browse/{browse_name(number)}'
         label=f'Used Tesla inventory — page {number+1} of {len(chunks)}'
         description=f'Browse used Tesla listings {number*100+1 if chunk else 0}–{number*100+len(chunk)} of {len(vehicle_pages):,}. Compare vehicle prices, mileage, locations, and VIN-specific details.'
-        rows=''.join(f'<li><a href="../v/{x["vin"]}.html">{x["year"]} Tesla {html.escape(x["model"])} {html.escape(x["trim"])} — VIN {x["vin"]}</a> — ${x["display_price"]:,.0f} · {x["mileage"]:,} mi · {html.escape(x.get("city") or "")}, {html.escape(x["state"])}</li>' for x in chunk)
+        rows=''.join(f'<li><a href="../v/{x["stock_id"]}.html">{x["year"]} Tesla {html.escape(x["model"])} {html.escape(x["trim"])} — Stock {x["stock_id"]}</a> — ${x["display_price"]:,.0f} · {x["mileage"]:,} mi · {html.escape(x.get("city") or "")}, {html.escape(x["state"])}</li>' for x in chunk)
         page_links=''.join(f'<a href="{browse_name(i)}"'+(' aria-current="page"' if i==number else '')+f'>{i+1}</a> ' for i in (range(len(chunks)) if number==0 else sorted({0,number-1,number,number+1,len(chunks)-1})) if 0<=i<len(chunks))
         category_links=(''.join(f'<li><a href="../{g}/{s}.html">{html.escape(l)} ({len(sub):,})</a></li>' for g,s,l,_,sub in categories) if number==0 else '')
         intro=f'<section class="category-intro"><h1>{html.escape(label)}</h1><p>{html.escape(description)} Availability requires dealer confirmation.</p><nav class="browse-pages" aria-label="Inventory pages">{page_links}</nav><ol start="{number*100+1}">{rows}</ol>'+('<h2>Browse by deal, model, year, and vehicle location</h2><ul>'+category_links+'</ul>' if category_links else '')+'</section>'
@@ -346,7 +393,7 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
     ns='{http://www.sitemaps.org/schemas/sitemap/0.9}'
     image_ns='{http://www.google.com/schemas/sitemap-image/1.1}'
     tree=ET.Element(ns+'urlset')
-    vehicle_images={f'{BASE}/v/{x["vin"]}.html':x['photo'] for x in vehicle_pages if x.get('photo')}
+    vehicle_images={f'{BASE}/v/{x["stock_id"]}.html':x['photo'] for x in vehicle_pages if x.get('photo')}
     for url in entries:
         node=ET.SubElement(tree,ns+'url');ET.SubElement(node,ns+'loc').text=url
         if url in vehicle_images:ET.SubElement(ET.SubElement(node,image_ns+'image'),image_ns+'loc').text=vehicle_images[url]
@@ -385,7 +432,7 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
         '## Machine-Readable Feeds & Indexes',
         f'- AI Agent Filter & Search API (Filtered JSON): https://api.voltsandvins.com/api/search?model=Model+Y&max_price=36000&only_price_finds=true&limit=10',
         f'- OpenAPI 3.1 Action Specification (ChatGPT / Claude / Gemini Tools): {BASE}/openapi.json',
-        f'- Full Top-100 Price-Find VIN Digest: {BASE}/llms-full.txt',
+        f'- Full Top-100 Price-Find Stock Digest: {BASE}/llms-full.txt',
         f'- XML Sitemap ({len(entries)} URLs): {BASE}/sitemap.xml',
         f'- Complete crawlable vehicle and category directory: {BASE}/browse/index.html',
         f'- Live Public JSON Catalog: {BASE}/inventory.json',
@@ -419,13 +466,13 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
     }
     (output/'openapi.json').write_text(json.dumps(openapi_spec,indent=2)+'\n')
     find_rows=[
-        f"- **{x['year']} Tesla {x['model']} {x['trim']}** (VIN `{x['vin']}`) — Est. Price: `${x['display_price']:,.0f}` | Peer Benchmark: `${x['reference_price']:,.0f}` ({x['reference_sample']} peers) | **Save `${x['savings_amount']:,.0f}`** | {x['mileage']:,} mi | {x.get('drivetrain') or 'EV'} | {x.get('city') or ''}, {x['state']} | {BASE}/v/{x['vin']}.html"
+        f"- **{x['year']} Tesla {x['model']} {x['trim']}** (Stock `{x['stock_id']}`) — Est. Price: `${x['display_price']:,.0f}` | Peer Benchmark: `${x['reference_price']:,.0f}` ({x['reference_sample']} peers) | **Save `${x['savings_amount']:,.0f}`** | {x['mileage']:,} mi | {x.get('drivetrain') or 'EV'} | {x.get('city') or ''}, {x['state']} | {BASE}/v/{x['stock_id']}.html"
         for x in top_finds
     ]
     (output/'llms-full.txt').write_text('\n'.join([
         *llms_summary,
         '',
-        '## Top 100 Peer-Benchmarked Used Tesla Price Finds (Live VIN Index)',
+        '## Top 100 Peer-Benchmarked Used Tesla Price Finds (Live Stock Index)',
         *(find_rows or ['- No multi-peer price finds in current test fixture.']),
         '',
         '## All Indexed Category, Model-Year & State Pages',
@@ -438,7 +485,7 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
     public_files += [urlsplit(url).path.lstrip('/') for url in entries if url!=BASE+'/']
     for name in sorted(set(public_files)):
         digest.update(name.encode()+b'\0'+hashlib.sha256((output/name).read_bytes()).digest())
-    for name in ('app.js','styles.css'):
+    for name in ('app.js','pricing.js','legacy-redirect.js','styles.css'):
         digest.update(name.encode()+b'\0'+hashlib.sha256((ROOT/'web'/name).read_bytes()).digest())
     catalog_hash=hashlib.sha256(json.dumps(catalog,separators=(',',':')).encode()).hexdigest()
     digest.update(catalog_hash.encode())
@@ -451,5 +498,5 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser();group=parser.add_mutually_exclusive_group();group.add_argument('--source',type=Path);group.add_argument('--public-catalog',type=Path);parser.add_argument('--output',type=Path,default=ROOT);args=parser.parse_args()
-    if args.public_catalog:render_public_pages(json.loads(args.public_catalog.read_text()),args.output)
+    if args.public_catalog:migrate_public_catalog(json.loads(args.public_catalog.read_text()),args.output,render=True)
     else:build(args.source,output=args.output)

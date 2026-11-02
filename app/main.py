@@ -1,6 +1,6 @@
 from pathlib import Path
 from typing import Annotated
-import hashlib, hmac, json, secrets, sqlite3, time, uuid
+import hashlib, hmac, json, secrets, sqlite3, time, uuid, re
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from datetime import datetime, timezone
 from fastapi import FastAPI, Depends, Header, HTTPException, Request
@@ -13,7 +13,8 @@ from .models import PurchaseRequest, Quote, Transition, Cancellation, CheckoutAc
 from .store import Store
 from .payments import StripePayments
 from .media import VehicleMedia
-from .catalog import catalog_exclusions
+from .catalog import catalog_exclusions, public_catalog, stock_id_for, media_shard, public_photo_url, public_photo
+from .authorizations import deposit_summary, captured_cents, validate_intent, authorization_deadline
 from .funding import funding_summary, seller_key, CASH_RECORD_STATES, lender_head, observe_lender_snapshot, FundingRuleError
 from .transport_rules import TransportRuleError, validate_transport_update, require_booked_transport
 from .providers import SuperDispatchPricingClient, ProviderNotConfigured, ProviderUnavailable, UnsupportedRoute
@@ -23,7 +24,7 @@ from threading import Lock
 
 DEPOSIT = 25000
 ONLINE_STATES={
-    'sign_contract':{'deposit_paid'},
+    'sign_contract':{'deposit_authorized','funded_reservation','deposit_paid'},
     'pay_balance':{'dealer_confirmed'},
     'submit_title_documents':{'dealer_confirmed','dealer_funded','in_transit','delivered'},
     'track_delivery':{'in_transit','delivered'},
@@ -36,6 +37,7 @@ TRANSITIONS = {
     'in_transit': ('delivered', {'delivery_receipt','delivery_condition','tesla_app_transfer'}),
     'delivered': ('settlement_pending', {'dealer_title_to_buyer','dealer_tax_remittance','return_window_resolved','dealer_sale_statement'}),
 }
+MANUAL_FUNDED_TRANSITIONS={state:TRANSITIONS['deposit_paid'] for state in ('deposit_authorized','funded_reservation')}
 
 def digest(value):
     return hashlib.sha256(value.encode()).hexdigest()
@@ -49,7 +51,8 @@ def _load_inventory(path):
         inv=json.loads(raw)
         _INVENTORY_CACHE['key']=key
         _INVENTORY_CACHE['inv']=inv
-        _INVENTORY_CACHE['vehicles']={x['vin']:x for x in inv['items']}
+        # A public-only clone can serve browsing, but cannot resolve private vehicle identities.
+        _INVENTORY_CACHE['vehicles']={x['vin']:x for x in inv['items'] if isinstance(x.get('vin'),str)}
         _INVENTORY_CACHE['revision']=hashlib.sha256(raw).hexdigest()
     return _INVENTORY_CACHE['inv'],_INVENTORY_CACHE['vehicles'],_INVENTORY_CACHE['revision']
 
@@ -63,6 +66,8 @@ def create_app(settings=None, payments=None, shipping=None):
     store=Store(settings.db_path)
     payments=payments or StripePayments(settings)
     inventory,vehicles,inventory_revision=_load_inventory(settings.inventory_path)
+    stock_vins={stock_id_for(vin):vin for vin in vehicles}
+    public_root=settings.inventory_path.parent.parent if settings.inventory_path.parent.name=='.data' else settings.inventory_path.parent
     app=FastAPI(title='Volts & VINs',docs_url=None,redoc_url=None)
     app.add_middleware(GZipMiddleware,minimum_size=500)
     # The public static storefront may use a separate, narrowly scoped API host.
@@ -90,7 +95,9 @@ def create_app(settings=None, payments=None, shipping=None):
         response.headers['X-Content-Type-Options']='nosniff'
         response.headers['Referrer-Policy']='no-referrer'
         response.headers['Content-Security-Policy']="default-src 'self'; img-src 'self' https: data:; style-src 'self'; script-src 'self' https://js.stripe.com; connect-src 'self' https://api.stripe.com https://*.stripe.com; frame-src https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
-        if request.url.path.startswith('/api/'):
+        public_image=bool(request.method in ('GET','HEAD') and response.status_code==200
+            and re.fullmatch(r'/api/vehicles/VV-[A-F0-9]{12}/images/[a-f0-9]{20}',request.url.path))
+        if request.url.path.startswith('/api/') and not public_image:
             response.headers['Cache-Control']='no-store'
         if settings.sandbox_mode or settings.stripe_mode=='test':
             response.headers['X-Robots-Tag']='noindex, nofollow'
@@ -283,17 +290,23 @@ def create_app(settings=None, payments=None, shipping=None):
             profile=json.loads(row['dealer_profile'])
             summary['seller']={k:profile[k] for k in ('legal_name','license_number','address')}
             summary['inventory_owner']='fulfilling_dealer'
+            reservation_credit=DEPOSIT if row['deposit_capture_method']=='automatic' else 0
+            if captured_cents(row) and row['state'] in {'deposit_paid','dealer_confirmed','dealer_funded','in_transit','delivered','settlement_pending','completed'} and not row['refund_id']:
+                reservation_credit=DEPOSIT
             summary.update(total_cents=parsed.total_cents,deposit_cents=DEPOSIT,
-                balance_after_deposit_cents=parsed.total_cents-DEPOSIT,
+                balance_after_deposit_cents=parsed.total_cents-reservation_credit,
                 reference_price_cents=ref_cents,
                 reference_sample=ref_sample if ref_cents else 0,
                 benchmark_date=comparison.get('benchmark_date'),
                 vehicle_savings_cents=max(0,ref_cents-parsed.vehicle_price_cents) if ref_cents else 0,
                 terms={k:q[k] for k in ['buyers_guide_reference','warranty_terms_reference','return_terms_reference','deposit_terms_reference']})
-        vehicle_summary={'vin':row['vin'],'year':v.get('year'),'model':v.get('model'),'trim':v.get('trim'),
+        reveal_vin=bool(captured_cents(row) or c.execute("SELECT 1 FROM events WHERE order_id=? AND kind IN ('deposit_authorized','deposit_paid') LIMIT 1",(row['id'],)).fetchone())
+        identity={'stock_id':stock_id_for(row['vin']),'stock_number':stock_id_for(row['vin']),'masked_vin':row['vin'][:8]+'•'*9}
+        if reveal_vin:identity['vin']=row['vin']
+        vehicle_summary={**identity,'year':v.get('year'),'model':v.get('model'),'trim':v.get('trim'),
             'mileage':v.get('mileage'),'display_price':commitment['vehicle_price_cents']/100 if commitment else v.get('display_price'),
             'reference_price':ref_price if ref_cents else None,'reference_sample':ref_sample if ref_cents else 0,
-            'benchmark_date':comparison.get('benchmark_date'),'photo':v.get('photo'),'city':v.get('city'),'state':v.get('state')} if v and v.get('model') else None
+            'benchmark_date':comparison.get('benchmark_date'),'photo':public_photo_url(row['vin'],v.get('photo')),'city':v.get('city'),'state':v.get('state')} if v and v.get('model') else None
         private_financing=json.loads(row['financing_detail']) if row['financing_detail'] else {}
         financing={key:private_financing[key] for key in (
             'provider','lender_name','approved_amount_cents','funded_amount_cents','stipulations','application_url') if key in private_financing}
@@ -312,7 +325,7 @@ def create_app(settings=None, payments=None, shipping=None):
         transport['state']=row['transport_state']
         if summary:transport['customer_delivery_charge_cents']=summary['delivery_charge_cents']
         collector=json.loads(row['dealer_profile'] or '{}')
-        return {'id':row['id'],'vin':row['vin'],'state':row['state'],'quote':summary,
+        return {'id':row['id'],**identity,**deposit_summary(row),'state':row['state'],'quote':summary,
                 'deposit_collection_mode':'platform' if collector.get('payment_account_role')=='platform' else 'dealer_direct',
                 'deposit_collector_legal_name':collector.get('collection_legal_name','') if collector.get('payment_account_role')=='platform' else collector.get('legal_name',''),
                 'price_commitment':{'vehicle_price_cents':commitment['vehicle_price_cents'],'scope':'vehicle_price_only'} if commitment else None,
@@ -345,22 +358,164 @@ def create_app(settings=None, payments=None, shipping=None):
             c.execute("UPDATE orders SET state='refunded',refund_id=?,updated_at=? WHERE id=?",(result['id'],now,row['id']))
         else:
             c.execute("UPDATE orders SET state='refund_pending',refund_id=?,updated_at=? WHERE id=?",(result['id'],now,row['id']))
-        c.execute('DELETE FROM holds WHERE order_id=?',(row['id'],))
+        funds=funding_summary(c,get_order(c,row['id']),DEPOSIT)
+        external_funds=bool(funds and any(funds[key] for key in ('lender_funded_cents','settled_balance_cents','net_additional_cash_cents','prior_quote_unallocated_cash_cents','prior_quote_unallocated_lender_cents')))
+        if row['deposit_capture_method']=='manual' and external_funds:
+            c.execute('UPDATE holds SET expires_at=NULL WHERE order_id=?',(row['id'],))
+        else:c.execute('DELETE FROM holds WHERE order_id=?',(row['id'],))
         store.event(c,row['id'],'refund_submitted',{'refund_id':result['id'],'status':result['status']},True)
         return get_order(c,row['id'])
+
+    def authorization_usable(c,row,now):
+        try:
+            require_vehicle_review_clear(row['vin'])
+            dealer=dealer_for_order(c,row)
+            require_collection_authorization(dealer)
+            q=Quote.model_validate_json(row['quote'])
+            hold=c.execute('SELECT * FROM holds WHERE order_id=?',(row['id'],)).fetchone()
+            source=c.execute('SELECT expires_at FROM source_holds WHERE order_id=?',(row['id'],)).fetchone()
+            state=json.loads(row['customer']).get('state')
+            return bool(settings.payments_ready and hold and source and source['expires_at']>now
+                and state in settings.supported_states and state in dealer.supported_states
+                and row['state'] in ('checkout_pending','deposit_authorized','deposit_processing')
+                and (hold['expires_at'] is None or hold['expires_at']>now)
+                and min(q.valid_until,q.seller_hold_until)>now)
+        except (ValueError,TypeError,HTTPException):
+            return False
+
+    def bound_manual_intent(row,payment_id=None):
+        try:
+            intent=payments.retrieve_payment_intent(payment_id or row['payment_id'],row['payment_account'])
+        except Exception:
+            raise HTTPException(503,'Card hold verification is unavailable. Retry this request safely.') from None
+        try:return validate_intent(intent,row,settings.stripe_mode=='live',payment_id=payment_id)
+        except (ValueError,TypeError,AttributeError):
+            raise HTTPException(409,'Card hold does not match this request') from None
+
+    def record_manual_capture(c,row,intent,now,usable):
+        if type(intent.get('amount_received')) is not int or intent['amount_received']!=DEPOSIT or intent.get('amount_capturable')!=0:
+            raise HTTPException(409,'Captured amount does not match this reservation')
+        receipt=c.execute("SELECT 1 FROM events WHERE order_id=? AND kind='deposit_capture_recorded' "
+            "AND json_extract(detail,'$.payment_id')=? AND json_extract(detail,'$.quote_version')=? LIMIT 1",
+            (row['id'],intent['id'],row['quote_version'])).fetchone()
+        if receipt or (row['payment_id']==intent['id'] and row['deposit_captured_cents']==DEPOSIT):
+            # Preserve refunded, refund-pending, review, and fulfilled dispositions on new event IDs.
+            return get_order(c,row['id'])
+        funds=funding_summary(c,row,DEPOSIT)
+        usable=bool(usable and funds and not funds['funds_review_required']
+            and not funds['prior_quote_unallocated_cash_cents'] and not funds['prior_quote_unallocated_lender_cents']
+            and not funds['overpaid_cents'] and funds['remaining_cents']>=DEPOSIT)
+        store.event(c,row['id'],'deposit_capture_recorded',{'payment_id':intent['id'],'quote_version':row['quote_version'],'captured_cents':DEPOSIT})
+        state='deposit_paid' if usable else 'refund_pending'
+        c.execute('UPDATE orders SET state=?,payment_id=?,deposit_captured_cents=?,authorized_cents=0,updated_at=?,action_due_at=? WHERE id=?',
+            (state,intent['id'],DEPOSIT,now,now+86400,row['id']))
+        external_funds=bool(funds and any(funds[key] for key in ('lender_funded_cents','settled_balance_cents','net_additional_cash_cents','prior_quote_unallocated_cash_cents','prior_quote_unallocated_lender_cents')))
+        if usable or external_funds:c.execute('UPDATE holds SET expires_at=NULL WHERE order_id=?',(row['id'],))
+        else:c.execute('DELETE FROM holds WHERE order_id=?',(row['id'],))
+        store.event(c,row['id'],state,{'payment_id':intent['id'],'capture_method':'manual','captured_cents':DEPOSIT},True)
+        updated=get_order(c,row['id'])
+        if state=='refund_pending' and settings.auto_refund_enabled and settings.payments_ready:
+            updated=_execute_deposit_refund(c,updated,strict=False)
+        return updated
+
+    def release_manual_authorization(c,row,reason):
+        now=int(time.time())
+        if row['deposit_released_at']:return row
+        reason=row['authorization_release_reason'] or reason
+        c.execute("UPDATE orders SET state='authorization_release_pending',authorization_release_reason=?,updated_at=?,action_due_at=? WHERE id=?",(reason,now,now+60,row['id']))
+        try:intent=bound_manual_intent(row)
+        except HTTPException:
+            store.event(c,row['id'],'authorization_release_retry_scheduled',{'reason':reason},True)
+            return get_order(c,row['id'])
+        if intent.get('status')=='succeeded':
+            return record_manual_capture(c,row,intent,now,usable=False)
+        if intent.get('status')!='canceled':
+            if intent.get('status')!='requires_capture':
+                raise HTTPException(409,'The payment provider must resolve this card hold before release')
+            try:
+                payments.release_authorization(dict(get_order(c,row['id'])))
+                # A provider command response alone does not prove cancellation.
+                intent=bound_manual_intent(row)
+            except Exception:
+                store.event(c,row['id'],'authorization_release_retry_scheduled',{'reason':reason},True)
+                return get_order(c,row['id'])
+        if intent.get('status')=='succeeded':
+            return record_manual_capture(c,row,intent,now,usable=False)
+        if intent.get('status')!='canceled' or intent.get('amount_received')!=0 or intent.get('amount_capturable')!=0:
+            store.event(c,row['id'],'authorization_release_unconfirmed',{'reason':reason},True)
+            return get_order(c,row['id'])
+        funds=funding_summary(c,row,DEPOSIT)
+        external_funds=bool(funds and any(funds[key] for key in ('lender_funded_cents','settled_balance_cents','net_additional_cash_cents','prior_quote_unallocated_cash_cents','prior_quote_unallocated_lender_cents')))
+        if reason=='fully_funded_purchase':
+            funded=bool(funds and funds['coverage_complete'] and not funds['funds_review_required']
+                and not funds['overpaid_cents'] and not funds['prior_quote_unallocated_cash_cents']
+                and not funds['prior_quote_unallocated_lender_cents'])
+            state='funded_reservation' if funded else 'payment_review'
+        elif external_funds:state='payment_review'
+        else:state='quote_expired' if reason=='expired' else 'cancelled'
+        c.execute('UPDATE orders SET state=?,authorized_cents=0,deposit_released_at=?,updated_at=?,action_due_at=? WHERE id=?',
+            (state,now,now,now,row['id']))
+        if reason=='fully_funded_purchase' or external_funds:c.execute('UPDATE holds SET expires_at=NULL WHERE order_id=?',(row['id'],))
+        else:c.execute('DELETE FROM holds WHERE order_id=?',(row['id'],))
+        store.event(c,row['id'],'authorization_released',{'payment_id':intent['id'],'reason':reason},True)
+        return get_order(c,row['id'])
+
+    def handle_manual_session(c,row,session,now):
+        meta=session.get('metadata') or {}
+        if (session.get('id')!=row['checkout_id'] or session.get('status')!='complete'
+            or session.get('client_reference_id')!=row['id'] or session.get('amount_total')!=DEPOSIT
+            or session.get('currency')!='usd' or session.get('mode')!='payment'
+            or session.get('livemode') is not (settings.stripe_mode=='live')
+            or meta.get('order_id')!=row['id'] or meta.get('quote_version')!=str(row['quote_version'])
+            or meta.get('payment_stage')!='deposit' or meta.get('vin')!=row['vin']):
+            raise HTTPException(409,'Card hold checkout does not match this request')
+        payment_id=session.get('payment_intent')
+        if row['payment_id'] and row['payment_id']!=payment_id:raise HTTPException(409,'Different card hold already recorded')
+        intent=bound_manual_intent(row,payment_id)
+        now=int(time.time())
+        if intent.get('status')=='succeeded':
+            return record_manual_capture(c,row,intent,now,authorization_usable(c,row,now))
+        if intent.get('status')=='canceled':
+            c.execute('UPDATE orders SET payment_id=? WHERE id=?',(payment_id,row['id']))
+            return release_manual_authorization(c,get_order(c,row['id']),'cancelled')
+        if (intent.get('status')!='requires_capture' or intent.get('amount_capturable')!=DEPOSIT
+            or intent.get('amount_received')!=0 or session.get('payment_status') not in ('unpaid','paid')):
+            raise HTTPException(409,'The reservation is not a verified uncaptured card hold')
+        try:deadline=authorization_deadline(intent,now)
+        except ValueError:
+            c.execute('UPDATE orders SET payment_id=? WHERE id=?',(payment_id,row['id']))
+            return release_manual_authorization(c,get_order(c,row['id']),'expired')
+        if not authorization_usable(c,row,now):
+            c.execute('UPDATE orders SET payment_id=? WHERE id=?',(payment_id,row['id']))
+            return release_manual_authorization(c,get_order(c,row['id']),'cancelled')
+        q=Quote.model_validate_json(row['quote'])
+        deadline=min(deadline,q.valid_until,q.seller_hold_until)
+        if row['state']!='deposit_authorized':
+            c.execute("UPDATE orders SET state='deposit_authorized',payment_id=?,authorized_cents=?,authorization_expires_at=?,updated_at=?,action_due_at=? WHERE id=?",
+                (payment_id,DEPOSIT,deadline,now,deadline,row['id']))
+            c.execute('UPDATE holds SET expires_at=? WHERE order_id=?',(deadline,row['id']))
+            store.event(c,row['id'],'deposit_authorized',{'payment_id':payment_id,'authorized_cents':DEPOSIT,'authorization_expires_at':deadline},True)
+        return get_order(c,row['id'])
+
+    def expire_manual_authorization(c,row,now):
+        if row['deposit_capture_method']=='manual' and row['state'] in ('deposit_authorized','authorization_release_pending'):
+            if (row['state']=='authorization_release_pending' and row['action_due_at']<=now) or (row['state']=='deposit_authorized' and (not row['authorization_expires_at'] or row['authorization_expires_at']<=now)):
+                return release_manual_authorization(c,row,'expired' if row['state']=='deposit_authorized' else 'cancelled')
+        return row
 
     @app.get('/api/config')
     def config():
         with store.connect() as c:
             approved=approved_collection_sellers(c)
         onboarding='ready' if (approved and settings.platform_agreements_verified) else ('sandbox_test_only' if (approved and settings.is_test_sandbox) else 'pending')
-        payments_enabled=bool(settings.payments_ready and approved and settings.supported_states)
+        payments_enabled=bool(settings.payments_ready and approved and settings.supported_states and vehicles)
         return {'mode':'dealer_fulfillment','partner_onboarding_status':onboarding,
             'sandbox_mode':settings.is_test_sandbox,'test_mode':settings.stripe_mode=='test',
             'supported_states':settings.supported_states,'payments_enabled':payments_enabled,
             'payment_methods':list(settings.payment_method_types),'ach_enabled':payments_enabled and (settings.balance_payments_ready or 'us_bank_account' in settings.payment_method_types),
             'balance_checkout_enabled':bool(settings.balance_payments_ready and approved and settings.supported_states),
-            'balance_payment_methods':list(settings.balance_payment_method_types),'balance_payment_method':'us_bank_account','deposit_cents':DEPOSIT,'requests_enabled':True,'inventory_owner':'fulfilling_dealer'}
+            'balance_payment_methods':list(settings.balance_payment_method_types),'balance_payment_method':'us_bank_account','deposit_cents':DEPOSIT,'deposit_capture_method':settings.deposit_capture_method,
+            'authorization_writes_verified':bool(settings.stripe_authorization_writes_verified),'requests_enabled':bool(vehicles),'inventory_owner':'fulfilling_dealer'}
 
     @app.put('/api/admin/dealers/{dealer_id}',dependencies=[Depends(admin)])
     def onboard_dealer(dealer_id:str,body:Dealer):
@@ -395,6 +550,7 @@ def create_app(settings=None, payments=None, shipping=None):
             approved=approved_collection_sellers(c)
         checks={
             'approved_licensed_seller':bool(approved),
+            'private_transaction_inventory':bool(vehicles),
             'deposit_collection_mode':settings.deposit_collection_mode in {'dealer_direct','platform'},
             'platform_account_pin':settings.deposit_collection_mode!='platform' or settings.valid_platform_account,
             'platform_collector_identity':settings.deposit_collection_mode!='platform' or (isinstance(settings.platform_collection_legal_name,str) and len(settings.platform_collection_legal_name.strip())>=3),
@@ -405,6 +561,9 @@ def create_app(settings=None, payments=None, shipping=None):
             'stripe_publishable_key':settings.checkout_ui_mode=='hosted_page' or settings.publishable_key_matches_mode,
             'checkout_ui_mode':settings.checkout_ui_mode in {'hosted_page','embedded_page'},
             'deposit_payment_methods':bool(settings.payment_method_types) and set(settings.payment_method_types)<={'card','us_bank_account'},
+            'deposit_capture_method':settings.deposit_capture_method in ('automatic','manual'),
+            'manual_card_method':settings.deposit_capture_method!='manual' or settings.payment_method_types==('card',),
+            'manual_authorization_write_access':settings.deposit_capture_method!='manual' or settings.stripe_mode!='live' or settings.stripe_authorization_writes_verified,
             'live_https_and_agreements':settings.stripe_mode!='live' or (settings.origin.startswith('https://') and settings.platform_agreements_verified),
             'sandbox_key_mode':not settings.sandbox_mode or settings.stripe_mode=='test',
             'supported_sale_states':bool(settings.supported_states),
@@ -412,7 +571,7 @@ def create_app(settings=None, payments=None, shipping=None):
         }
         missing=[name for name,passed in checks.items() if not passed]
         return {
-            'deposits':{'enabled':bool(settings.payments_ready and approved and settings.supported_states),'test_mode':settings.stripe_mode=='test',
+            'deposits':{'enabled':bool(settings.payments_ready and approved and settings.supported_states and vehicles),'test_mode':settings.stripe_mode=='test',
                         'approved_seller_count':approved,'missing':missing},
             'balance':{'enabled':bool(settings.balance_payments_ready and approved and settings.supported_states),
                        'checkout_enable_setting':settings.balance_checkout_enabled,
@@ -455,22 +614,43 @@ def create_app(settings=None, payments=None, shipping=None):
                 store.event(c,order_id,'shipping_estimate_received',{**result,'request_hash':request_hash})
             return result
 
-    @app.get('/api/vehicles/{vin}/photos')
-    def vehicle_photos(vin:str,request:Request):
+    @app.get('/api/vehicles/{vehicle_id}/photos')
+    def vehicle_photos(vehicle_id:str,request:Request):
+        vin=stock_vins.get(vehicle_id) or (vehicle_id if vehicle_id in vehicles else None)
+        if not vin:raise HTTPException(404,'Vehicle not found')
         require_vehicle_review_clear(vin)
         if vin not in vehicles:raise HTTPException(404,'Vehicle not found')
         if not store.rate_limit('media:'+digest(request.client.host if request.client else 'unknown'),limit=120):raise HTTPException(429,'Photo lookup limit reached')
         published=vehicles[vin].get('photos',[])
-        shard=settings.inventory_path.parent/'media'/(format(int(vin[-3:])%128,'02x')+'.json')
-        if shard.is_file():published=json.loads(shard.read_text()).get(vin,published)
-        return media.gallery(vin,vehicles[vin].get('photo',''),published)
+        shard=public_root/'media'/(media_shard(stock_id_for(vin))+'.json')
+        if shard.is_file():published=json.loads(shard.read_text()).get(stock_id_for(vin),published)
+        result=media.gallery(vin,vehicles[vin].get('photo',''),published)
+        safe={key:value for key,value in result.items() if key not in ('vin','photos')}
+        safe['photos']=[public_photo(vin,photo) for photo in result.get('photos',[])]
+        return {**safe,'stock_id':stock_id_for(vin)}
+
+    @app.api_route('/api/vehicles/{stock_id}/images/{image_id}',methods=['GET','HEAD'])
+    def vehicle_image(stock_id:str,image_id:str,request:Request):
+        from .image_proxy import image_response
+        vin=stock_vins.get(stock_id)
+        if not vin:raise HTTPException(404,'Vehicle image not found')
+        require_vehicle_review_clear(vin)
+        if not store.rate_limit('image:'+digest(request.client.host if request.client else 'unknown'),limit=1200):
+            raise HTTPException(429,'Image lookup limit reached')
+        response=image_response(vehicles[vin],stock_id,image_id,settings.db_path.parent/'image-cache')
+        if request.method=='HEAD':
+            from starlette.responses import Response
+            return Response(status_code=response.status_code,headers=dict(response.headers))
+        return response
 
     @app.post('/api/requests',status_code=201)
     def purchase(body:PurchaseRequest,request:Request,idempotency_key:Annotated[str,Header()]):
-        require_vehicle_review_clear(body.vin)
+        vin=stock_vins.get(body.stock_id) if body.stock_id else body.vin
+        if not vin or vin not in vehicles:raise HTTPException(404,'Vehicle not in published inventory')
+        require_vehicle_review_clear(vin)
         if not 16<=len(idempotency_key)<=100:raise HTTPException(400,'Use a unique request key')
-        if body.vin not in vehicles:raise HTTPException(404,'Vehicle not in published inventory')
-        expires=vehicles[body.vin].get('expires_at')
+        if vin not in vehicles:raise HTTPException(404,'Vehicle not in published inventory')
+        expires=vehicles[vin].get('expires_at')
         if expires and datetime.fromisoformat(expires).timestamp()<=time.time():raise HTTPException(409,'This source snapshot has expired; refresh the vehicle first')
         if not store.rate_limit(digest(request.client.host if request.client else 'unknown')):
             raise HTTPException(429,'Too many requests. Try again later.')
@@ -482,7 +662,7 @@ def create_app(settings=None, payments=None, shipping=None):
             if row:
                 if row['request_hash']!=request_hash:raise HTTPException(409,'Request key already used')
                 return {**public(row,c),'access_token':token}
-            vehicle=vehicles[body.vin]
+            vehicle=vehicles[vin]
             advertised=catalog_price_cents(vehicle.get('display_price'))
             if body.expected_vehicle_price_cents is not None and body.expected_vehicle_price_cents!=advertised:
                 raise HTTPException(409,'Vehicle price changed. Review the updated listing price before submitting your request.')
@@ -490,20 +670,20 @@ def create_app(settings=None, payments=None, shipping=None):
                         'catalog_built_at':inventory.get('meta',{}).get('built_at'),'captured_at':now,
                         'comparison':{key:vehicle.get(key) for key in ('pricing_basis','reference_price','reference_sample','benchmark_date','savings_amount')}}
             store.expire(c,now)
-            if c.execute('SELECT 1 FROM holds WHERE vin=?',(body.vin,)).fetchone():
+            if c.execute('SELECT 1 FROM holds WHERE vin=?',(vin,)).fetchone():
                 raise HTTPException(409,'This vehicle is already reserved or sold. Choose another listing.')
             order_id=str(uuid.uuid4())
             c.execute('INSERT INTO orders(id,access_hash,request_key,request_hash,vin,customer,state,created_at,updated_at,action_due_at,payment_preference) '
-                'VALUES(?,?,?,?,?,?,?,?,?,?,?)',(order_id,digest(token),digest(idempotency_key),request_hash,body.vin,raw,'requested',now,now,now+86400,body.payment_preference))
+                'VALUES(?,?,?,?,?,?,?,?,?,?,?)',(order_id,digest(token),digest(idempotency_key),request_hash,vin,raw,'requested',now,now,now+86400,body.payment_preference))
             c.execute("UPDATE orders SET workflow_model='dealer_fulfillment',price_commitment=? WHERE id=?",(json.dumps(commitment,sort_keys=True),order_id))
-            store.event(c,order_id,'request_received',{'vin':body.vin,'demand_channel':body.demand_channel,'campaign_id':body.campaign_id,'payment_preference':body.payment_preference},True)
+            store.event(c,order_id,'request_received',{'vin':vin,'demand_channel':body.demand_channel,'campaign_id':body.campaign_id,'payment_preference':body.payment_preference},True)
             return {**public(get_order(c,order_id),c),'access_token':token}
 
     @app.get('/api/orders/{order_id}')
     def status(order_id:str,authorization:Annotated[str|None,Header()]=None):
         with store.transaction() as c:
             store.expire(c,int(time.time()))
-            row=order_access(c,order_id,authorization)
+            row=expire_manual_authorization(c,order_access(c,order_id,authorization),int(time.time()))
             actions=[{'kind':x['kind'],'url':x['url']} for x in c.execute('SELECT * FROM online_actions WHERE order_id=?',(order_id,)) if row['state'] in ONLINE_STATES[x['kind']]]
             if legacy_balance_payment_blocked(c,row):actions=[a for a in actions if a['kind']!='pay_balance']
             return {**public(row,c),'online_actions':actions}
@@ -549,6 +729,9 @@ def create_app(settings=None, payments=None, shipping=None):
             require_collection_authorization(dealer)
             customer=json.loads(row['customer'])
             if customer.get('state') not in dealer.supported_states or customer.get('state') not in settings.supported_states:raise HTTPException(409,'Destination is not supported')
+            if row['deposit_capture_method']=='manual' and row['deposit_released_at'] and row['state']=='quote_expired':
+                # A canceled intent cannot be reused for a renewed quote. Evidence stays in events.
+                c.execute('UPDATE orders SET payment_id=NULL,authorized_cents=0,authorization_expires_at=NULL,deposit_released_at=NULL,authorization_release_reason=NULL,deposit_captured_cents=0 WHERE id=?',(order_id,))
             c.execute("UPDATE orders SET quote=?,quote_version=quote_version+1,state='quoted',checkout_id=NULL,updated_at=?,action_due_at=? WHERE id=?",(body.model_dump_json(),now,body.valid_until,order_id))
             c.execute("UPDATE orders SET workflow_model='dealer_fulfillment',dealer_id=?,payment_account=?,dealer_profile=? WHERE id=?",(dealer.id,dealer.stripe_account,dealer.model_dump_json(),order_id))
             c.execute('INSERT INTO source_holds VALUES(?,?,?) ON CONFLICT(order_id) DO UPDATE SET expires_at=excluded.expires_at,reference=excluded.reference',(order_id,body.seller_hold_until,body.seller_hold_reference))
@@ -595,9 +778,10 @@ def create_app(settings=None, payments=None, shipping=None):
                 except Exception:raise HTTPException(503,'Payment provider unavailable; retry safely')
                 if session.get('status')!='open':raise HTTPException(409,'Checkout is no longer open; check order status')
                 return checkout_presentation(session,row['payment_account'])
-            try:session=payments.create_checkout(dict(row),q,now+1800)
+            capture_method=settings.deposit_capture_method
+            try:session=payments.create_checkout({**dict(row),'deposit_capture_method':capture_method},q,now+1800)
             except Exception:raise HTTPException(503,'Payment provider unavailable; retry safely')
-            c.execute("UPDATE orders SET state='checkout_pending',checkout_id=?,updated_at=?,action_due_at=? WHERE id=?",(session['id'],now,now+1800,order_id))
+            c.execute("UPDATE orders SET state='checkout_pending',checkout_id=?,deposit_capture_method=?,updated_at=?,action_due_at=? WHERE id=?",(session['id'],capture_method,now,now+1800,order_id))
             store.event(c,order_id,'checkout_created',{'session_id':session['id'],'accepted_quote_version':body.quote_version,'terms_accepted_at':now})
             return checkout_presentation(session,row['payment_account'])
 
@@ -606,13 +790,84 @@ def create_app(settings=None, payments=None, shipping=None):
         now=int(time.time())
         with store.transaction() as c:
             row=order_access(c,order_id,authorization)
-            if row['state'] not in ('requested','quoted','checkout_pending','deposit_paid','dealer_confirmed'):
+            if row['state'] not in ('requested','quoted','checkout_pending','deposit_authorized','funded_reservation','deposit_paid','dealer_confirmed'):
                 raise HTTPException(409,'Payment preference cannot be changed at this stage')
             if row['balance_payment_state'] in ('ach_processing','paid'):
                 raise HTTPException(409,'Balance payment is already processing or settled')
             c.execute('UPDATE orders SET payment_preference=?,updated_at=? WHERE id=?',(body.payment_preference,now,order_id))
             store.event(c,order_id,'payment_preference_updated',{'payment_preference':body.payment_preference},True)
             return public(get_order(c,order_id),c)
+
+    @app.post('/api/orders/{order_id}/capture-deposit')
+    def capture_deposit(order_id:str,body:CheckoutAcceptance,authorization:Annotated[str|None,Header()]=None):
+        if not settings.payments_ready:raise HTTPException(409,'Reservation payment is not available')
+        now=int(time.time())
+        with store.transaction() as c:
+            row=order_access(c,order_id,authorization)
+            if row['deposit_capture_method']!='manual':raise HTTPException(409,'This request does not use a card authorization')
+            if body.quote_version!=row['quote_version']:raise HTTPException(409,'Quote changed; review the current quote')
+            if captured_cents(row) and row['state']=='deposit_paid':return public(row,c)
+            if row['state']!='deposit_authorized':raise HTTPException(409,'A verified active card hold is required')
+            funds=funding_summary(c,row,DEPOSIT)
+            if (not funds or funds['funds_review_required'] or funds['prior_quote_unallocated_cash_cents']
+                or funds['prior_quote_unallocated_lender_cents'] or funds['overpaid_cents']
+                or funds['remaining_cents']<DEPOSIT):
+                raise HTTPException(409,'Recorded funding must be reconciled before capturing this card hold')
+            if not row['authorization_expires_at'] or row['authorization_expires_at']<=now:
+                return public(release_manual_authorization(c,row,'expired'),c)
+            if not authorization_usable(c,row,now):raise HTTPException(409,'Vehicle, seller, and quote must be reconfirmed before capture')
+            intent=bound_manual_intent(row)
+            now=int(time.time())
+            if intent.get('status')=='succeeded':
+                return public(record_manual_capture(c,row,intent,now,authorization_usable(c,row,now)),c)
+            if row['authorization_expires_at']<=now or not authorization_usable(c,row,now):
+                return public(release_manual_authorization(c,row,'expired'),c)
+            if intent.get('status')!='requires_capture' or intent.get('amount_capturable')!=DEPOSIT or intent.get('amount_received')!=0:
+                raise HTTPException(409,'The card hold is not available for capture')
+            try:authorization_deadline(intent,now)
+            except ValueError:raise HTTPException(409,'The card hold expired; start a new reservation') from None
+            try:payments.capture_authorization(dict(row))
+            except Exception:raise HTTPException(503,'Capture could not be confirmed. Retry this request safely.') from None
+            intent=bound_manual_intent(row)
+            if intent.get('status')!='succeeded':raise HTTPException(503,'Capture is not confirmed. Check this request before making another payment.')
+            now=int(time.time())
+            store.event(c,row['id'],'deposit_capture_accepted',{'quote_version':body.quote_version,'terms_accepted_at':now})
+            return public(record_manual_capture(c,row,intent,now,authorization_usable(c,row,now)),c)
+
+    @app.get('/api/orders/{order_id}/buyers-order')
+    def buyers_order(order_id:str,authorization:Annotated[str|None,Header()]=None):
+        from fastapi.responses import HTMLResponse
+        from html import escape
+        with store.transaction() as c:
+            row=expire_manual_authorization(c,order_access(c,order_id,authorization),int(time.time()))
+            if row['state'] not in {'deposit_authorized','funded_reservation','deposit_paid','dealer_confirmed','dealer_funded','in_transit','delivered','settlement_pending','completed'} or not row['quote']:
+                raise HTTPException(409,'An accepted complete seller quote and verified reservation are required')
+            q=Quote.model_validate_json(row['quote'])
+            if row['state']=='deposit_authorized' and min(q.valid_until,q.seller_hold_until)<=int(time.time()):
+                raise HTTPException(409,'The written quote requires renewal')
+            if not c.execute("SELECT 1 FROM events WHERE order_id=? AND kind='checkout_created' AND json_extract(detail,'$.accepted_quote_version')=? AND json_extract(detail,'$.terms_accepted_at') IS NOT NULL",(row['id'],row['quote_version'])).fetchone():
+                raise HTTPException(409,'Current purchase terms must be accepted')
+            seller=Dealer.model_validate_json(row['dealer_profile']);customer=json.loads(row['customer'])
+            funds=funding_summary(c,row,DEPOSIT)
+            credit=funds['credited_deposit_cents'] if funds else 0
+            remaining=funds['remaining_cents'] if funds else q.total_cents-credit
+            lines=[('Vehicle price',q.vehicle_price_cents),('Sales tax',q.tax_cents),('Title and registration',q.title_registration_cents),
+                   ('Documentation',q.documentation_cents),('Delivery',q.delivery_charge_cents),('Complete purchase price',q.total_cents),
+                   ('Captured reservation credit',-credit),('Remaining amount',remaining)]
+            def money(cents):return ('-' if cents<0 else '')+'$'+f'{abs(cents)/100:,.2f}'
+            items=''.join('<tr><th>'+escape(label)+'</th><td>'+money(amount)+'</td></tr>' for label,amount in lines)
+            hold='<p>The $250 card authorization is uncaptured. It is not a payment or a purchase credit.</p>' if row['state']=='deposit_authorized' else ''
+            body=('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex,nofollow">'
+                  '<title>Buyer’s order — Volts &amp; VINs</title></head><body><h1>Buyer’s order</h1><p>Volts &amp; VINs</p>'
+                  '<p>Order '+escape(row['id'])+' · Quote '+str(row['quote_version'])+'</p><h2>Licensed selling dealer</h2><p>'
+                  +escape(seller.legal_name)+'<br>License '+escape(seller.license_number)+'<br>'+escape(seller.address)+'</p>'
+                  '<h2>Buyer and vehicle</h2><p>'+escape(customer['name'])+'<br>Delivery ZIP '+escape(customer['zip'])
+                  +'<br>Stock '+escape(stock_id_for(row['vin']))+'<br>VIN '+escape(row['vin'])+'</p><table>'+items+'</table>'+hold
+                  +'<p>Quote valid until '+escape(datetime.fromtimestamp(q.valid_until,timezone.utc).isoformat())+'</p>'
+                  '<p>Use this itemized order to discuss funding with your bank or the selling dealer. '
+                  'It is not a financing approval, transfer instruction, title document, or signed sale contract.</p>'
+                  '<p>Obtain verified bank instructions from the named licensed seller before sending money.</p></body></html>')
+            return HTMLResponse(body,headers={'Content-Disposition':f'attachment; filename="volts-buyers-order-{row["id"]}.html"','Cache-Control':'no-store','X-Robots-Tag':'noindex, nofollow'})
 
     @app.post('/api/orders/{order_id}/balance-checkout')
     def balance_checkout(order_id:str,body:BalanceCheckoutAcceptance,authorization:Annotated[str|None,Header()]=None):
@@ -670,6 +925,17 @@ def create_app(settings=None, payments=None, shipping=None):
             is_balance=(bound['balance_checkout_id']==obj['id'])
             try:session=payments.retrieve_checkout(obj['id'],bound['payment_account'])
             except Exception:raise HTTPException(503,'Payment verification unavailable')
+            if session.get('id')!=obj['id']:raise HTTPException(409,'Provider checkout binding mismatch')
+        elif kind in ('payment_intent.amount_capturable_updated','payment_intent.succeeded','payment_intent.canceled'):
+            with store.connect() as lookup:
+                bound=lookup.execute("SELECT * FROM orders WHERE payment_id=? AND deposit_capture_method='manual'",(obj.get('id'),)).fetchone()
+            if not bound:return {'received':True,'ignored':True}
+            if not webhook_account_matches(event,bound) or event.get('livemode') is not (settings.stripe_mode=='live'):
+                raise HTTPException(409,'Authorization webhook account or mode mismatch')
+            try:session=payments.retrieve_checkout(bound['checkout_id'],bound['payment_account'])
+            except Exception:raise HTTPException(503,'Payment verification unavailable')
+            if session.get('id')!=bound['checkout_id'] or session.get('payment_intent')!=obj.get('id'):
+                raise HTTPException(409,'Authorization checkout binding mismatch')
         elif kind in ('checkout.session.expired','checkout.session.async_payment_failed','refund.updated','refund.created','charge.dispute.created'):
             with store.connect() as lookup:
                 if kind.startswith('checkout.session.'):
@@ -693,7 +959,11 @@ def create_app(settings=None, payments=None, shipping=None):
                     and webhook_account_matches(event,row) and settings.stripe_mode in ('test','live')
                     and session.get('livemode') is (settings.stripe_mode=='live') and session.get('payment_intent'))
                 if not base_valid:raise HTTPException(409,'Payment does not match this order')
-                if kind=='checkout.session.completed' and session.get('payment_status')=='unpaid':
+                if row['deposit_capture_method']=='manual':
+                    if event.get('livemode') is not (settings.stripe_mode=='live'):
+                        raise HTTPException(409,'Authorization webhook mode mismatch')
+                    handle_manual_session(c,row,session,now)
+                elif kind=='checkout.session.completed' and session.get('payment_status')=='unpaid':
                     if row['payment_id'] and row['payment_id']!=session['payment_intent']:raise HTTPException(409,'Different payment already recorded')
                     if row['state']=='checkout_pending':
                         c.execute("UPDATE orders SET state='deposit_processing',payment_id=?,updated_at=?,action_due_at=? WHERE id=?",(session['payment_intent'],now,now+5*86400,row['id']))
@@ -769,7 +1039,10 @@ def create_app(settings=None, payments=None, shipping=None):
                 if row and row['payment_id']==pi and obj.get('amount')==DEPOSIT and obj.get('status')=='succeeded':
                     if row['state']=='refund_pending':
                         c.execute("UPDATE orders SET state='refunded',refund_id=COALESCE(refund_id,?),updated_at=? WHERE id=?",(obj['id'],now,row['id']))
-                        c.execute('DELETE FROM holds WHERE order_id=?',(row['id'],))
+                        funds=funding_summary(c,get_order(c,row['id']),DEPOSIT)
+                        external_funds=bool(funds and any(funds[key] for key in ('lender_funded_cents','settled_balance_cents','net_additional_cash_cents','prior_quote_unallocated_cash_cents','prior_quote_unallocated_lender_cents')))
+                        if row['deposit_capture_method']=='manual' and external_funds:c.execute('UPDATE holds SET expires_at=NULL WHERE order_id=?',(row['id'],))
+                        else:c.execute('DELETE FROM holds WHERE order_id=?',(row['id'],))
                         store.event(c,row['id'],'refund_completed',{'refund_id':obj['id']},True)
                     elif row['state']!='refunded':
                         c.execute("UPDATE orders SET state='payment_review',updated_at=? WHERE id=?",(now,row['id']))
@@ -796,6 +1069,26 @@ def create_app(settings=None, payments=None, shipping=None):
         with store.transaction() as c:
             row=order_access(c,order_id,authorization)
             if row['state'] in ('cancelled','refunded','refund_pending'):return public(row,c)
+            if row['deposit_capture_method']=='manual' and row['state'] in ('checkout_pending','deposit_authorized','authorization_release_pending','quote_expired') and row['checkout_id']:
+                if not row['payment_id']:
+                    try:session=payments.retrieve_checkout(row['checkout_id'],row['payment_account'])
+                    except Exception:raise HTTPException(503,'Card checkout cancellation is unavailable. Retry safely.') from None
+                    if session.get('id')!=row['checkout_id']:raise HTTPException(409,'Provider checkout binding mismatch')
+                    if session.get('status')=='open':
+                        try:
+                            payments.expire_checkout(row['checkout_id'],row['payment_account'])
+                            session=payments.retrieve_checkout(row['checkout_id'],row['payment_account'])
+                        except Exception:raise HTTPException(503,'Card checkout cancellation is unavailable. Retry safely.') from None
+                    if session.get('status')=='complete':row=handle_manual_session(c,row,session,now)
+                    elif session.get('status')=='expired' and not session.get('payment_intent'):
+                        c.execute("UPDATE orders SET state='cancelled',updated_at=? WHERE id=?",(now,order_id))
+                        c.execute('DELETE FROM holds WHERE order_id=?',(order_id,))
+                        store.event(c,order_id,'checkout_cancelled',{'reason':body.reason},True)
+                        return public(get_order(c,order_id),c)
+                    else:raise HTTPException(409,'Card checkout cancellation is not confirmed')
+                if row['state'] in ('deposit_authorized','authorization_release_pending'):
+                    return public(release_manual_authorization(c,row,'cancelled'),c)
+                if row['state'] in ('cancelled','quote_expired','refund_pending','refunded'):return public(row,c)
             if row['state'] in TRANSITIONS and row['state']!='deposit_paid':
                 store.event(c,order_id,'cancellation_review_requested',{'reason':body.reason},True)
                 return {'state':row['state'],'message':'Cancellation requires review of the signed purchase terms.'}
@@ -1006,22 +1299,30 @@ def create_app(settings=None, payments=None, shipping=None):
 
     @app.post('/api/admin/refunds/process',dependencies=[Depends(admin)])
     def process_refunds():
-        refunded=[];pending=[];retry=[]
+        refunded=[];pending=[];retry=[];released=[]
         with store.transaction() as c:
+            due=c.execute("SELECT * FROM orders WHERE deposit_capture_method='manual' AND state IN ('deposit_authorized','authorization_release_pending') AND action_due_at<=? ORDER BY action_due_at LIMIT 50",(int(time.time()),)).fetchall()
+            for authorization in due:
+                try:
+                    updated=expire_manual_authorization(c,authorization,int(time.time()))
+                    if updated['deposit_released_at']:released.append(updated['id'])
+                except HTTPException:
+                    c.execute('UPDATE orders SET action_due_at=? WHERE id=?',(int(time.time())+60,authorization['id']))
+                    store.event(c,authorization['id'],'authorization_release_retry_scheduled',{'reason':'verification_unavailable'},True)
             rows=c.execute("SELECT * FROM orders WHERE state='refund_pending' AND workflow_model='dealer_fulfillment' AND payment_id IS NOT NULL AND payment_account IS NOT NULL AND refund_id IS NULL ORDER BY updated_at ASC LIMIT 50").fetchall()
             for r in rows:
                 updated=_execute_deposit_refund(c,r,strict=False)
                 if updated['state']=='refunded':refunded.append(updated['id'])
                 elif updated['refund_id']:pending.append(updated['id'])
                 else:retry.append(updated['id'])
-        return {'processed':len(rows),'refunded':refunded,'pending':pending,'retry_scheduled':retry}
+        return {'processed':len(rows),'refunded':refunded,'pending':pending,'retry_scheduled':retry,'authorizations_checked':len(due),'authorizations_released':released}
 
     @app.post('/api/admin/orders/{order_id}/transition',dependencies=[Depends(admin)])
     def transition(order_id:str,body:Transition):
         if not settings.agreements_gate_passed:raise HTTPException(409,'Platform transaction agreements are pending')
         now=int(time.time())
         with store.transaction() as c:
-            row=get_order(c,order_id);dealer_for_order(c,row);rule=TRANSITIONS.get(row['state'])
+            row=get_order(c,order_id);dealer_for_order(c,row);rule=TRANSITIONS.get(row['state']) or MANUAL_FUNDED_TRANSITIONS.get(row['state'])
             if not rule or body.state!=rule[0]:raise HTTPException(409,'Invalid order transition')
             if body.state in ('dealer_confirmed','dealer_funded','in_transit'):
                 hold=c.execute('SELECT expires_at FROM source_holds WHERE order_id=?',(order_id,)).fetchone()
@@ -1034,6 +1335,24 @@ def create_app(settings=None, payments=None, shipping=None):
                 except TransportRuleError as exc:raise HTTPException(409,str(exc)) from None
             if any(len(body.evidence.get(key,'').strip())<5 for key in rule[1]):
                 raise HTTPException(409,'Required transaction evidence is missing')
+            if row['state'] in ('deposit_authorized','funded_reservation'):
+                require_vehicle_review_clear(row['vin'])
+                dealer=dealer_for_order(c,row);require_collection_authorization(dealer)
+                funds=funding_summary(c,row,DEPOSIT)
+                if not funds or not funds['coverage_complete'] or funds['funds_review_required'] or funds['overpaid_cents']:
+                    raise HTTPException(409,'Complete reconciled funding is required before releasing an uncaptured reservation hold')
+                q=Quote.model_validate_json(row['quote'])
+                if q.valid_until<=int(time.time()):raise HTTPException(409,'Current purchase terms require reconfirmation')
+                if not row['deposit_released_at']:
+                    row=release_manual_authorization(c,row,'fully_funded_purchase')
+                    if row['state']!='funded_reservation':
+                        from fastapi.responses import JSONResponse
+                        return JSONResponse(public(row,c),status_code=202)
+                fresh=int(time.time())
+                hold=c.execute('SELECT expires_at FROM source_holds WHERE order_id=?',(order_id,)).fetchone()
+                if not hold or hold['expires_at']<=fresh or q.valid_until<=fresh:
+                    from fastapi.responses import JSONResponse
+                    return JSONResponse({**public(row,c),'message':'Card hold released. Renew seller confirmation before vehicle release.'},status_code=202)
             c.execute('UPDATE orders SET state=?,updated_at=?,action_due_at=? WHERE id=?',(body.state,now,now+86400,order_id))
             store.event(c,order_id,body.state,body.evidence,True)
             return public(get_order(c,order_id),c)
@@ -1114,7 +1433,7 @@ def create_app(settings=None, payments=None, shipping=None):
         if body.expires_at<=int(time.time()):raise HTTPException(409,'Hold must extend into the future')
         with store.transaction() as c:
             row=get_order(c,order_id)
-            if row['state'] not in ('deposit_paid','dealer_confirmed','dealer_funded'):raise HTTPException(409,'Hold cannot be renewed in this state')
+            if row['state'] not in ('deposit_authorized','funded_reservation','deposit_paid','dealer_confirmed','dealer_funded'):raise HTTPException(409,'Hold cannot be renewed in this state')
             c.execute('INSERT INTO source_holds VALUES(?,?,?) ON CONFLICT(order_id) DO UPDATE SET expires_at=excluded.expires_at,reference=excluded.reference',(order_id,body.expires_at,body.reference))
             store.event(c,order_id,'source_hold_reconfirmed',body.model_dump(),True)
         return {'renewed':True}
@@ -1185,14 +1504,16 @@ def create_app(settings=None, payments=None, shipping=None):
 
     # Explicit public assets only. Never expose .data, source files, or configuration.
     app.mount('/web',StaticFiles(directory=ROOT/'web'),name='assets')
-    if (settings.inventory_path.parent/'media').is_dir():
-        app.mount('/media',StaticFiles(directory=settings.inventory_path.parent/'media'),name='vehicle-photos')
+    if (public_root/'media').is_dir():
+        app.mount('/media',StaticFiles(directory=public_root/'media'),name='vehicle-photos')
     @app.get('/inventory.json')
     def published_inventory():
         with store.transaction() as c:
             store.expire(c,int(time.time()))
             occupied={r[0] for r in c.execute('SELECT vin FROM holds')}
-        items=[x for x in inventory['items'] if x['vin'] not in occupied and (not x.get('expires_at') or datetime.fromisoformat(x['expires_at']).timestamp()>time.time())]
+        occupied_stocks={stock_id_for(vin) for vin in occupied}
+        items=[x for x in inventory['items'] if x.get('vin') not in occupied and x.get('stock_id') not in occupied_stocks
+               and (not x.get('expires_at') or datetime.fromisoformat(x['expires_at']).timestamp()>time.time())]
         from .catalog import public_catalog
         return public_catalog({**inventory,'meta':{**inventory.get('meta',{}),'count':len(items)},'items':items})
     @app.get('/data/us_zip_centers.json')
@@ -1229,8 +1550,13 @@ def create_app(settings=None, payments=None, shipping=None):
     @app.get('/')
     def home():return FileResponse(ROOT/'index.html')
     @app.get('/{group}/{slug}.html')
-    def category(group:str,slug:str):
-        if group not in ('models','years','states','deals') or not slug.replace('-','').isalnum():raise HTTPException(404)
+    def category(group:str,slug:str,request:Request):
+        if group=='v' and slug in vehicles:
+            from fastapi.responses import RedirectResponse
+            from urllib.parse import urlencode
+            tracking=urlencode({key:request.query_params[key][:500] for key in ('utm_source','utm_medium','utm_campaign','utm_term','utm_content') if key in request.query_params})
+            return RedirectResponse('../v/'+stock_id_for(slug)+'.html'+('?' + tracking if tracking else ''),status_code=301)
+        if group not in ('models','years','states','deals','v','browse') or not slug.replace('-','').isalnum():raise HTTPException(404)
         path=ROOT/group/(slug+'.html')
         if not path.is_file():raise HTTPException(404)
         return FileResponse(path)

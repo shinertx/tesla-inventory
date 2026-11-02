@@ -5,10 +5,14 @@ import re
 
 ROOT = Path(__file__).resolve().parents[1]
 
+def inventory_default():
+    private=ROOT / '.data/transaction_inventory.json'
+    return private if private.is_file() else ROOT / 'inventory.json'
+
 @dataclass(frozen=True)
 class Settings:
     db_path: Path = ROOT / '.data/orders.db'
-    inventory_path: Path = ROOT / 'inventory.json'
+    inventory_path: Path = inventory_default()
     sourcing_path: Path = ROOT / '.data/source_snapshot.json'
     origin: str = 'http://127.0.0.1:8000'
     admin_token: str = ''
@@ -31,6 +35,9 @@ class Settings:
     auto_refund_enabled: bool = False
     super_dispatch_api_key: str = ''
     shipping_estimates_enabled: bool = False
+    # Legacy callers remain automatic. New environment-configured checkout uses card holds.
+    deposit_capture_method: str = 'automatic'
+    stripe_authorization_writes_verified: bool = False
 
     @property
     def stripe_mode(self):
@@ -75,6 +82,9 @@ class Settings:
                     and (not self.sandbox_mode or self.stripe_mode=='test')
                     and self.checkout_ui_mode in ('embedded_page','hosted_page')
                     and self.payment_method_types and set(self.payment_method_types)<={'card','us_bank_account'}
+                    and self.deposit_capture_method in ('automatic','manual')
+                    and (self.deposit_capture_method!='manual' or self.payment_method_types==('card',))
+                    and (self.deposit_capture_method!='manual' or self.stripe_mode!='live' or self.stripe_authorization_writes_verified)
                     and (self.checkout_ui_mode=='hosted_page' or self.publishable_key_matches_mode)
                     and (self.stripe_mode!='live' or (self.origin.startswith('https://') and self.platform_agreements_verified)))
 
@@ -89,7 +99,7 @@ class Settings:
         methods = tuple(x.strip() for x in os.getenv('STRIPE_PAYMENT_METHODS', 'card').split(',') if x.strip())
         return cls(
             db_path=Path(os.getenv('ORDERS_DB', str(ROOT / '.data/orders.db'))),
-            inventory_path=Path(os.getenv('INVENTORY_JSON', str(ROOT / 'inventory.json'))),
+            inventory_path=Path(os.getenv('INVENTORY_JSON', str(inventory_default()))),
             sourcing_path=Path(os.getenv('SOURCING_JSON',str(ROOT/'.data/source_snapshot.json'))),
             origin=os.getenv('PUBLIC_ORIGIN', 'http://127.0.0.1:8000').rstrip('/'),
             admin_token=os.getenv('ADMIN_TOKEN', ''),
@@ -110,4 +120,6 @@ class Settings:
             auto_refund_enabled=os.getenv('AUTO_REFUND_ENABLED', 'true').lower() == 'true',
             super_dispatch_api_key=os.getenv('SUPER_DISPATCH_API_KEY',''),
             shipping_estimates_enabled=os.getenv('SHIPPING_ESTIMATES_ENABLED','').lower()=='true',
+            deposit_capture_method=os.getenv('DEPOSIT_CAPTURE_METHOD','manual').strip().lower(),
+            stripe_authorization_writes_verified=os.getenv('STRIPE_AUTHORIZATION_WRITES_VERIFIED','').lower()=='true',
         )

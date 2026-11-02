@@ -111,36 +111,37 @@ def main():
                 assert 'Clean title verified' not in page.locator('#vehicle-panel').inner_text()
                 page.locator('#vehicle-request').click()
                 page.locator('#deal-zip').fill('78201')
-                page.wait_for_function('()=>document.querySelector("#deal-summary").textContent.includes("$21,735")')
+                page.wait_for_function('()=>document.querySelector("#deal-summary").textContent.includes("$22,343.75")')
                 summary = page.locator('#deal-summary').inner_text()
-                assert 'Estimated total' in summary and 'Pay in full' in summary and 'Monthly estimate' in summary
-                assert '$20,000' in summary and '$1,535' in summary and '$200' in summary
+                assert 'Estimated total' in summary and 'Pay in full' in summary and 'Estimate monthly payment' in summary
+                assert '$20,000' in summary and '$1,293.75' in summary and '$700' in summary
                 page.locator('[data-deal-mode=finance]').click()
                 assert 'illustrative' in page.locator('#deal-summary').inner_text().lower()
-                principal = 21735 - 3500
-                rate = .0649 / 12
-                monthly = int(principal * rate / (1 - (1 + rate) ** -60) + .5)
-                assert f'${monthly:,}' in page.locator('.deal-finance-headline').inner_text()
+                principal = 22343.75 - 3500
+                rate = .065 / 12
+                monthly = round(principal * rate / (1 - (1 + rate) ** -60),2)
+                assert f'${monthly:,.2f}' in page.locator('.deal-finance-headline').inner_text()
                 assert re.search(r'not (?:a credit offer|an offer)|not.*approval', page.locator('#deal-summary').inner_text().lower())
                 if width == 390:
                     assert page.locator('#deal-scroll').evaluate('(el)=>el.scrollWidth<=el.clientWidth+1')
                 page.locator('#deal-scroll').evaluate('(el)=>el.scrollTop=el.scrollHeight')
                 visible_button(page, '#deal-continue')
                 page.locator('#deal-continue').click(); page.locator('#request-dialog[open]').wait_for()
-                assert page.locator('#request-dialog h2').inner_text() == 'Request your final price'
+                assert page.locator('#request-dialog h2').inner_text() == 'Your purchase details'
                 visible_button(page, '#submit-request')
-                assert '$21,735' in page.locator('#request-estimate').inner_text()
+                assert '$22,343.75' in page.locator('#request-estimate').inner_text()
                 assert '$3,000' in page.locator('#request-estimate').inner_text()
                 assert page.locator('#submit-request').inner_text() == 'Request final price · $0 today'
                 page.locator('[name=zip]').fill('90210')
                 page.wait_for_function('()=>document.querySelector("#request-estimate").textContent.includes("90210")')
                 assert page.locator('[name=state]').input_value() == 'CA'
-                assert '$21,735' not in page.locator('#request-estimate').inner_text()
+                assert '$22,343.75' not in page.locator('#request-estimate').inner_text()
                 page.locator('[name=zip]').fill('12')
                 assert 'Enter a valid delivery ZIP' in page.locator('#request-estimate').inner_text()
-                assert '$21,735' not in page.locator('#request-estimate').inner_text()
+                assert '$22,343.75' not in page.locator('#request-estimate').inner_text()
 
                 page.locator('[name=name]').fill('Fixture Buyer'); page.locator('[name=email]').fill('fixture@example.test')
+                if page.locator('#request-dialog[open] [name=phone]').count(): page.locator('#request-dialog [name=phone]').fill('2105550100')
                 page.locator('[name=zip]').fill('78701'); page.locator('[name=payment_preference]').select_option('partner_financing')
                 page.locator('[name=consent]').check()
                 if width == 390:

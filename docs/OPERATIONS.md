@@ -70,11 +70,11 @@ Quotes cannot outlive supplier holds. Checkout requires at least 32 minutes rema
 
 ## Deposits and money ownership
 
-The adapter creates card deposits on the fulfilling dealer's connected account using `stripe_account`.
+The adapter uses the order’s bound payment account. Dealer-direct mode uses the seller account. Platform mode uses the pinned company account.
 
 It takes no platform application fee from the refundable $250 deposit.
 
-Register the webhook to receive connected-account events. The signed event's account must match the stored order before payment lookup.
+Use connected-account events for dealer-direct collection and own-account events for platform collection. The signed account must match the stored order before lookup.
 
 Subscribe to checkout completion/expiry, refund creation/update, and dispute creation events.
 
@@ -86,11 +86,59 @@ Late payments and revoked dealer commitments enter refund review. Payment redire
 
 The dealer or its provider receives the balance. `dealer_funded` requires that evidence; it does not represent platform acquisition funding.
 
+## Manual card authorizations
+
+Environment-configured new checkout defaults to `DEPOSIT_CAPTURE_METHOD=manual`. Historical automatic deposits retain their saved capture method.
+
+Manual reservations accept cards only. ACH cannot create an uncaptured reservation hold.
+
+Keep `STRIPE_AUTHORIZATION_WRITES_VERIFIED=false` until the actual restricted key can retrieve, capture, and cancel its bound PaymentIntents.
+Live manual checkout requires that explicit verification flag, approved seller agreements, supported states, and the existing payment gates.
+A readable account or installed Checkout key does not prove capture or cancellation permission.
+
+Stripe Checkout authorizes exactly $250. Its return URL does not establish authorization or payment.
+The server retrieves the canonical PaymentIntent using the order’s original account scope.
+It verifies order, quote, VIN, amount, currency, card method, mode, and authorization expiry.
+
+Verified authorization enters `deposit_authorized`. Funding credit remains zero.
+Its deadline is capped by the actual card authorization, accepted quote, and supplier hold.
+Public summaries reveal the full VIN only after verified authorization or captured-payment evidence.
+
+Authenticated `POST /api/orders/{id}/capture-deposit` accepts the current `quote_version` and `terms_accepted:true`.
+Capture requires an active verified hold, current seller authorization, current vehicle evidence, and sufficient remaining reconciled purchase balance.
+Prior-quote funds, funding review, and a balance below $250 block capture.
+Canonical capture must succeed before the deposit becomes paid or receives purchase credit.
+Provider delays trigger fresh expiry checks. An unusable late capture enters refund handling without purchase credit.
+
+Customer cancellation releases an uncaptured PaymentIntent instead of refunding an uncharged hold.
+An uncertain release stays `authorization_release_pending`; the vehicle remains locked.
+`POST /api/admin/refunds/process` retries pending releases and processes expired authorizations alongside refunds.
+Provider-confirmed release clears the authorization. Distinct success-event replays preserve existing captured/refunded dispositions.
+
+Full verified outside-bank or lender funding does not require another $250 charge.
+The `dealer_confirmed` transition still requires the actual dealer contract, order acceptance, identity check, and deposit reconciliation evidence.
+Exact reconciled coverage and current seller terms are required before releasing the uncaptured hold.
+The vehicle lock remains after release. No `deposit_paid` event or fictional deposit credit is created.
+If release needs retry, the worker enters `funded_reservation` after confirmation. Retry the evidenced dealer transition afterward.
+Expired or cancelled requests with settled external money enter payment review and retain their inventory lock.
+
+Authenticated `GET /api/orders/{id}/buyers-order` downloads an itemized HTML sheet after an accepted quote and verified reservation.
+It names the actual legal seller, full VIN, complete price, captured credit, and remaining verified balance.
+An uncaptured hold is shown separately. No bank routing details or lender approval are invented.
+The buyer can print the sheet or save it as PDF for their bank.
+Financing application links must use the actual seller’s approved HTTPS portal hosts.
+
+Set `INVENTORY_JSON` to the private `.data/transaction_inventory.json` on the API runtime.
+Public inventory, gallery keys, and discovery pages use opaque stock IDs.
+A public-only clone can serve browsing but cannot create requests or payments without the private identity mapping.
+
 ## Fulfillment and settlement
 
-`requested → quoted → checkout_pending → deposit_paid → dealer_confirmed → dealer_funded → in_transit → delivered → settlement_pending → completed`
+`requested → quoted → checkout_pending → deposit_authorized → deposit_paid → dealer_confirmed → dealer_funded → in_transit → delivered → settlement_pending → completed`
 
-Transitions require evidence named in `TRANSITIONS`. No vehicle ownership transfers to the platform.
+Historical automatic-capture orders enter `deposit_paid` after verified payment. Their original account and payment scope remain unchanged.
+
+Transitions require evidence named in `TRANSITIONS` or `MANUAL_FUNDED_TRANSITIONS`. No vehicle ownership transfers to the platform.
 
 Dealer commitments must remain valid through dealer funding and dispatch. Renew with `/api/admin/orders/{id}/hold`.
 
@@ -145,7 +193,7 @@ Customer cards omit operational availability warnings. The backend still require
 
 Real-photo vehicles lead the showroom. Generic default image paths do not count as vehicle photography.
 
-`GET /api/vehicles/{vin}/photos` serves cached VIN-bound media. Carvana Flight data and JSON-LD arrays preserve galleries and condition photographs.
+`GET /api/vehicles/{stock_id}/photos` serves stock-keyed public galleries. VIN-bound source media stays private. Carvana Flight data and JSON-LD arrays preserve galleries and condition photographs.
 
 CarGurus detail requests were blocked during verification. Its known primary photo remains available; the code does not fabricate extra angles or repeatedly retry blocked detail pages.
 
@@ -217,6 +265,8 @@ Before enabling payments, verify a real sandbox deposit, account routing, accept
 
 Browser tests use an explicit fake provider. They do not prove live processor readiness.
 
-The $250 payment is a reservation credited toward the total. Full-balance collection and automatic platform-fee splitting are separate integrations.
+Only a captured $250 deposit is credited toward the purchase total. An authorization hold never counts as paid money.
+
+Full-balance collection and automatic platform-fee splitting are separate integrations.
 
 Spread settlement currently requires the dealer's signed agreement and a reconciled remittance. Never count a deposit or projected spread as revenue.

@@ -3,6 +3,7 @@ import copy
 import json
 import re
 from tools.build import render_public_pages
+from app.catalog import stock_id_for
 
 
 def catalog():
@@ -26,6 +27,7 @@ def test_public_refresh_preserves_catalog_and_omits_private_fields(tmp_path):
     for page in pages:
         text = page.read_text()
         assert 'PRIVATE SUPPLIER NAME' not in text and '1234567' not in text
+        assert '7SAYGDED1RF039277' not in text
         assert 'name="volts-catalog-version"' in text
         assert 'rel="preload" href="inventory.json"' not in text
         assert 'id="request-back"' in text and 'id="vehicle-footer"' in text
@@ -42,7 +44,7 @@ def test_catalog_version_changes_without_repricing(tmp_path):
     assert data['items'][0]['display_price'] == 34948
 
 
-def test_top_price_find_vehicle_pages_render_with_initial_vin(tmp_path):
+def test_top_price_find_vehicle_pages_render_with_initial_stock_id(tmp_path):
     data = catalog()
     data['items'][0]['display_price'] = 30149
     data['items'][0]['reference_price'] = 33549
@@ -51,33 +53,33 @@ def test_top_price_find_vehicle_pages_render_with_initial_vin(tmp_path):
     result = render_public_pages(data, tmp_path)
     assert result['vehicle_pages'] == 1
     assert result['sitemap_urls'] == 6
-    v_page = tmp_path / 'v' / '7SAYGDED1RF039277.html'
+    v_page = tmp_path / 'v' / 'VV-6C2CD3B68849.html'
     assert v_page.is_file()
     v_html = v_page.read_text()
-    assert 'data-initial-vin="7SAYGDED1RF039277"' in v_html
-    assert 'https://voltsandvins.com/v/7SAYGDED1RF039277.html' in v_html
+    assert 'data-initial-stock-id="VV-6C2CD3B68849"' in v_html
+    assert 'https://voltsandvins.com/v/VV-6C2CD3B68849.html' in v_html
     assert '<meta property="og:image" content="https://example.test/vehicle.jpg">' in v_html
     schema=json.loads(re.search(r'<script type="application/ld\+json">(.*?)</script>',v_html).group(1))
     listing=next(node for node in schema['@graph'] if node['@type']=='ItemList')['itemListElement'][0]['item']
-    assert listing['url']=='https://voltsandvins.com/v/7SAYGDED1RF039277.html'
+    assert listing['url']=='https://voltsandvins.com/v/VV-6C2CD3B68849.html'
     assert 'offers' not in listing
     assert 'Save $3,400' in v_html
     assert 'Built in Fremont' in v_html
     assert 'PRIVATE SUPPLIER NAME' not in v_html
-    assert 'https://voltsandvins.com/v/7SAYGDED1RF039277.html' in (tmp_path / 'sitemap.xml').read_text()
+    assert 'https://voltsandvins.com/v/VV-6C2CD3B68849.html' in (tmp_path / 'sitemap.xml').read_text()
 
 
 
 def test_all_listings_get_stable_pages_without_invented_savings(tmp_path):
     data=catalog(); data['items'][0].update(reference_price=None,reference_sample=0,savings_amount=0)
     render_public_pages(data,tmp_path)
-    page=tmp_path/'v'/'7SAYGDED1RF039277.html'
+    page=tmp_path/'v'/'VV-6C2CD3B68849.html'
     assert page.exists()
     text=page.read_text()
     assert 'Save $0' not in text and 'reliable peer price benchmark is not available' in text
     assert text.count('<h1>')==1
     assert 'Built in Fremont' in text and 'Vehicle location:' in text
-    assert 'https://voltsandvins.com/v/7SAYGDED1RF039277.html' in (tmp_path/'sitemap.xml').read_text()
+    assert 'https://voltsandvins.com/v/VV-6C2CD3B68849.html' in (tmp_path/'sitemap.xml').read_text()
     data['items'][0].update(reference_price=40000,reference_sample=8,savings_amount=5052)
     render_public_pages(data,tmp_path)
     assert page.exists()  # A rank change cannot remove a published VIN page.
@@ -126,13 +128,13 @@ def test_expired_pages_leave_discovery_without_rewriting_inventory(tmp_path):
 def test_vehicle_schema_matches_visible_facts_and_escapes_markup(tmp_path):
     data=catalog();data['items'][0]['trim']='Base </script><script>alert(1)</script>'
     render_public_pages(data,tmp_path)
-    text=(tmp_path/'v'/'7SAYGDED1RF039277.html').read_text()
+    text=(tmp_path/'v'/'VV-6C2CD3B68849.html').read_text()
     schema=json.loads(re.search(r'<script type="application/ld\+json">(.*?)</script>',text).group(1))
     assert schema['@graph'][0]['@type']=='Organization'
     assert all(x['@type']!='FAQPage' for x in schema['@graph'])
     car=next(x for x in schema['@graph'] if x['@type']=='ItemList')['itemListElement'][0]['item']
     assert car['driveWheelConfiguration']=='https://schema.org/RearWheelDriveConfiguration'
-    assert car['url'].endswith('/v/7SAYGDED1RF039277.html')
+    assert car['url'].endswith('/v/VV-6C2CD3B68849.html')
     assert 'offers' not in car and '<script>alert(1)</script>' not in text
 
 

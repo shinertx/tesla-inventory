@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 from pathlib import Path
 import json, sqlite3
+from app.catalog import title_risk_reasons
 VALUES={**{str(i):i for i in range(10)},**dict(zip('ABCDEFGH',range(1,9))),
     **dict(zip('JKLMN',range(1,6))),'P':7,'R':9,**dict(zip('STUVWXYZ',range(2,10)))}
 WEIGHTS=(8,7,6,5,4,3,2,10,0,9,8,7,6,5,4,3,2)
@@ -30,6 +31,13 @@ def ingest(db_path,rows,source,observed_at,complete=False):
             raw=json.dumps(row,sort_keys=True);vin=row.get('vin','')
             if not valid_vin(vin):
                 c.execute('INSERT INTO quarantine(source,payload,reason,observed_at) VALUES(?,?,?,?)',(source,raw,'VIN invalid; human resolution required',observed_at));continue
+            risks=title_risk_reasons(row)
+            if risks:
+                # A later risk observation must not revive an older listing from another source.
+                c.execute('UPDATE listings SET active=0 WHERE vin=?',(vin,))
+                c.execute('INSERT INTO quarantine(source,payload,reason,observed_at) VALUES(?,?,?,?)',
+                          (source,raw,'Title or condition risk: '+', '.join(risks),observed_at))
+                continue
             record={**row,'source':source,'observed_at':observed_at}
             payload=json.dumps(record,sort_keys=True)
             c.execute('INSERT INTO listings VALUES(?,?,?,?,1) ON CONFLICT(vin,source) DO UPDATE SET payload=excluded.payload,observed_at=excluded.observed_at,active=1',(vin,source,payload,observed_at))
@@ -44,9 +52,15 @@ def export(db_path,destination):
     target=Path(destination)
     prior=json.loads(target.read_text()).get('items',[]) if target.exists() else []
     inactive={(r[0],r[1]) for r in c.execute('SELECT vin,source FROM listings WHERE active=0')}
-    retained={x['vin']:x for x in prior if (x.get('vin'),x.get('source')) not in inactive}
+    risk_quarantine=set()
+    for payload, in c.execute("SELECT payload FROM quarantine WHERE reason LIKE 'Title or condition risk:%'"):
+        record=json.loads(payload)
+        if record.get('vin'):risk_quarantine.add(record['vin'])
+    retained={x['vin']:x for x in prior if (x.get('vin'),x.get('source')) not in inactive
+              and x.get('vin') not in risk_quarantine and not title_risk_reasons(x)}
     for (raw,) in rows:
         row=json.loads(raw)
+        if row.get('vin') in risk_quarantine or title_risk_reasons(row):continue
         if row['vin'] not in seen:seen.add(row['vin']);retained[row['vin']]=row
     Path(destination).write_text(json.dumps({'provenance':'Timestamped source observations; exclusive availability remains unverified.','items':list(retained.values())},separators=(',',':')))
     c.close()

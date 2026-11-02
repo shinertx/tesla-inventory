@@ -2,6 +2,7 @@ from datetime import datetime,timedelta,timezone
 from pathlib import Path
 import json,sqlite3
 from tools.inventory import valid_vin,ingest,export
+from app.catalog import stock_id_for,media_shard
 from tools.build import build
 from tools.collect import parse_source,SourceError
 import pytest
@@ -93,7 +94,9 @@ def test_customer_export_never_contains_private_supplier_commercial_data(tmp_pat
     assert 'Test source' not in text and 'example.test/car' not in text
     assert not {'dealer','asking_price','service_fee','source_url'}&payload['items'][0].keys()
     from app.catalog import public_catalog
-    assert public_catalog({'items':[{'vin':VIN,'dealer':'PRIVATE','asking_price':1,'source_url':'PRIVATE'}]})['items']==[{'vin':VIN}]
+    projected=public_catalog({'items':[{'vin':VIN,'dealer':'PRIVATE','asking_price':1,'source_url':'PRIVATE'}]})['items'][0]
+    assert projected['stock_id']=='VV-39FE614315D1' and projected['stock_number']==projected['stock_id']
+    assert projected['masked_vin']=='5YJSA1S2'+'•'*9 and 'vin' not in projected
 
 def test_supplier_description_cannot_leak_raw_price_through_trim(tmp_path):
     row={**candidate(),'dealer_trim':'Used 2015 Tesla Model S 70D with 60000 miles - $20,000'}
@@ -109,8 +112,8 @@ def test_static_catalog_download_excludes_gallery_arrays_but_keeps_vin_bound_sha
     index=json.loads((tmp_path/'inventory.json').read_text())
     assert 'photos' not in index['items'][0]
     assert index['items'][0]['photo_count']==2
-    shard=tmp_path/'media'/(format(int(VIN[-3:])%128,'02x')+'.json')
-    gallery=json.loads(shard.read_text())[VIN]
+    shard=tmp_path/'media'/(media_shard(stock_id_for(VIN))+'.json')
+    gallery=json.loads(shard.read_text())[stock_id_for(VIN)]
     assert len(gallery)==2 and all(set(p)=={'url','title','category'} for p in gallery)
     assert index['meta']['media_version'] and '?v=' in (tmp_path/'index.html').read_text()
 
@@ -141,7 +144,8 @@ def test_seo_schema_jsonld_cname_and_indexnow_are_built(tmp_path):
     build(write_source(tmp_path,[candidate()]),tmp_path)
     home=(tmp_path/'index.html').read_text()
     assert 'Volts &amp; VINs' in home
-    assert 'application/ld+json' in home and VIN in home
+    assert 'application/ld+json' in home and VIN not in home
+    assert stock_id_for(VIN) in home
     assert '"@type":"CollectionPage"' in home and '"@type":"Organization"' in home and '"@type":"SearchAction"' in home
     assert '"@type":"FAQPage"' not in home and '"AutoDealer"' not in home
     cat=(tmp_path/'models/model-s.html').read_text()
@@ -178,6 +182,7 @@ def test_reservable_stock_separation_requires_seller_hold_and_clean_title(tmp_pa
         'configuration_evidence_reference':'equipment:fixture',
         'seller_hold_until':(now+timedelta(hours=4)).isoformat(),
         'title_status':'clean_verified',
+        'title_history_reference':'history:fixture',
     }
     result=build(write_source(tmp_path,[discovery_row,approved_row]),tmp_path,now)
     items={x['vin']:x for x in result['items']}
@@ -198,13 +203,14 @@ def test_supported_catalog_savings_and_comparability_guard(tmp_path,monkeypatch)
             mismatched_vin=cand;break
     mismatched={**candidate(),'vin':mismatched_vin,'asking_price':30000,'dealer_trim':'RWD','decoded_drive_hint':'AWD'}
     build(write_source(tmp_path,[good,mismatched]),tmp_path)
-    items={x['vin']:x for x in json.loads((tmp_path/'inventory.json').read_text())['items']}
+    items={x['stock_id']:x for x in json.loads((tmp_path/'inventory.json').read_text())['items']}
+    VIN_ID=stock_id_for(VIN); mismatch_id=stock_id_for(mismatched_vin)
     # Good row: reference $33,200, net $30,000 -> $3,200 raw gap; after $2,300 floor ($1,300 cost + $1,000 contribution), buyer saves $900 ($32,300 display)
-    assert items[VIN]['reference_price']==33200
-    assert items[VIN]['display_price']==32300
-    assert items[VIN]['savings_amount']==900
-    assert items[VIN]['benchmark_date']
+    assert items[VIN_ID]['reference_price']==33200
+    assert items[VIN_ID]['display_price']==32300
+    assert items[VIN_ID]['savings_amount']==900
+    assert items[VIN_ID]['benchmark_date']
     # Mismatched drivetrain without equipment evidence cannot claim public savings
-    assert items[mismatched_vin]['display_price']==30000
-    assert items[mismatched_vin]['reference_price'] is None
-    assert items[mismatched_vin]['savings_amount']==0
+    assert items[mismatch_id]['display_price']==30000
+    assert items[mismatch_id]['reference_price'] is None
+    assert items[mismatch_id]['savings_amount']==0
