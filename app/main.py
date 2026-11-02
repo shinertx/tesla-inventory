@@ -1,12 +1,12 @@
 from pathlib import Path
 from typing import Annotated
-import hashlib, hmac, json, secrets, sqlite3, time, uuid, re
+import hashlib, hmac, json, secrets, sqlite3, time, uuid, re, math
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from datetime import datetime, timezone
 from fastapi import FastAPI, Depends, Header, HTTPException, Request
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from .config import Settings, ROOT
 from .models import PurchaseRequest, Quote, Transition, Cancellation, CheckoutAcceptance, BalanceCheckoutAcceptance, PaymentPreferenceUpdate, FinancingUpdate, TransportUpdate, SellerHold, CustomerCase, CaseResolution, AccessRecovery, Dealer, Settlement, SettlementReversal, OnlineAction, BuyerCashReceipt, BuyerCashReversal, LenderFundingCorrection, canonical_reference
@@ -67,6 +67,11 @@ def create_app(settings=None, payments=None, shipping=None):
     payments=payments or StripePayments(settings)
     inventory,vehicles,inventory_revision=_load_inventory(settings.inventory_path)
     stock_vins={stock_id_for(vin):vin for vin in vehicles}
+    # Project browsing once. Full galleries stay private and load through lazy media shards.
+    browsing=public_catalog({**inventory,'items':[{k:v for k,v in row.items() if k!='photos'} for row in inventory['items']
+        if isinstance(row.get('display_price'),(int,float)) and not isinstance(row.get('display_price'),bool)
+        and math.isfinite(row['display_price']) and row['display_price']>0]})
+    browsing_body=JSONResponse(browsing).body
     public_root=settings.inventory_path.parent.parent if settings.inventory_path.parent.name=='.data' else settings.inventory_path.parent
     app=FastAPI(title='Volts & VINs',docs_url=None,redoc_url=None)
     app.add_middleware(GZipMiddleware,minimum_size=500)
@@ -1512,10 +1517,13 @@ def create_app(settings=None, payments=None, shipping=None):
             store.expire(c,int(time.time()))
             occupied={r[0] for r in c.execute('SELECT vin FROM holds')}
         occupied_stocks={stock_id_for(vin) for vin in occupied}
-        items=[x for x in inventory['items'] if x.get('vin') not in occupied and x.get('stock_id') not in occupied_stocks
-               and (not x.get('expires_at') or datetime.fromisoformat(x['expires_at']).timestamp()>time.time())]
-        from .catalog import public_catalog
-        return public_catalog({**inventory,'meta':{**inventory.get('meta',{}),'count':len(items)},'items':items})
+        now=time.time()
+        items=[x for x in browsing['items'] if x.get('stock_id') not in occupied_stocks
+               and (not x.get('expires_at') or datetime.fromisoformat(x['expires_at']).timestamp()>now)]
+        headers={'Cache-Control':'no-store'}
+        if len(items)==len(browsing['items']):
+            return Response(browsing_body,media_type='application/json',headers=headers)
+        return JSONResponse({**browsing,'meta':{**browsing.get('meta',{}),'count':len(items)},'items':items},headers=headers)
     @app.get('/data/us_zip_centers.json')
     def zip_centers():return FileResponse(ROOT/'data/us_zip_centers.json',media_type='application/json')
     @app.get('/terms/{doc_slug}')

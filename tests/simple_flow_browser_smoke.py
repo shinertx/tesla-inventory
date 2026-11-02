@@ -140,6 +140,7 @@ def main():
                 assert 'Enter a valid delivery ZIP' in page.locator('#request-estimate').inner_text()
                 assert '$22,343.75' not in page.locator('#request-estimate').inner_text()
 
+                page.locator('[name=phone]').fill('abcdefghij'); assert not page.locator('[name=phone]').evaluate('(el)=>el.checkValidity()')
                 page.locator('[name=name]').fill('Fixture Buyer'); page.locator('[name=email]').fill('fixture@example.test'); page.locator('[name=phone]').fill('2105550100')
                 page.locator('[name=zip]').fill('78701'); page.locator('[name=payment_preference]').select_option('partner_financing')
                 page.locator('[name=consent]').check()

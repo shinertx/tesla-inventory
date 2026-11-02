@@ -161,3 +161,29 @@ def test_clean_verified_without_history_document_does_not_make_listing_reservabl
     result=build(source,tmp_path,now)
     assert result['items'][0]['reservable'] is False
     assert result['items'][0]['title_status']=='unverified'
+
+
+def test_dynamic_catalog_omits_inline_galleries_and_keeps_live_holds(tmp_path):
+    from app.config import Settings
+    from app.main import create_app
+    from fastapi.testclient import TestClient
+    import time
+    photos=[{'url':'https://photos.example.test/'+VIN+'/front.jpg','title':'Front','category':'exterior'}]
+    source={'meta':{'count':1},'items':[row(photos=photos)]}
+    path=tmp_path/'inventory.json';path.write_text(json.dumps(source))
+    application=create_app(Settings(inventory_path=path,db_path=tmp_path/'orders.db'))
+    client=TestClient(application)
+    response=client.get('/inventory.json')
+    assert response.status_code==200 and response.headers['cache-control']=='no-store'
+    item=response.json()['items'][0]
+    assert item['stock_id']==STOCK and 'photos' not in item and VIN not in response.text
+    assert json.loads(path.read_text())['items'][0]['photos']==photos
+    # Cached browsing must still respect newly created inventory locks.
+    order=client.post('/api/requests',json={'stock_id':STOCK,'name':'Fixture Buyer','email':'fixture@example.test','phone':'2105550100','state':'TX','zip':'78201','consent':True},headers={'Idempotency-Key':'fixture-private-catalog'})
+    assert order.status_code==201,order.text
+    with application.state.store.transaction() as c:
+        c.execute('INSERT INTO holds(vin,order_id,expires_at) VALUES(?,?,?)',(VIN,order.json()['id'],int(time.time())+600))
+    assert client.get('/inventory.json').json()['items']==[]
+    with application.state.store.transaction() as c:c.execute('DELETE FROM holds WHERE vin=?',(VIN,))
+    restored=client.get('/inventory.json').json()
+    assert restored['items'][0]['stock_id']==STOCK and restored['meta']['count']==1
