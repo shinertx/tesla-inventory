@@ -101,7 +101,6 @@ def main():
                 page=context.new_page();page.on('pageerror',lambda error:errors.append(str(error)))
                 page.goto(base+'?vin='+rows[0]['vin']);page.locator('#vehicle-request').click();page.locator('#deal-zip').fill('78701');page.locator('#deal-continue').click()
                 page.locator('[name=name]').fill('Fixture Storage Test');page.locator('[name=email]').fill('fixture@example.test');page.locator('[name=consent]').check();page.locator('[name=phone]').fill('2105550100');page.locator('#submit-request').click()
-                if page.locator('#request-dialog[open] [name=phone]').count(): page.locator('#request-dialog [name=phone]').fill('2105550100')
                 page.locator('#access-warning').wait_for();assert 'Request received' in page.locator('#order-content').inner_text()
                 page.locator('#refresh-order').click();page.locator('#report-issue').wait_for();assert 'fixture-order' in page.locator('#order-content').inner_text()
                 results[f'storage_blocked_request_access_{width}']=True

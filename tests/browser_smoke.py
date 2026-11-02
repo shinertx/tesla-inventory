@@ -70,7 +70,6 @@ def main():
                 assert 'not a loan offer or approval' in page.locator('#deal-summary').inner_text()
                 page.locator('[data-deal-mode=cash]').click();results['deal_estimator_and_calculator']=True
                 page.locator('#deal-zip').fill('78201');page.locator('#deal-continue').click();page.wait_for_selector('#request-dialog[open]');assert page.locator('[name=state]').input_value()=='TX' and page.locator('[name=zip]').input_value()=='78201';results['zip_and_state_prefilled']=True;page.locator('[name=name]').fill('Browser Test Buyer');page.locator('[name=email]').fill('browser@example.test');page.locator('[name=consent]').check();page.locator('[name=phone]').fill('2105550100');page.locator('#submit-request').click()
-                if page.locator('#request-dialog[open] [name=phone]').count(): page.locator('#request-dialog [name=phone]').fill('2105550100')
                 page.wait_for_selector('#order-dialog[open]');assert 'Request received' in page.locator('#order-content').inner_text();results['durable_request']=True
                 access=page.evaluate('JSON.parse(sessionStorage.getItem("marketplace_order"))')
                 page.reload();page.wait_for_selector('.card');page.locator('[data-close=vehicle-dialog]').click();page.locator('#order-button').click();page.wait_for_selector('#order-dialog[open]');assert 'Request received' in page.locator('#order-content').inner_text();results['status_survives_reload']=True
