@@ -219,7 +219,7 @@
     const x=byVIN.get(activeVIN);if(!x)return;
     const est=estimateDeal(x);
     const previewTotal=est.totalCents!==null?money(est.totalCents):est.delivery?money(est.vehicleCents+est.delivery.budgetCents)+' + tax & fees':money(est.vehicleCents)+' + delivery, tax & fees';
-    $('deal-summary').innerHTML=`<p class="eyebrow">1 OF 2 · YOUR PRICE</p><h2>${x.year} Tesla ${esc(x.model)}</h2><p class="flow-car-summary">${esc(x.trim)} · ${odometer(x)} · Stock ${esc(x.stock_id)}</p><div class="deal-total"><span>${est.totalCents!==null?'Estimated total':est.delivery?'Vehicle + delivery subtotal':'Vehicle price'}</span><strong>${previewTotal}</strong><small>${est.totalCents!==null?'Vehicle, delivery budget, Texas tax, and registration allowance':'Your written quote confirms delivery, destination tax, and fees'}</small></div>${saving(x)>0?`<p class="flow-savings">Vehicle price is ${dollars(saving(x))} below the similar-listing benchmark.</p>`:''}<div class="price-breakdown">${estimateRows(x,est)}</div><div class="deal-mode-toggle" role="group" aria-label="Payment option"><button type="button" class="deal-mode-btn ${dealMode==='cash'?'active':''}" aria-pressed="${dealMode==='cash'}" data-deal-mode="cash">Pay in full</button><button type="button" class="deal-mode-btn ${dealMode==='finance'?'active':''}" aria-pressed="${dealMode==='finance'}" data-deal-mode="finance">Estimate monthly payment</button></div>${dealMode==='finance'?`<div class="deal-finance-box"><div class="deal-finance-headline"><strong>${est.finance?money(est.finance.monthlyCents):'—'}<span>/mo estimate</span></strong></div><div class="form-row"><label>Down payment<select id="deal-down">${[1500,3500,5000,10000].map(v=>`<option value="${v}" ${dealDown===v?'selected':''}>${dollars(v)}</option>`).join('')}</select></label><label>Loan term<select id="deal-term">${[60,72].map(t=>`<option value="${t}" ${dealTerm===t?'selected':''}>${t} months</option>`).join('')}</select></label></div><label>Example APR (%)<input id="deal-apr" type="number" min="0" max="36" step="0.1" value="${dealAPR}"></label><p class="price-label">${dealAPR}% illustrative APR over ${dealTerm} months. This calculator is not a loan offer or approval.${est.financeIncludesEstimatedCosts?' Includes estimated delivery, tax, and registration.':' Vehicle price only; delivery, taxes, and fees are extra.'} The down payment includes any deposit later collected; a card hold is not a payment.</p></div>`:''}${estimateNotes(x,est)}<details class="estimate-details"><summary>Your $250 reservation</summary><p>Review your verified complete quote before authorizing a $250 card hold. A hold does not reduce your purchase balance.</p><p>Only a collected deposit is credited toward your purchase. The checkout terms explain capture, cancellation, and release.</p></details>`;
+    $('deal-summary').innerHTML=`<p class="eyebrow">1 OF 2 · YOUR PRICE</p><h2>${x.year} Tesla ${esc(x.model)}</h2><p class="flow-car-summary">${esc(x.trim)} · ${odometer(x)} · Stock ${esc(x.stock_id)}</p><div class="deal-total"><span>${est.totalCents!==null?'Estimated total':est.delivery?'Vehicle + delivery subtotal':'Vehicle price'}</span><strong>${previewTotal}</strong><small>${est.totalCents!==null?'Vehicle, delivery budget, Texas tax, and registration allowance':'Your written quote confirms delivery, destination tax, and fees'}</small></div>${saving(x)>0?`<p class="flow-savings">Vehicle price is ${dollars(saving(x))} below the similar-listing benchmark.</p>`:''}<div class="price-breakdown">${estimateRows(x,est)}</div><div class="deal-mode-toggle" role="group" aria-label="Payment option"><button type="button" class="deal-mode-btn ${dealMode==='cash'?'active':''}" aria-pressed="${dealMode==='cash'}" data-deal-mode="cash">Pay in full</button><button type="button" class="deal-mode-btn ${dealMode==='finance'?'active':''}" aria-pressed="${dealMode==='finance'}" data-deal-mode="finance">Estimate monthly payment</button></div>${dealMode==='finance'?`<div class="deal-finance-box"><div class="deal-finance-headline"><strong>${est.finance?money(est.finance.monthlyCents):'—'}<span>/mo estimate</span></strong></div><div class="form-row"><label>Down payment<select id="deal-down">${[1500,3500,5000,10000].map(v=>`<option value="${v}" ${dealDown===v?'selected':''}>${dollars(v)}</option>`).join('')}</select></label><label>Loan term<select id="deal-term">${[60,72].map(t=>`<option value="${t}" ${dealTerm===t?'selected':''}>${t} months</option>`).join('')}</select></label></div><label>Example APR (%)<input id="deal-apr" type="number" min="0" max="36" step="0.1" value="${dealAPR}"></label><p class="price-label">${dealAPR}% illustrative APR over ${dealTerm} months. This calculator is not a loan offer or approval.${est.financeIncludesEstimatedCosts?' Includes estimated delivery, tax, and registration.':' Vehicle price only; delivery, taxes, and fees are extra.'} The down payment includes any deposit later collected; a card hold is not a payment.</p></div>`:''}<details class="estimate-details"><summary>How delivery, tax &amp; $250 reservation work</summary><p>Delivery is an open-transport budget for an operable vehicle, including a planning buffer. Your carrier quote confirms the price.${est.delivery?` A longer-route scenario changes this budget to ${money(est.delivery.highScenarioCents)}.`:''}</p><p>${est.zState==='TX'?'The Texas preview includes delivery in taxable consideration and a $350 registration allowance, including EV fees.':'Your destination’s vehicle tax and registration are confirmed in your written quote.'}</p><p>Review your verified complete quote before authorizing a $250 card hold. Only a collected deposit is credited toward your purchase.</p></details>`;
     $('deal-summary').querySelectorAll('[data-deal-mode]').forEach(b=>b.addEventListener('click',()=>{dealMode=b.dataset.dealMode;paintDeal();}));
     $('deal-down')?.addEventListener('change',e=>{dealDown=Number(e.target.value);paintDeal();});
     $('deal-term')?.addEventListener('change',e=>{dealTerm=Number(e.target.value);paintDeal();});
@@ -228,21 +228,21 @@
   function buildDeal(vin){
     const x=byVIN.get(vin);if(!x)return;activeVIN=vin;trackVisit('deal_estimator',vin);
     try{const d=JSON.parse(localStorage.getItem('marketplace_deal')||'null');if(d&&d.vin===vin&&d.mode)dealMode=d.mode;}catch{}
-    paintDeal();$('deal-zip').value=zip;
-    $('deal-message').textContent=zipState()?`Estimate for ${zip}. Your final price is confirmed before payment.`:'Enter your delivery ZIP to estimate the total.';
-    $('deal-continue').textContent=apiReady?'Continue to purchase details':'Save price';
+    paintDeal();$('deal-zip').value=zip;$('deal-zip').required=!apiReady;
+    $('deal-message').textContent=zipState()?`Estimate for ${zip}. Next step: check availability & lock this price ($0 today).`:'Enter your 5-digit ZIP to estimate shipping & tax, then lock this price ($0 today).';
+    $('deal-continue').textContent=apiReady?'Check availability & lock price · $0':'Save price';
     close('vehicle-dialog');open('deal-dialog');$('deal-scroll').scrollTop=0;
   }
   $('deal-back').addEventListener('click',()=>{close('deal-dialog');showVehicle(activeVIN);});
   $('deal-zip').addEventListener('input',async e=>{
     const val=e.target.value.trim(),vin=activeVIN;
     if(/^\d{5}$/.test(val)&&val!==zip){
-      try{if(!await resolveZip(val)||activeVIN!==vin||!$('deal-dialog').open||$('deal-zip').value!==val)return;paintDeal();$('deal-message').textContent=`Estimate for ${val}. Your final price is confirmed before payment.`;}catch(error){if(activeVIN===vin&&$('deal-dialog').open&&$('deal-zip').value===val)$('deal-message').textContent=error.message;}
+      try{if(!await resolveZip(val)||activeVIN!==vin||!$('deal-dialog').open||$('deal-zip').value!==val)return;paintDeal();$('deal-message').textContent=`Estimate for ${val}. Next step: check availability & lock this price ($0 today).`;}catch(error){if(activeVIN===vin&&$('deal-dialog').open&&$('deal-zip').value===val)$('deal-message').textContent=error.message;}
     }
   });
   $('deal-form').addEventListener('submit',async e=>{
-    e.preventDefault();const postal=$('deal-zip').value,vin=activeVIN,button=$('deal-continue');if(button.disabled)return;button.disabled=true;
-    try{if(!await resolveZip(postal)||activeVIN!==vin||!$('deal-dialog').open)return;paintDeal();if(apiReady){close('deal-dialog');startRequest(activeVIN);return;}
+    e.preventDefault();const postal=$('deal-zip').value.trim(),vin=activeVIN,button=$('deal-continue');if(button.disabled)return;button.disabled=true;
+    try{if(postal||!apiReady){if(!await resolveZip(postal)||activeVIN!==vin||!$('deal-dialog').open)return;paintDeal();}if(apiReady){close('deal-dialog');startRequest(activeVIN);return;}
       localStorage.setItem('marketplace_deal',JSON.stringify({vin:activeVIN,zip:postal,mode:dealMode,created_at:new Date().toISOString()}));
       localStorage.setItem('marketplace_zip',postal);
       if(!saved.has(activeVIN))toggleSave(activeVIN);
@@ -259,7 +259,7 @@
     $('request-finance-note').hidden=form.elements.payment_preference.value!=='partner_financing';
   }
   async function startRequest(vin){
-    activeVIN=vin;const x=byVIN.get(vin);$('request-car').textContent=`${x.year} ${x.model} · ${x.trim}`;
+    activeVIN=vin;trackVisit('request_view',vin);const x=byVIN.get(vin);$('request-car').textContent=`${x.year} ${x.model} · ${x.trim}`;
     $('request-error').textContent='';const form=$('request-form');
     if(!requestDraft||requestDraft.vin!==vin){requestKey=crypto.randomUUID();requestDraft={vin,key:requestKey};form.reset();}
     else{requestKey=requestDraft.key;for(const [name,value] of Object.entries(requestDraft.fields||{})){if(form.elements[name]){if(form.elements[name].type==='checkbox')form.elements[name].checked=value;else form.elements[name].value=value;}}}
@@ -296,9 +296,9 @@
   $('request-form').addEventListener('submit',async e=>{
     e.preventDefault();if(!apiReady)return;const form=e.currentTarget;const b=$('submit-request');if(requestSubmitting||b.disabled)return;requestSubmitting=true;
     const navigation=[$('request-back'),$('request-dialog').querySelector('[data-close]')];navigation.forEach(control=>control.disabled=true);b.disabled=true;b.textContent='Sending request…';
-    const data=new FormData(form);keepRequestDraft();
+    const data=new FormData(form);keepRequestDraft();trackVisit('request_submit',activeVIN);
     try{
-      const order=await api('requests',{method:'POST',headers:{'Idempotency-Key':requestKey},body:JSON.stringify({stock_id:activeVIN,expected_vehicle_price_cents:Math.round(byVIN.get(activeVIN).display_price*100),name:data.get('name'),email:data.get('email'),phone:data.get('phone'),state:String(data.get('state')).toUpperCase(),zip:data.get('zip'),payment_preference:data.get('payment_preference')||'cash',demand_channel:channel(),campaign_id:new URLSearchParams(location.search).get('utm_campaign')?.slice(0,100)||'',consent:data.get('consent')==='on'})});
+      const order=await api('requests',{method:'POST',headers:{'Idempotency-Key':requestKey},body:JSON.stringify({stock_id:activeVIN,expected_vehicle_price_cents:Math.round(byVIN.get(activeVIN).display_price*100),name:data.get('name'),email:data.get('email'),phone:data.get('phone'),state:String(data.get('state')||zipState()).toUpperCase(),zip:data.get('zip'),payment_preference:data.get('payment_preference')||'cash',demand_channel:channel(),campaign_id:new URLSearchParams(location.search).get('utm_campaign')?.slice(0,100)||'',consent:data.get('consent')==='on'})});
       rememberAccess({id:order.id,token:order.access_token});requestDraft=null;requestSubmitting=false;
       form.reset();close('request-dialog');showOrder(order);notify('Your final price request is saved. $0 paid today.');
     }catch(error){$('request-error').textContent=error.message;}finally{requestSubmitting=false;b.disabled=false;b.textContent='Request final price · $0 today';navigation.forEach(control=>control.disabled=false);}
@@ -658,6 +658,8 @@
     $('hero-description').textContent='Compare Teslas, review your total, and request your final price online.';
     if(items.length)applyFilters(false);
     const button=$('vehicle-request');if(button){button.disabled=false;button.textContent='Review price';}
+    if($('deal-zip'))$('deal-zip').required=!apiReady;
+    if($('deal-dialog')?.open)$('deal-continue').textContent=apiReady?'Check availability & lock price · $0':'Save price';
   }
   purchaseAvailability();
   api('config').then(c=>{config=c;apiReady=!!c.requests_enabled;purchaseAvailability();}).catch(()=>{apiReady=false;purchaseAvailability();}).finally(()=>{if(restoredPrivateLink)refreshOrder();else if(privateLinkError){renderRecoverOrder(privateLinkError);open('order-dialog');}});
