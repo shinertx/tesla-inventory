@@ -1,5 +1,5 @@
 """Extract VIN-bound vehicle photography. Never turn stock placeholders into vehicle evidence."""
-import json,re
+import json,re,hashlib
 from html import unescape
 from urllib.parse import urlsplit
 from pathlib import Path
@@ -7,9 +7,12 @@ from pathlib import Path
 _EXCLUSION_PATH=Path(__file__).resolve().parents[1]/'data/photo_exclusions.json'
 EXCLUDED_PHOTO_URLS=frozenset(json.loads(_EXCLUSION_PATH.read_text())) if _EXCLUSION_PATH.exists() else frozenset()
 
+# Reviewed non-vehicle promotional artwork. Match exact URLs without blocking real photos.
+EXCLUDED_PHOTO_HASHES=frozenset({'f4cf54c59fc28536b5f15a144ecde822190e15c6c4102cc50be5982c33719f95'})
 
 def photo_url(value):
     if not isinstance(value,str) or value in EXCLUDED_PHOTO_URLS:return ''
+    if hashlib.sha256(value.encode()).hexdigest() in EXCLUDED_PHOTO_HASHES:return ''
     try:p=urlsplit(value)
     except ValueError:return ''
     if p.scheme!='https' or not p.hostname or p.username or p.password:return ''

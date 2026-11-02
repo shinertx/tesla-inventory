@@ -132,3 +132,11 @@ def test_observed_unavailable_photos_are_not_published():
     assert EXCLUDED_PHOTO_URLS
     for url in EXCLUDED_PHOTO_URLS:
         assert photo_url(url) == ''
+
+
+def test_reviewed_promotional_artwork_never_enters_vehicle_galleries():
+    from tools.media import normalize_photos
+    artwork='https://static.cargurus.com/images/forsale/2026/10/17/19/52/2024_tesla_model_y-pic-7357284148746424284-1024x768.jpeg'
+    actual='https://example.test/actual-tesla-condition.jpg'
+    assert photo_url(artwork)==''
+    assert normalize_photos([{'url':artwork},{'url':actual,'title':'Vehicle condition'}])==[{'url':actual,'title':'Vehicle condition','category':'photos'}]

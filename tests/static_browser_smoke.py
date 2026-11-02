@@ -59,7 +59,7 @@ def main(out):
             assert 'Vehicle price' in crawl.locator('.category-intro').inner_text()
             result['discovery_works_without_javascript']=True
             nojs.close()
-            for vin,count in [('5YJ3E1EA8SF921313',30),('7SAYGDED1RF039277',45),('5YJ3E1EA8KF413066',59)]:
+            for vin,count in [('5YJ3E1EA8SF921313',30),('7SAYGDED1RF039277',44),('5YJ3E1EA8KF413066',59)]:
                 page.goto(base+'?vin='+vin);page.wait_for_function('(n)=>document.querySelectorAll(".gallery-thumb").length===n',arg=count)
                 page.wait_for_function('()=>document.querySelector("#gallery-stage img")?.naturalWidth>0')
                 assert page.locator('#vehicle-request').is_enabled()

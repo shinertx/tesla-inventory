@@ -22,9 +22,12 @@ from static_browser_smoke import PagesHandler
 
 SVG='<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600"><rect width="900" height="600" fill="#dde7ed"/></svg>'
 SDK="""window.Stripe=()=>({createEmbeddedCheckoutPage:async options=>{
-  await options.fetchClientSecret();return {
-    mount:selector=>{const b=document.createElement('button');b.id='fixture-authorize';b.textContent='FIXTURE: authorize test card';b.onclick=()=>options.onComplete();document.querySelector(selector).append(b)},
-    destroy:()=>document.querySelector('#fixture-authorize')?.remove()
+  window.fixtureStripeCreates=(window.fixtureStripeCreates||0)+1;
+  await options.fetchClientSecret();await new Promise(resolve=>setTimeout(resolve,window.fixtureStripeDelay||0));
+  if(window.fixtureStripeFailOnce){window.fixtureStripeFailOnce=false;throw new Error('FIXTURE secure form initialization failed');}
+  let button;return {
+    mount:selector=>{window.fixtureStripeMounts=(window.fixtureStripeMounts||0)+1;button=document.createElement('button');button.id='fixture-authorize';button.textContent='FIXTURE: authorize test card';button.onclick=()=>options.onComplete();document.querySelector(selector).append(button)},
+    destroy:()=>{window.fixtureStripeDestroys=(window.fixtureStripeDestroys||0)+1;button?.remove();}
   };
 }});"""
 
@@ -88,8 +91,35 @@ def main():
                     approve(client,order)
                     page.locator('#refresh-order').click();page.locator('#pay-deposit').wait_for()
                     assert 'card hold' in page.locator('#pay-deposit').inner_text()
+                    delayed=width==1440 and scenario=='release'
+                    if delayed:page.evaluate('window.fixtureStripeDelay=4600')
+                    if width==390 and scenario=='release':page.evaluate('window.fixtureStripeFailOnce=true')
                     page.locator('#accept-quote').check();page.locator('#pay-deposit').click()
-                    page.locator('#fixture-authorize').wait_for()
+                    if width==390 and scenario=='release':
+                        page.get_by_text('FIXTURE secure form initialization failed',exact=True).wait_for()
+                        assert page.locator('#pay-deposit').is_enabled()
+                        page.locator('#pay-deposit').click()
+                        result['checks'].append({'sdk_failure_recoverable':True,'width':width})
+                    page.locator('#fixture-authorize').wait_for(timeout=10000)
+                    if delayed:
+                        assert page.locator('#accept-quote').is_checked()
+                        assert page.locator('#pay-deposit').is_disabled()
+                        assert page.evaluate('window.fixtureStripeCreates===1&&window.fixtureStripeMounts===1')
+                        result['checks'].append({'delayed_sdk_survives_order_poll':True,'delay_ms':4600})
+                        # A second slow mount is closed before resolution. Its late result must be destroyed.
+                        page.locator('[data-close="order-dialog"]').click()
+                        page.locator('#order-button').click();page.locator('#pay-deposit').wait_for()
+                        page.locator('#accept-quote').check();page.locator('#pay-deposit').click()
+                        page.wait_for_function('window.fixtureStripeCreates===2')
+                        page.locator('[data-close="order-dialog"]').click()
+                        page.wait_for_function('window.fixtureStripeDestroys===2',timeout=10000)
+                        assert page.locator('#fixture-authorize').count()==0
+                        page.evaluate('window.fixtureStripeDelay=0')
+                        page.locator('#order-button').click();page.locator('#pay-deposit').wait_for()
+                        page.locator('#accept-quote').check();page.locator('#pay-deposit').click()
+                        page.locator('#fixture-authorize').wait_for()
+                        assert payments.session_calls==1
+                        result['checks'].append({'closed_view_rejects_late_sdk_mount':True,'same_checkout_reused':True})
                     assert authorize(client,payments,order).status_code==200
                     page.locator('#fixture-authorize').click();page.locator('#purchase-payment-paths').wait_for()
                     state=client.get('/api/orders/'+order['id'],headers=auth(order)).json()
