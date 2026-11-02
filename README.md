@@ -1,92 +1,127 @@
-# Tesla Marketplace
+# Volts & VINs
 
-Carvana-style buying experience over dealer-owned inventory. The platform generates demand and captures agreed transaction spread.
+A branded Tesla buying experience over dealer-owned inventory. Volts & VINs controls the storefront and coordinates checkout and fulfillment.
+The business captures the agreed transaction spread. Source dealers and the disclosed licensed retail seller can be different businesses.
 
-**Current state: dealer onboarding pending. Paid checkout is closed.**
+## Live status
 
-## Run locally
+Snapshot: November 2, 2026.
 
-Use Python 3.12 or newer.
+| Component | Status |
+| --- | --- |
+| [Customer storefront](https://voltsandvins.com/) | Live: browsing, galleries, comparison, pricing previews, and purchase requests |
+| [Production configuration](https://api.voltsandvins.com/api/config) | Requests enabled; deposits and balance checkout disabled |
+| [Existing TEST sandbox](https://hank.jockeyvc.com/volts-sandbox/) | Synthetic inventory and Stripe TEST only |
+| Application release | `9f83a8be2a0485b0b55a9fd79e29597658a0173a` verified in both API services |
+| Live payment collection | Pending actual seller agreements, supported states, and verified Stripe capture/release access |
+| Financing and carrier quotes | Provider access is not connected; calculators show clearly labeled estimates |
+
+Documentation commits can advance `main` without changing the deployed application. Compare runtime changes before redeploying the API.
+GitHub Pages publishes a customer-only artifact after successful main checks. It does not publish this README, agent instructions, or operational tools.
+
+The published catalog contains 15,098 vehicles and 206,922 gallery images after excluding one reviewed dealer advertisement.
+There are 10,436 multi-photo listings, 3,776 single-photo listings, and 886 without photos. Every external image URL has not been tested.
+
+## Verified buying flow
+
+1. Browse stock-ID vehicle pages and inspect their photographs.
+2. Enter the delivery ZIP and compare vehicle, delivery, tax, and registration estimates.
+3. Submit a free purchase request with contact details and payment preference.
+4. Receive an itemized quote from an actual approved licensed seller.
+5. Accept its terms and authorize a $250 card hold when checkout is enabled.
+6. Choose the configured payment path or download the accepted buyer's order.
+7. Explicit capture collects the deposit; only captured funds receive purchase credit.
+8. Reconciled funding and verified evidence gate fulfillment, delivery, title, and settlement.
+
+An uncaptured authorization is not revenue, acquisition funding, or a paid deposit. Payment return URLs never establish payment.
+The deposit is not the platform's earned spread. Collection follows the order's agreed seller and collector roles.
+
+Actual Stripe TEST authorization, capture, and full refund passed. Real signed Checkout and refund webhooks were recorded.
+The deployed cleanup also passed against that refunded order. Uncaptured release has local coverage but no separate provider walkthrough.
+Live collection remains disabled. A pending partner or placeholder name is not a verified dealership.
+
+## Local development
+
+Use Python 3.12. Run these commands from the repository root:
 
 ```sh
 python3 -m venv .venv
 .venv/bin/pip install -r requirements-dev.txt
-.venv/bin/python -m tools.build
-.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Open `http://127.0.0.1:8000` for shopping and free verification requests.
+Open `http://127.0.0.1:8000`. A fresh public clone supports browsing.
+Actual request resolution needs the private VIN-backed transaction catalog. Do not reconstruct transactional identities from guessed VINs.
+Set `INVENTORY_JSON` to that catalog's absolute path before starting the API.
 
-Environment settings come from the process environment. `.env.example` documents them; it is not loaded automatically.
+Environment variables come from the process environment. `.env.example` is documentation; it is not loaded automatically.
+Use a private generated `ADMIN_TOKEN` for operator endpoints. Keep secrets outside Git, browser code, logs, and screenshots.
 
-Set `ADMIN_TOKEN` to a generated secret of at least 32 characters before using operator endpoints. Enroll actual dealers through the authenticated dealer registry.
+## Catalog and photo updates
 
-Do not place credentials in browser code, Git, screenshots, or command arguments.
+- `web/` contains the frontend source. The builder generates root and category pages.
+- `inventory.json` and stock-keyed `media/` files contain the customer projection.
+- `.data/transaction_inventory.json` preserves private VIN identities and gallery sources.
+- `.data/source_snapshot.json` contains private supplier observations when available.
+- `data/exclusions.json` records known title or condition exclusions.
+- `tools/media.py` excludes reviewed non-vehicle imagery and generic placeholders.
 
-## Build and collect
-
-`.data/source_snapshot.json` preserves source attribution. Its legacy timestamps are import times, not live-source verification.
-
-`data/exclusions.json` suppresses known title/condition risk flags independently of source refreshes.
+Refresh generated pages without collecting or repricing:
 
 ```sh
-python3 -m tools.build
-python3 -m tools.collect --source autolist --model 'Model Y' --year 2024 --pages 1
-python3 -m tools.build
+.venv/bin/python -c 'import json; from tools.build import render_public_pages; render_public_pages(json.load(open("inventory.json")))'
 ```
 
-Collectors make real provider requests. Confirm source permission before using them. No bulk collectors were run during the repair.
+Rebuild only with a valid private source snapshot and transaction baseline. Do not use an empty source to replace published inventory.
+Collectors make real provider requests. Respect source permissions and stop blocked or rate-limited hosts.
+Known salvage, rebuilt, lemon, flood, and structural-risk evidence prevents publication. Unknown title history is not clean-title proof.
 
-Collection is bounded and makes no national completeness claim. Failed pages preserve the prior snapshot. Invalid VINs enter quarantine.
+The scheduled refresh was already failing before this release. Its limited discovery coverage cannot refresh the complete catalog.
+It also lacks a private baseline on hosted runners. Keep coverage and privacy guards until persistent sourcing is configured.
 
-Fresh observations update price and mileage. Publication expires candidates after seven days. Seller holds still require independent confirmation.
+Stock IDs reduce direct public VIN exposure. Historical Git data and vehicle photographs can still identify a vehicle externally.
 
-The builder creates the root page, category pages, sitemap, and public inventory. It makes no network requests.
+## Pricing
 
-## Transaction behavior
+Vehicle prices remain separate from delivery, tax, and registration estimates. Accepted request prices cannot silently increase.
+Delivery budgets include route distance, vehicle size, and a contingency. They are not carrier or Carvana quotes.
+Texas previews use 6.25% motor-vehicle tax and a $350 registration allowance. Other unverified destinations need actual vehicle-tax quotes.
+Monthly payments are illustrations, not lender offers. A declared down payment does not move money.
 
-1. A free request creates a durable private order and an operator notification entry.
-2. An authenticated operator verifies the vehicle and approves a complete quote.
-3. Customer acceptance binds checkout to that quote version and its terms.
-4. A single VIN hold prevents competing reservations.
-5. Signed Stripe events and retrieved session data confirm the deposit.
-6. Evidence gates control dealer confirmation, dealer funding, transport, delivery, and spread settlement.
-7. Cancellation, refunds, disputes, and customer cases enter explicit queues.
+See [pricing policy](docs/PRICING_COMMITMENT.md) for assumptions and reconciliation rules.
 
-Payment return URLs never establish payment. A deposit belongs to the fulfilling dealer and is not platform revenue. No vehicle is acquired by the platform.
-
-See [API and operations](docs/OPERATIONS.md) and the [business operating model](docs/BUSINESS_OPERATING_MODEL.md).
-
-## Verify
+## Checks
 
 ```sh
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests
-python3 tests/browser_smoke.py
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 .venv/bin/python -m pytest -q tests
+.venv/bin/python -m playwright install chromium
+.venv/bin/python tests/manual_hold_browser_smoke.py
+.venv/bin/python -m unittest discover -s ops/purchase_release -p test_purchase_release.py -q
 node --check web/app.js
 ```
 
-The browser smoke test uses a temporary database and a pending-partner configuration. It does not charge cards or send messages.
+The application suite passed 679 checks at the verified release. Ten browser suites run in GitHub Actions.
+Seventeen real desktop/mobile checks passed, followed by visual confirmation of the corrected gallery.
+Local fake-provider tests and actual Stripe TEST evidence are different checks. Neither establishes live customer payment readiness.
 
-## Deployment
+## Deployment and handoff
 
-GitHub Pages supports the static shopping experience. It cannot run this transaction API.
+The storefront uses GitHub Pages. The API uses the existing persistent JENNi/Jockey server with separate production and TEST databases.
+Production CORS permits the customer origin. Tokens stay in explicit authorization headers; account cookies are not shared.
+Use one SQLite-backed API instance until a shared transactional database is introduced.
 
-Host `app.main:app` with HTTPS and a persistent private disk for SQLite. Use one application instance until the database moves to a shared transactional service.
+Never publish the repository root. Export only customer files:
 
-Serve the public site and API through the same origin. Dynamic responses remove reserved vehicles from the catalog.
+```sh
+.venv/bin/python -m tools.public_site --output site-dist
+```
 
-Never serve the repository directory with a general file server in production. The API exposes only explicit public assets.
+Use an empty output directory. The exporter excludes private data, operator documents, source code, and full VINs.
+Keep private inventory mode `0600`. Preserve order history, bound payment accounts, existing workers, and rollback releases.
 
-Before payments, configure the platform agreements, actual fulfilling dealers, approved destination states, Stripe credentials, webhook, operator coverage, backups, privacy retention, and reviewed terms.
+The installed production wrapper enforces inactive payment collection. A single environment flag cannot activate checkout.
+Activation requires actual seller and collection evidence, verified live permissions, and a reviewed activation release.
+Existing JENNi/Jockey infrastructure and its Stripe account are used. No new account is needed for this architecture.
 
-Test one real merchant-account sandbox transaction and refund before enabling live payments.
-
-## Source ownership
-
-This repository now contains the frontend, builder, source normalization, transaction service, tests, and operating documents.
-
-Supplier data stays outside Git. A fresh clone can run the API and customer UI from the sanitized catalog. Rebuilding requires a private source snapshot or an authorized collection.
-
-The earlier personal scratch scripts are obsolete. Use this repository's build commands to avoid restoring unsafe generated claims.
-
-Private arbitrage proposals use market references and agreed dealer proceeds, with no fixed markup ceiling. See the operating model for pricing assumptions. Photo galleries and secure online provider steps are supported.
+Start with [AGENTS.md](AGENTS.md). Follow the [release tools](ops/purchase_release/README.md) for packaging, verification, and rollback.
+See [operations](docs/OPERATIONS.md), [deposit activation requirements](docs/JENNI_DEPOSIT_LAUNCH.md), and the [business model](docs/BUSINESS_OPERATING_MODEL.md).
