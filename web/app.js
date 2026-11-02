@@ -229,15 +229,15 @@
     const x=byVIN.get(vin);if(!x)return;activeVIN=vin;trackVisit('deal_estimator',vin);
     try{const d=JSON.parse(localStorage.getItem('marketplace_deal')||'null');if(d&&d.vin===vin&&d.mode)dealMode=d.mode;}catch{}
     paintDeal();$('deal-zip').value=zip;$('deal-zip').required=!apiReady;
-    $('deal-message').textContent=zipState()?`Estimate for ${zip}. Next step: get your complete Volts & VINs quote.`:'Enter your 5-digit ZIP to estimate shipping & tax, then get your complete quote.';
-    $('deal-continue').textContent=apiReady?'Get your complete quote':'Save price';
+    $('deal-message').textContent=zipState()?`Estimate for ${zip}. Next step: start your online purchase ($0 today).`:'Enter your 5-digit ZIP to estimate shipping & tax, then start your online purchase ($0 today).';
+    $('deal-continue').textContent=apiReady?'Continue to online purchase · $0':'Save price';
     close('vehicle-dialog');open('deal-dialog');$('deal-scroll').scrollTop=0;
   }
   $('deal-back').addEventListener('click',()=>{close('deal-dialog');showVehicle(activeVIN);});
   $('deal-zip').addEventListener('input',async e=>{
     const val=e.target.value.trim(),vin=activeVIN;
     if(/^\d{5}$/.test(val)&&val!==zip){
-      try{if(!await resolveZip(val)||activeVIN!==vin||!$('deal-dialog').open||$('deal-zip').value!==val)return;paintDeal();$('deal-message').textContent=`Estimate for ${val}. Next step: get your complete Volts & VINs quote.`;}catch(error){if(activeVIN===vin&&$('deal-dialog').open&&$('deal-zip').value===val)$('deal-message').textContent=error.message;}
+      try{if(!await resolveZip(val)||activeVIN!==vin||!$('deal-dialog').open||$('deal-zip').value!==val)return;paintDeal();$('deal-message').textContent=`Estimate for ${val}. Next step: start your online purchase ($0 today).`;}catch(error){if(activeVIN===vin&&$('deal-dialog').open&&$('deal-zip').value===val)$('deal-message').textContent=error.message;}
     }
   });
   $('deal-form').addEventListener('submit',async e=>{
@@ -300,8 +300,8 @@
     try{
       const order=await api('requests',{method:'POST',headers:{'Idempotency-Key':requestKey},body:JSON.stringify({stock_id:activeVIN,expected_vehicle_price_cents:Math.round(byVIN.get(activeVIN).display_price*100),name:data.get('name'),email:data.get('email'),phone:data.get('phone'),state:String(data.get('state')||zipState()).toUpperCase(),zip:data.get('zip'),payment_preference:data.get('payment_preference')||'cash',demand_channel:channel(),campaign_id:new URLSearchParams(location.search).get('utm_campaign')?.slice(0,100)||'',consent:data.get('consent')==='on'})});
       rememberAccess({id:order.id,token:order.access_token});requestDraft=null;requestSubmitting=false;
-      form.reset();close('request-dialog');showOrder(order);notify('Your Volts & VINs quote request is saved.');
-    }catch(error){$('request-error').textContent=error.message;}finally{requestSubmitting=false;b.disabled=false;b.textContent='Get your Volts & VINs quote';navigation.forEach(control=>control.disabled=false);}
+      form.reset();close('request-dialog');showOrder(order);notify('Your online purchase is started. $0 paid today.');
+    }catch(error){$('request-error').textContent=error.message;}finally{requestSubmitting=false;b.disabled=false;b.textContent='Start online purchase · $0 today';navigation.forEach(control=>control.disabled=false);}
   });
   function renderRecoverOrder(initialError=''){
     stopOrderPoll();
@@ -653,13 +653,13 @@
     const paymentsOn=!!(apiReady&&config?.payments_enabled);
     $('purchase-availability').hidden=true;
     $('purchase-availability').textContent='';
-    $('business-status').textContent=paymentsOn?'Choose your Tesla · Review the complete price · Reserve with a $250 card hold after quote approval':(apiReady?'Choose your Tesla · Review the complete price · Get your Volts & VINs quote':'15,000+ Used Teslas Nationwide · Estimate Your Total · Monthly Payment Calculator');
+    $('business-status').textContent=paymentsOn?'Compare Teslas · See your out-the-door price · Buy online · $250 refundable reservation':'Compare Teslas · See your out-the-door price · Buy online';
     $('order-button').hidden=false;$('order-button').textContent=apiReady?'Track my request':'Saved price';
-    $('hero-description').textContent='Compare Teslas, review the complete price, and get your Volts & VINs quote.';
+    $('hero-description').textContent='Compare Teslas, see your out-the-door price with shipping & tax, and buy online.';
     if(items.length)applyFilters(false);
     const button=$('vehicle-request');if(button){button.disabled=false;button.textContent='Review price';}
     if($('deal-zip'))$('deal-zip').required=!apiReady;
-    if($('deal-dialog')?.open)$('deal-continue').textContent=apiReady?'Get your complete quote':'Save price';
+    if($('deal-dialog')?.open)$('deal-continue').textContent=apiReady?'Continue to online purchase · $0':'Save price';
   }
   purchaseAvailability();
   api('config').then(c=>{config=c;apiReady=!!c.requests_enabled;purchaseAvailability();}).catch(()=>{apiReady=false;purchaseAvailability();}).finally(()=>{if(restoredPrivateLink)refreshOrder();else if(privateLinkError){renderRecoverOrder(privateLinkError);open('order-dialog');}});
