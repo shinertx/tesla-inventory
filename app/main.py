@@ -345,6 +345,18 @@ def create_app(settings=None, payments=None, shipping=None):
         if row['state'] not in ('cancelled','refunded'):return
         source=c.execute('SELECT expires_at FROM source_holds WHERE order_id=?',(row['id'],)).fetchone()
         if not source:return
+        if row['state']=='cancelled' and row['checkout_id']:
+            # Zero credited funds do not prove that an open deposit Checkout cannot collect later.
+            created=c.execute("SELECT id FROM events WHERE order_id=? AND kind='checkout_created' "
+                "AND json_extract(detail,'$.session_id')=? AND json_extract(detail,'$.accepted_quote_version')=? "
+                "ORDER BY id DESC LIMIT 1",(row['id'],row['checkout_id'],row['quote_version'])).fetchone()
+            if not created:return
+            expired=c.execute("SELECT 1 FROM events WHERE order_id=? AND kind='checkout_cancelled' AND id>? LIMIT 1",
+                (row['id'],created['id'])).fetchone()
+            released=(row['deposit_capture_method']=='manual' and row['deposit_released_at'] and row['payment_id']
+                and c.execute("SELECT 1 FROM events WHERE order_id=? AND kind='authorization_released' AND id>? "
+                    "AND json_extract(detail,'$.payment_id')=? LIMIT 1",(row['id'],created['id'],row['payment_id'])).fetchone())
+            if not expired and not released:return
         try:funds=funding_summary(c,row,DEPOSIT)
         except (ValueError,TypeError,KeyError):return  # Unclear funding keeps the commitment for review.
         if (not funds or funds['funds_review_required']

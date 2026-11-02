@@ -5,7 +5,7 @@ import uuid
 
 import pytest
 
-from test_transactions import setup,request,approve,auth,admin,t_body
+from test_transactions import setup,request,approve,checkout,auth,admin,t_body
 from test_manual_authorizations import manual,prepared,authorize,capture,current,fully_fund,pi_succeeded
 
 
@@ -70,6 +70,50 @@ def test_open_checkout_cancellation_expires_source_commitment(manual):
     assert cancel(client,order)['state']=='cancelled'
     assert_expired_once(store,order,previous)
     assert payments.release_calls==payments.refunds==0
+
+
+@pytest.mark.parametrize('processing',[False,True])
+def test_automatic_checkout_keeps_commitment_until_payment_resolution_is_proven(setup,processing):
+    client,settings,payments,store=setup
+    assert settings.deposit_capture_method=='automatic'
+    order=request(client);approve(client,order)
+    assert checkout(client,order).status_code==200
+    previous,_=source_state(store,order)
+    if processing:
+        session=payments.sessions['cs_test_'+order['id']]
+        session.update(status='complete',payment_status='unpaid')
+        assert client.post('/api/stripe/webhook',json={
+            'id':'evt_'+str(uuid.uuid4()),'type':'checkout.session.completed','account':'acct_fixtureDealer',
+            'livemode':False,'data':{'object':{'id':session['id']}}},
+            headers={'Stripe-Signature':'valid-test-signature'}).status_code==200
+        assert current(client,order)['state']=='deposit_processing'
+    result=cancel(client,order)
+    assert result['state']==('refund_pending' if processing else 'cancelled')
+    cancel(client,order)
+    assert source_state(store,order)==(previous,[])
+    if not processing:
+        assert payments.sessions['cs_test_'+order['id']]['status']=='open'
+        assert result['funding_summary']['credited_deposit_cents']==0
+    assert payments.refunds==0
+
+
+def test_manual_historical_cancellation_without_provider_release_evidence_keeps_commitment(manual):
+    client,_,payments,store,order=prepared(manual);previous,_=source_state(store,order)
+    with store.transaction() as c:c.execute("UPDATE orders SET state='cancelled' WHERE id=?",(order['id'],))
+    assert cancel(client,order)['state']=='cancelled'
+    assert source_state(store,order)==(previous,[])
+    assert payments.sessions['cs_test_'+order['id']]['status']=='open'
+    assert payments.release_calls==payments.refunds==0
+
+
+def test_prior_checkout_cancellation_does_not_release_a_new_unresolved_session(manual):
+    client,_,payments,store=manual;order=request(client);approve(client,order)
+    with store.transaction() as c:store.event(c,order['id'],'checkout_cancelled',{'reason':'Historical session'})
+    assert checkout(client,order).status_code==200
+    previous,_=source_state(store,order)
+    with store.transaction() as c:c.execute("UPDATE orders SET state='cancelled' WHERE id=?",(order['id'],))
+    cancel(client,order)
+    assert source_state(store,order)==(previous,[])
 
 
 def test_source_commitment_waits_for_confirmed_card_release_then_worker_expires_it(manual):
