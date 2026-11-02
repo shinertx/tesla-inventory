@@ -1,3 +1,4 @@
+import re
 import stripe
 stripe.default_http_client = stripe.new_default_http_client(timeout=10)
 stripe.api_version = '2026-03-25.dahlia'
@@ -9,7 +10,29 @@ class StripePayments:
     def __init__(self, settings):
         self.settings = settings
 
+    def _platform_pin(self):
+        pin=getattr(self.settings,'stripe_platform_account','')
+        return pin if isinstance(pin,str) and re.fullmatch(r'acct_[A-Za-z0-9]+',pin) else None
+
+    def _scope(self, account, *, new_checkout=False):
+        if not isinstance(account,str) or not re.fullmatch(r'acct_[A-Za-z0-9]+',account):
+            raise ValueError('A valid bound payment account is required')
+        mode=getattr(self.settings,'deposit_collection_mode','dealer_direct')
+        if mode not in {'dealer_direct','platform'}:raise ValueError('Unknown deposit collection mode')
+        if mode=='platform':
+            pin=self._platform_pin()
+            if not pin:raise ValueError('Platform deposit account pin is not configured')
+            if account==pin:return {'api_key':self.settings.stripe_key}
+            if new_checkout:raise ValueError('Platform checkout account does not match its configured pin')
+        return {'api_key':self.settings.stripe_key,'stripe_account':account}
+
     def create_checkout(self, order, quote, expires_at):
+        scope=self._scope(order['payment_account'],new_checkout=True)
+        platform=getattr(self.settings,'deposit_collection_mode','dealer_direct')=='platform'
+        if platform and not self.dealer_can_charge(order['payment_account']):
+            raise ValueError('Platform payment account identity or charging capability is not verified')
+        branding=({'branding_settings':{'display_name':'Volts & VINs'},
+            'custom_text':{'submit':{'message':'Charged by JENNI PRO INC for Volts & VINs. This $250 reservation deposit is refundable under the accepted reservation terms.'}}} if platform else {})
         presentation=({'ui_mode':'embedded_page','redirect_on_completion':'never'}
             if self.settings.checkout_ui_mode=='embedded_page' else {
                 'ui_mode':'hosted_page','success_url':self.settings.origin+'/?checkout=returned',
@@ -17,19 +40,23 @@ class StripePayments:
         methods=list(self.settings.payment_method_types)
         options={'payment_method_options':{'us_bank_account':{'financial_connections':{'permissions':['payment_method']},'verification_method':'automatic'}}} if 'us_bank_account' in methods else {}
         return _as_dict(stripe.checkout.Session.create(
-            api_key=self.settings.stripe_key, stripe_account=order['payment_account'], mode='payment',
+            **scope, mode='payment',
             payment_method_types=methods, client_reference_id=order['id'],
-            metadata={'order_id':order['id'],'quote_version':str(order['quote_version']),'payment_stage':'deposit'},
+            metadata={'order_id':order['id'],'quote_version':str(order['quote_version']),'vin':order['vin'],
+                'payment_stage':'deposit','brand':'Volts & VINs'},
             line_items=[{'price_data':{'currency':'usd','unit_amount':25000,
-                'product_data':{'name':'Refundable vehicle reservation deposit',
+                'product_data':{'name':('Volts & VINs — $250 refundable reservation deposit' if platform else 'Refundable vehicle reservation deposit'),
                     'description':f"VIN {order['vin']}; quote {order['quote_version']}"}},'quantity':1}],
             expires_at=expires_at,
             **options,
+            **branding,
             **presentation,
             idempotency_key=f"checkout:{order['id']}:{order['quote_version']}",
         ))
 
     def create_balance_ach_checkout(self, order, quote, expires_at):
+        if getattr(self.settings,'deposit_collection_mode','dealer_direct')=='platform':
+            raise ValueError('Platform deposit collection does not support vehicle balance checkout')
         total_cents = quote.total_cents if hasattr(quote, 'total_cents') else int(quote['total_cents'])
         balance_cents = total_cents - 25000
         if balance_cents <= 0:
@@ -55,15 +82,18 @@ class StripePayments:
         return _as_dict(stripe.Webhook.construct_event(raw,signature,self.settings.webhook_secret))
 
     def retrieve_checkout(self, session_id, account):
-        return _as_dict(stripe.checkout.Session.retrieve(session_id,api_key=self.settings.stripe_key,stripe_account=account))
+        return _as_dict(stripe.checkout.Session.retrieve(session_id,**self._scope(account)))
 
     def refund(self, order):
         return _as_dict(stripe.Refund.create(payment_intent=order['payment_id'],amount=25000,
-            api_key=self.settings.stripe_key,stripe_account=order['payment_account'],idempotency_key=f"refund:{order['id']}:deposit"))
+            **self._scope(order['payment_account']),idempotency_key=f"refund:{order['id']}:deposit"))
 
     def dealer_can_charge(self,account):
-        data=_as_dict(stripe.Account.retrieve(account,api_key=self.settings.stripe_key))
-        return bool(data.get('charges_enabled') and data.get('details_submitted'))
+        scope=self._scope(account,new_checkout=True)
+        own_account='stripe_account' not in scope
+        data=_as_dict(stripe.Account.retrieve(**scope) if own_account else stripe.Account.retrieve(account,api_key=self.settings.stripe_key))
+        return bool((not own_account or data.get('id')==self._platform_pin())
+                    and data.get('charges_enabled') is True and data.get('details_submitted') is True)
 
     def expire_checkout(self, session_id, account):
-        return _as_dict(stripe.checkout.Session.expire(session_id,api_key=self.settings.stripe_key,stripe_account=account))
+        return _as_dict(stripe.checkout.Session.expire(session_id,**self._scope(account)))
