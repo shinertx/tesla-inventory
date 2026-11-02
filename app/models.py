@@ -44,10 +44,20 @@ class Dealer(StrictModel):
     address: str = Field(min_length=5,max_length=300)
     supported_states: list[str] = Field(min_length=1)
     stripe_account: str = Field(pattern=r'^acct_[A-Za-z0-9]+$')
+    payment_account_role: Literal['seller','platform'] = 'seller'
+    collection_authorization_reference: str = Field(default='',max_length=500)
+    collection_legal_name: str = Field(default='',max_length=150)
     online_portal_hosts: list[str] = Field(default_factory=list)
     agreement_reference: str = Field(min_length=5,max_length=500)
     license_evidence: str = Field(min_length=5,max_length=500)
     verified: bool = False
+
+    @model_validator(mode='after')
+    def platform_collection_authorization(self):
+        if self.payment_account_role=='platform':
+            if len(self.collection_authorization_reference.strip())<5 or len(self.collection_legal_name.strip())<3:
+                raise ValueError('Platform collection requires the actual collector name and seller authorization reference')
+        return self
 
     @field_validator('supported_states')
     @classmethod

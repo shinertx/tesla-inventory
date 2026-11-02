@@ -85,3 +85,50 @@ or activated by these source changes. Live reservations still require the actual
 licensed selling dealer, existing eligible connected account, signed terms,
 verified per-VIN quote/hold/evidence, correct Connect webhook secret, and matching
 live account keys. The platform account is not a substitute for the retail seller.
+
+## Optional same-company platform deposit collection
+
+The default remains `DEPOSIT_COLLECTION_MODE=dealer_direct`. Optional `platform`
+mode is limited to the refundable $250 deposit. It requires the existing account
+ID in `STRIPE_PLATFORM_ACCOUNT`, the actual collector name in
+`PLATFORM_COLLECTION_LEGAL_NAME`, and actual platform agreements. The verified
+collector for this project is JENNI PRO INC; Volts & VINs is its brand. This does
+not make that company the licensed retail seller.
+
+A real verified seller profile must specify `payment_account_role=platform`, the
+same authorized `stripe_account`, matching `collection_legal_name`, and an actual
+`collection_authorization_reference`. That authorization must cover who collects,
+holds, credits, reconciles, and refunds the deposit. Existing seller identity,
+license, quote, hold, vehicle evidence, and terms gates remain mandatory. Direct
+mode rejects platform-role profiles for new collection. No profile is fabricated.
+
+Orders retain role, collector name, and authorization in their seller snapshot.
+Public responses expose only `deposit_collection_mode` and
+`deposit_collector_legal_name` beside the actual retail seller. Authorization
+references and the account pin remain private. Platform embedded checkout returns
+`account:null`; its SDK and browser adapters must use the platform's own account.
+Full-balance checkout remains disabled in platform mode, even if its switch is on.
+
+Own-account webhooks omit `account`. They are accepted only for matching saved
+platform orders and the configured pin, with matching signed/canonical key mode.
+Connected seller events retain their original account match. Signed unrelated
+JENNi events are acknowledged and ignored before provider retrieval or ledger
+writes. Preserve the pin and signing configuration for historical reconciliation;
+disabling new checkout does not erase outcomes. Existing late-payment refund
+queue policy remains intact.
+
+These source changes do not configure the account, create webhooks, enable
+collection, establish legal authority, or prove provider approval. SDK/browser
+changes and deployment require separate integration verification.
+
+For platform mode, the existing `PLATFORM_AGREEMENTS_VERIFIED` gate also records
+operator review of the processor's acceptance of this actual deposit flow. An
+active account, enabled capabilities, or a software/older-commerce profile alone
+does not establish automotive approval. The seller's `stripe_account` identifies
+the authorized charge account; its `payment_account_role` states who owns that
+collection role. The field itself is not proof of seller ownership. No additional
+permission flag or implicit provider approval is created.
+
+A session previously recorded by Volts remains known even after its current
+checkout binding is cleared. Such a historical event requires reconciliation
+(409); it is never silently classified as unrelated shared-account traffic.

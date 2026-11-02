@@ -157,7 +157,7 @@ def create_app(settings=None, payments=None, shipping=None):
 
     def legacy_balance_payment_blocked(c,row):
         funds=funding_summary(c,row,DEPOSIT)
-        return not settings.balance_checkout_enabled or not funds or not funds['balance_checkout_allowed']
+        return settings.deposit_collection_mode!='dealer_direct' or not settings.balance_checkout_enabled or not funds or not funds['balance_checkout_allowed']
 
     def record_balance_conflict(c,row,source_reference):
         funds=funding_summary(c,row,DEPOSIT)
@@ -185,7 +185,53 @@ def create_app(settings=None, payments=None, shipping=None):
         original=json.loads(row['dealer_profile'])
         if any(original[k]!=getattr(dealer,k) for k in ('legal_name','license_number','address')):
             raise HTTPException(409,'Selling dealer identity changed; review the quote')
+        if (original.get('payment_account_role','seller')!=dealer.payment_account_role
+            or original.get('collection_authorization_reference','')!=dealer.collection_authorization_reference
+            or original.get('collection_legal_name','')!=dealer.collection_legal_name):
+            raise HTTPException(409,'Deposit collection authorization changed; reconcile the existing order')
         return dealer
+
+    def require_collection_authorization(dealer):
+        if settings.deposit_collection_mode=='dealer_direct':
+            if dealer.payment_account_role!='seller':raise HTTPException(409,'Direct collection requires a seller-owned charge account')
+        elif settings.deposit_collection_mode=='platform':
+            if (not settings.collection_ready or dealer.payment_account_role!='platform'
+                or dealer.stripe_account!=settings.stripe_platform_account
+                or not dealer.collection_authorization_reference
+                or dealer.collection_legal_name!=settings.platform_collection_legal_name):
+                raise HTTPException(409,'Platform deposit collection requires the pinned account and actual seller authorization')
+        else:raise HTTPException(409,'Deposit collection mode is not configured')
+
+    def approved_collection_sellers(c):
+        if settings.deposit_collection_mode=='dealer_direct':
+            # Preserve legacy readiness counting; quote/checkout still validate the real seller.
+            profiles=(json.loads(stored['profile']) for stored in c.execute('SELECT profile FROM dealers'))
+            return sum(bool(p.get('verified')) and p.get('payment_account_role','seller')=='seller' for p in profiles)
+        approved=0
+        for stored in c.execute('SELECT profile FROM dealers'):
+            try:
+                dealer=Dealer.model_validate_json(stored['profile'])
+                if not dealer.verified:continue
+                require_collection_authorization(dealer)
+            except (ValueError,TypeError,HTTPException):continue
+            approved+=1
+        return approved
+
+    def unbound_checkout_result(session_id):
+        with store.connect() as lookup:
+            known=lookup.execute("SELECT 1 FROM events WHERE kind IN ('checkout_created','balance_checkout_created') "
+                "AND json_extract(detail,'$.session_id')=? LIMIT 1",(session_id,)).fetchone()
+        if known:raise HTTPException(409,'Historical checkout binding requires reconciliation')
+        return {'received':True,'ignored':True}
+
+    def webhook_account_matches(event,row):
+        profile=json.loads(row['dealer_profile'] or '{}')
+        if profile.get('payment_account_role')=='platform':
+            return bool(settings.valid_platform_account and row['payment_account']==settings.stripe_platform_account
+                and profile.get('collection_authorization_reference') and profile.get('collection_legal_name')
+                and event.get('account') is None and settings.stripe_mode in ('test','live')
+                and event.get('livemode') is (settings.stripe_mode=='live'))
+        return bool(row['payment_account'] and event.get('account')==row['payment_account'])
 
     def shipping_payload(row, is_inoperable):
         vehicle=vehicles.get(row['vin'],{})
@@ -254,7 +300,7 @@ def create_app(settings=None, payments=None, shipping=None):
         financing['state']=row['financing_state']
         reconciled=funding_summary(c,row,DEPOSIT)
         if reconciled:
-            reconciled['balance_checkout_allowed']=bool(settings.balance_checkout_enabled and reconciled['balance_checkout_allowed'])
+            reconciled['balance_checkout_allowed']=bool(settings.deposit_collection_mode=='dealer_direct' and settings.balance_checkout_enabled and reconciled['balance_checkout_allowed'])
             financing['funded_amount_cents']=reconciled['lender_funded_cents']
             head=lender_head(c,row)
             if (head and head['kind']=='correction') or (financing['state']=='lender_funded' and not reconciled['lender_funded_cents']):
@@ -265,7 +311,10 @@ def create_app(settings=None, payments=None, shipping=None):
             'pickup_window_start','pickup_window_end','delivery_window_start','delivery_window_end') if key in private_transport}
         transport['state']=row['transport_state']
         if summary:transport['customer_delivery_charge_cents']=summary['delivery_charge_cents']
+        collector=json.loads(row['dealer_profile'] or '{}')
         return {'id':row['id'],'vin':row['vin'],'state':row['state'],'quote':summary,
+                'deposit_collection_mode':'platform' if collector.get('payment_account_role')=='platform' else 'dealer_direct',
+                'deposit_collector_legal_name':collector.get('collection_legal_name','') if collector.get('payment_account_role')=='platform' else collector.get('legal_name',''),
                 'price_commitment':{'vehicle_price_cents':commitment['vehicle_price_cents'],'scope':'vehicle_price_only'} if commitment else None,
                 'vehicle':vehicle_summary,'refund_submitted':bool(row['refund_id']),
                 'quote_version':row['quote_version'],'action_due_at':row['action_due_at'],
@@ -303,7 +352,7 @@ def create_app(settings=None, payments=None, shipping=None):
     @app.get('/api/config')
     def config():
         with store.connect() as c:
-            approved=sum(bool(json.loads(r['profile']).get('verified')) for r in c.execute('SELECT profile FROM dealers'))
+            approved=approved_collection_sellers(c)
         onboarding='ready' if (approved and settings.platform_agreements_verified) else ('sandbox_test_only' if (approved and settings.is_test_sandbox) else 'pending')
         payments_enabled=bool(settings.payments_ready and approved and settings.supported_states)
         return {'mode':'dealer_fulfillment','partner_onboarding_status':onboarding,
@@ -343,9 +392,13 @@ def create_app(settings=None, payments=None, shipping=None):
     @app.get('/api/admin/integrations',dependencies=[Depends(admin)])
     def integrations():
         with store.connect() as c:
-            approved=sum(bool(json.loads(r['profile']).get('verified')) for r in c.execute('SELECT profile FROM dealers'))
+            approved=approved_collection_sellers(c)
         checks={
             'approved_licensed_seller':bool(approved),
+            'deposit_collection_mode':settings.deposit_collection_mode in {'dealer_direct','platform'},
+            'platform_account_pin':settings.deposit_collection_mode!='platform' or settings.valid_platform_account,
+            'platform_collector_identity':settings.deposit_collection_mode!='platform' or (isinstance(settings.platform_collection_legal_name,str) and len(settings.platform_collection_legal_name.strip())>=3),
+            'platform_collection_agreements':settings.deposit_collection_mode!='platform' or settings.platform_agreements_verified,
             'seller_platform_agreements':settings.agreements_gate_passed,
             'stripe_secret_key':settings.stripe_mode in ('test','live'),
             'stripe_webhook_secret':bool(settings.webhook_secret),
@@ -493,6 +546,7 @@ def create_app(settings=None, payments=None, shipping=None):
             protect_vehicle_price(row,body.vehicle_price_cents)
             if row['state'] not in ('requested','quoted','quote_expired'):raise HTTPException(409,'Order cannot be requoted')
             dealer=dealer_for(c,body.dealer_id)
+            require_collection_authorization(dealer)
             customer=json.loads(row['customer'])
             if customer.get('state') not in dealer.supported_states or customer.get('state') not in settings.supported_states:raise HTTPException(409,'Destination is not supported')
             c.execute("UPDATE orders SET quote=?,quote_version=quote_version+1,state='quoted',checkout_id=NULL,updated_at=?,action_due_at=? WHERE id=?",(body.model_dump_json(),now,body.valid_until,order_id))
@@ -504,7 +558,8 @@ def create_app(settings=None, payments=None, shipping=None):
     def checkout_presentation(session,account):
         if session.get('client_secret'):
             return {'mode':'embedded_page','client_secret':session['client_secret'],
-                'publishable_key':settings.stripe_publishable_key,'account':account}
+                'publishable_key':settings.stripe_publishable_key,
+                'account':None if settings.deposit_collection_mode=='platform' and settings.valid_platform_account and account==settings.stripe_platform_account else account}
         if settings.checkout_ui_mode=='hosted_page' and session.get('url'):
             return {'mode':'hosted_page','url':session['url']}
         raise HTTPException(503,'Payment form is unavailable; retry safely')
@@ -523,6 +578,7 @@ def create_app(settings=None, payments=None, shipping=None):
                           or funds['lender_funded_cents'] or funds['settled_balance_cents'] or funds['funds_review_required']):
                 raise HTTPException(409,'Settled or unreconciled funds already exist. Reconcile this request before opening another deposit payment.')
             dealer=dealer_for_order(c,row)
+            require_collection_authorization(dealer)
             destination=json.loads(row['customer']).get('state')
             if destination not in dealer.supported_states or destination not in settings.supported_states:raise HTTPException(409,'Destination is no longer supported')
             try:capable=payments.dealer_can_charge(row['payment_account'])
@@ -573,6 +629,7 @@ def create_app(settings=None, payments=None, shipping=None):
             if row['balance_payment_state'] in ('ach_processing','paid'):
                 raise HTTPException(409,'Balance payment is already processing or settled')
             dealer=dealer_for_order(c,row)
+            require_collection_authorization(dealer)
             destination=json.loads(row['customer']).get('state')
             if destination not in dealer.supported_states or destination not in settings.supported_states:
                 raise HTTPException(409,'Destination is no longer supported')
@@ -606,12 +663,24 @@ def create_app(settings=None, payments=None, shipping=None):
         session=None;is_balance=False
         if kind in ('checkout.session.completed','checkout.session.async_payment_succeeded'):
             with store.connect() as lookup:
-                bound=lookup.execute('SELECT payment_account,checkout_id,balance_checkout_id FROM orders WHERE checkout_id=? OR balance_checkout_id=?',(obj['id'],obj['id'])).fetchone()
-            if not bound or not event.get('account') or event['account']!=bound['payment_account']:
+                bound=lookup.execute('SELECT * FROM orders WHERE checkout_id=? OR balance_checkout_id=?',(obj['id'],obj['id'])).fetchone()
+            if not bound:return unbound_checkout_result(obj['id'])
+            if not webhook_account_matches(event,bound):
                 raise HTTPException(409,'Webhook account does not match the fulfilling dealer')
             is_balance=(bound['balance_checkout_id']==obj['id'])
             try:session=payments.retrieve_checkout(obj['id'],bound['payment_account'])
             except Exception:raise HTTPException(503,'Payment verification unavailable')
+        elif kind in ('checkout.session.expired','checkout.session.async_payment_failed','refund.updated','refund.created','charge.dispute.created'):
+            with store.connect() as lookup:
+                if kind.startswith('checkout.session.'):
+                    bound=lookup.execute('SELECT * FROM orders WHERE checkout_id=? OR balance_checkout_id=?',(obj.get('id'),obj.get('id'))).fetchone()
+                else:
+                    pi=obj.get('payment_intent')
+                    bound=lookup.execute('SELECT * FROM orders WHERE payment_id=? OR balance_payment_id=?',(pi,pi)).fetchone() if pi else None
+            if not bound:
+                if kind.startswith('checkout.session.'):return unbound_checkout_result(obj.get('id'))
+                return {'received':True,'ignored':True}
+            if not webhook_account_matches(event,bound):raise HTTPException(409,'Webhook account mismatch')
         with store.transaction() as c:
             if c.execute('SELECT 1 FROM stripe_events WHERE id=?',(event['id'],)).fetchone():return {'received':True}
             if session and not is_balance:
@@ -621,7 +690,7 @@ def create_app(settings=None, payments=None, shipping=None):
                 base_valid=(session.get('amount_total')==DEPOSIT
                     and session.get('currency')=='usd' and session.get('mode')=='payment'
                     and meta.get('order_id')==row['id'] and meta.get('quote_version')==str(row['quote_version'])
-                    and settings.stripe_mode in ('test','live')
+                    and webhook_account_matches(event,row) and settings.stripe_mode in ('test','live')
                     and session.get('livemode') is (settings.stripe_mode=='live') and session.get('payment_intent'))
                 if not base_valid:raise HTTPException(409,'Payment does not match this order')
                 if kind=='checkout.session.completed' and session.get('payment_status')=='unpaid':
@@ -640,7 +709,15 @@ def create_app(settings=None, payments=None, shipping=None):
                     if row['state']!='deposit_paid' and not accepted:
                         q=Quote.model_validate_json(row['quote']);hold=c.execute('SELECT * FROM holds WHERE order_id=?',(row['id'],)).fetchone()
                         partner=c.execute('SELECT profile FROM dealers WHERE id=?',(row['dealer_id'],)).fetchone()
-                        partner_valid=bool(partner and json.loads(partner['profile']).get('verified') and json.loads(partner['profile']).get('stripe_account')==row['payment_account'])
+                        partner_valid=False
+                        if partner:
+                            try:
+                                active=Dealer.model_validate_json(partner['profile'])
+                                saved=Dealer.model_validate_json(row['dealer_profile'])
+                                partner_valid=bool(active.verified and active.stripe_account==row['payment_account'] and all(
+                                    getattr(active,key)==getattr(saved,key) for key in ('legal_name','license_number','address',
+                                        'payment_account_role','collection_authorization_reference','collection_legal_name')))
+                            except (ValueError,TypeError):pass
                         usable=(partner_valid and settings.payments_ready and row['state'] in ('checkout_pending','deposit_processing') and hold and (hold['expires_at'] is None or hold['expires_at']>now)
                             and min(q.valid_until,q.seller_hold_until)>now)
                         state='deposit_paid' if usable else 'refund_pending'
@@ -659,7 +736,7 @@ def create_app(settings=None, payments=None, shipping=None):
                     and session.get('currency')=='usd' and session.get('mode')=='payment'
                     and meta.get('order_id')==row['id'] and meta.get('quote_version')==str(row['quote_version'])
                     and meta.get('payment_stage')=='balance_ach'
-                    and settings.stripe_mode in ('test','live')
+                    and webhook_account_matches(event,row) and settings.stripe_mode in ('test','live')
                     and session.get('livemode') is (settings.stripe_mode=='live') and session.get('payment_intent'))
                 if not base_valid:raise HTTPException(409,'Balance payment does not match this order')
                 if row['balance_payment_id'] and row['balance_payment_id']!=session['payment_intent']:
@@ -674,7 +751,7 @@ def create_app(settings=None, payments=None, shipping=None):
                     raise HTTPException(409,'Balance payment status is not valid')
             elif kind in ('checkout.session.expired','checkout.session.async_payment_failed'):
                 row=c.execute('SELECT * FROM orders WHERE checkout_id=? OR balance_checkout_id=?',(obj['id'],obj['id'])).fetchone()
-                if row and row['payment_account']!=event.get('account'):raise HTTPException(409,'Webhook account mismatch')
+                if row and not webhook_account_matches(event,row):raise HTTPException(409,'Webhook account mismatch')
                 if row and row['checkout_id']==obj['id'] and row['state'] in ('checkout_pending','deposit_processing'):
                     c.execute("UPDATE orders SET state='quote_expired',updated_at=? WHERE id=?",(now,row['id']))
                     c.execute('DELETE FROM holds WHERE order_id=?',(row['id'],))
@@ -688,7 +765,7 @@ def create_app(settings=None, payments=None, shipping=None):
                     raise HTTPException(409,'Refund mode does not match this integration')
                 pi=obj.get('payment_intent','')
                 row=c.execute('SELECT * FROM orders WHERE payment_id=? OR balance_payment_id=?',(pi,pi)).fetchone()
-                if row and row['payment_account']!=event.get('account'):raise HTTPException(409,'Webhook account mismatch')
+                if row and not webhook_account_matches(event,row):raise HTTPException(409,'Webhook account mismatch')
                 if row and row['payment_id']==pi and obj.get('amount')==DEPOSIT and obj.get('status')=='succeeded':
                     if row['state']=='refund_pending':
                         c.execute("UPDATE orders SET state='refunded',refund_id=COALESCE(refund_id,?),updated_at=? WHERE id=?",(obj['id'],now,row['id']))
@@ -703,7 +780,7 @@ def create_app(settings=None, payments=None, shipping=None):
             elif kind=='charge.dispute.created':
                 pi=obj.get('payment_intent','')
                 row=c.execute('SELECT * FROM orders WHERE payment_id=? OR balance_payment_id=?',(pi,pi)).fetchone()
-                if row and row['payment_account']!=event.get('account'):raise HTTPException(409,'Webhook account mismatch')
+                if row and not webhook_account_matches(event,row):raise HTTPException(409,'Webhook account mismatch')
                 if row:
                     if row['balance_payment_id']==pi:
                         c.execute("UPDATE orders SET state='payment_review',balance_payment_state='payment_review',updated_at=? WHERE id=?",(now,row['id']))
