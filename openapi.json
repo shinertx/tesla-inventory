@@ -3,7 +3,7 @@
   "info": {
     "title": "Volts & VINs Used Tesla Search & Benchmark API",
     "version": "1.0.0",
-    "description": "Query 15,000+ VIN-decoded used Teslas with mileage-adjusted peer price benchmarks and direct checkout links."
+    "description": "Query 15,098 published used Tesla discovery listings with VIN-decoded facts, peer price benchmarks, and vehicle detail links. Availability and purchase terms require dealer confirmation."
   },
   "servers": [
     {
@@ -107,7 +107,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Matching VIN-decoded Tesla listings with peer benchmarks and checkout URLs."
+            "description": "Matching VIN-decoded Tesla listings with peer benchmarks and vehicle detail URLs."
           }
         }
       }

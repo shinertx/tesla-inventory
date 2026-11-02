@@ -5,7 +5,7 @@ Breaks the marketplace lifecycle into 5 discrete, auditable jobs:
 1. discover_vehicles   — Pulls fresh Tesla VIN observations from live sources (Autolist, CarGurus, TrueCar, Carvana).
 2. enrich_media        — Backfills VIN-bound multi-photo galleries for newly discovered vehicles.
 3. reprice_and_build   — Recomputes peer benchmarks, dynamic 50/50 buyer-seller savings, Top Arbitrage Deals, and 197 HTML/AI pages.
-4. publish_and_index   — Pushes updated catalog to GitHub Pages (voltsandvins.com) and pings IndexNow (Bing/ChatGPT/Perplexity).
+4. publish_and_index   — Pushes updated catalog to GitHub Pages (voltsandvins.com) and submits eligible URLs to IndexNow.
 5. match_customer_orders — Real-time (60s) matcher that pairs incoming customer VIN requests in orders.db with private source dealer links & arbitrage spread.
 """
 from __future__ import annotations
@@ -30,7 +30,7 @@ from tools.collect import source_url, parse_source
 from tools.inventory import ingest, export
 from tools.build import build as build_catalog
 from tools.top_arbitrage_deals import load_top_deals, write_markdown_report
-from tools.indexnow import ping_indexnow
+from tools.indexnow import ping_indexnow, load_sitemap_urls
 
 
 DEFAULT_PARTITIONS = [
@@ -234,15 +234,13 @@ def job_publish_and_index(
     git_push: bool = False,
     status_file: Path = ROOT / ".data/jobs_status.json",
 ) -> dict:
-    """Job 4: Optionally commit/push updated static catalog and ping IndexNow (Bing, ChatGPT, DuckDuckGo)."""
+    """Job 4: Optionally commit/push updated static catalog and submit deployed URLs to IndexNow; acceptance does not prove indexing."""
     indexnow_res = {}
-    if ping_search_engines and (repo_dir / "sitemap.xml").exists():
-        try:
-            indexnow_res = ping_indexnow()
-        except Exception as exc:
-            indexnow_res = {"error": str(exc)[:160]}
     git_res = {"pushed": False}
     public_artifacts = ["inventory.json", "llms.txt", "llms-full.txt", "index.html", "deals", "models", "states", "years", "sitemap.xml", "robots.txt", "media", "data/vehicle_photos.json"]
+    # Optional generated artifacts must travel with their catalog and sitemap.
+    public_artifacts += [name for name in ("v", "browse", "openapi.json", "CNAME", "voltsandvins-indexnow-key.txt", "search-release.json")
+                         if (repo_dir / name).exists()]
     if git_push:
         try:
             status = subprocess.run(
@@ -269,6 +267,32 @@ def job_publish_and_index(
                 git_res = {"pushed": False, "reason": "no_catalog_changes"}
         except Exception as exc:
             git_res = {"pushed": False, "error": str(exc)[:200]}
+    if ping_search_engines:
+        sitemap = repo_dir / "sitemap.xml"
+        release = repo_dir / "search-release.json"
+        if not sitemap.exists():
+            indexnow_res = {"deferred": True, "reason": "local_sitemap_missing"}
+        elif not release.exists():
+            indexnow_res = {"deferred": True, "reason": "local_release_manifest_missing"}
+        elif git_res.get("error"):
+            indexnow_res = {"deferred": True, "reason": "git_publish_failed"}
+        else:
+            # Two bounded reads; a successful push or equal sitemap alone is not deployment.
+            try:
+                with urllib.request.urlopen("https://voltsandvins.com/sitemap.xml", timeout=10) as response:
+                    public_sitemap = response.read(10_000_001)
+                with urllib.request.urlopen("https://voltsandvins.com/search-release.json", timeout=10) as response:
+                    public_release = response.read(10_000_001)
+                if public_release != release.read_bytes():
+                    indexnow_res = {"deferred": True, "reason": "public_release_manifest_not_deployed"}
+                elif public_sitemap != sitemap.read_bytes():
+                    indexnow_res = {"deferred": True, "reason": "public_sitemap_not_deployed"}
+                else:
+                    indexnow_res = ping_indexnow(urls=load_sitemap_urls(sitemap))
+            except Exception as exc:
+                partial = getattr(exc, "result", None)
+                indexnow_res = {**partial, "error": str(exc)[:160]} if isinstance(partial, dict) else {
+                    "deferred": True, "reason": "public_release_check_failed", "error": str(exc)[:160]}
     result = {
         "ok": True,
         "indexnow": indexnow_res,

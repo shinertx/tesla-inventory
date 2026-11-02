@@ -2,6 +2,7 @@
 import functools,json,sys,threading
 from http.server import SimpleHTTPRequestHandler,ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import urlsplit
 from playwright.sync_api import sync_playwright
 ROOT=Path(__file__).resolve().parents[1]
 class PagesHandler(SimpleHTTPRequestHandler):
@@ -33,6 +34,30 @@ def main(out):
                 assert v_page.stem in page.locator('#vehicle-panel').inner_text()
                 assert page.url.endswith('/v/'+v_page.name)
                 result['static_vdp_bootstrap']=True
+            if v_page:
+                page.goto(base+'v/'+v_page.name+'?utm_source=google&utm_campaign=seo-check')
+                page.locator('#vehicle-dialog[open]').wait_for()
+                page.locator('[data-close=vehicle-dialog]').click()
+                other=page.locator(f'.card-main:not([data-open="{v_page.stem}"])').first
+                next_url=other.get_attribute('href')
+                other.click();page.wait_for_url(next_url)
+                page.locator('#vehicle-dialog[open]').wait_for()
+                canonical=page.locator('link[rel=canonical]').get_attribute('href')
+                assert canonical.endswith('/v/'+urlsplit(page.url).path.split('/')[-1])
+                assert page.locator('body').get_attribute('data-initial-vin')==urlsplit(page.url).path.split('/')[-1][:-5]
+                assert 'utm_source=google' in page.url and 'utm_campaign=seo-check' in page.url
+                assert '?' not in canonical
+                assert '?' not in page.locator('#dynamic-vehicle-schema').inner_text()
+                result['cross_vin_canonical_document_navigation']=True
+                result['campaign_attribution_preserved']=True
+            nojs=b.new_context(java_script_enabled=False)
+            crawl=nojs.new_page();crawl.goto(base+'browse/index.html',wait_until='domcontentloaded')
+            assert crawl.locator('a[href^="../v/"]').count()==100
+            crawl.goto(base+'v/7SAYGDED1RF039277.html',wait_until='domcontentloaded')
+            assert crawl.locator('h1').count()==1 and '7SAYGDED1RF039277' in crawl.locator('h1').inner_text()
+            assert 'Vehicle price' in crawl.locator('.category-intro').inner_text()
+            result['discovery_works_without_javascript']=True
+            nojs.close()
             for vin,count in [('5YJ3E1EA8SF921313',30),('7SAYGDED1RF039277',45),('5YJ3E1EA8KF413066',59)]:
                 page.goto(base+'?vin='+vin);page.wait_for_function('(n)=>document.querySelectorAll(".gallery-thumb").length===n',arg=count)
                 page.wait_for_function('()=>document.querySelector("#gallery-stage img")?.naturalWidth>0')
