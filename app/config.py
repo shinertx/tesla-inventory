@@ -14,6 +14,7 @@ class Settings:
     platform_agreements_verified: bool = False
     supported_states: tuple[str, ...] = ()
     checkout_enabled: bool = False
+    balance_checkout_enabled: bool = False
     stripe_key: str = ''
     webhook_secret: str = ''
     stripe_publishable_key: str = ''
@@ -59,9 +60,14 @@ class Settings:
                     and (not self.sandbox_mode or self.stripe_mode=='test')
                     and self.checkout_ui_mode in ('embedded_page','hosted_page')
                     and self.payment_method_types and set(self.payment_method_types)<={'card','us_bank_account'}
-                    and self.balance_payment_method_types and set(self.balance_payment_method_types)<={'us_bank_account'}
                     and (self.checkout_ui_mode=='hosted_page' or self.publishable_key_matches_mode)
                     and (self.stripe_mode!='live' or (self.origin.startswith('https://') and self.platform_agreements_verified)))
+
+    @property
+    def balance_payments_ready(self):
+        return bool(self.balance_checkout_enabled and self.payments_ready
+                    and self.balance_payment_method_types
+                    and set(self.balance_payment_method_types)<={'us_bank_account'})
 
     @classmethod
     def from_env(cls):
@@ -75,6 +81,7 @@ class Settings:
             platform_agreements_verified=os.getenv('PLATFORM_AGREEMENTS_VERIFIED','').lower()=='true',
             supported_states=tuple(x.strip().upper() for x in os.getenv('SUPPORTED_STATES', '').split(',') if x.strip()),
             checkout_enabled=os.getenv('CHECKOUT_ENABLED', '').lower() == 'true',
+            balance_checkout_enabled=os.getenv('BALANCE_CHECKOUT_ENABLED', '').lower() == 'true',
             stripe_key=os.getenv('STRIPE_SECRET_KEY', ''), webhook_secret=os.getenv('STRIPE_WEBHOOK_SECRET', ''),
             stripe_publishable_key=os.getenv('STRIPE_PUBLISHABLE_KEY',''),
             checkout_ui_mode=os.getenv('CHECKOUT_UI_MODE','embedded_page'),

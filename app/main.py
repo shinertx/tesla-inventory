@@ -157,7 +157,7 @@ def create_app(settings=None, payments=None, shipping=None):
 
     def legacy_balance_payment_blocked(c,row):
         funds=funding_summary(c,row,DEPOSIT)
-        return not funds or not funds['balance_checkout_allowed']
+        return not settings.balance_checkout_enabled or not funds or not funds['balance_checkout_allowed']
 
     def record_balance_conflict(c,row,source_reference):
         funds=funding_summary(c,row,DEPOSIT)
@@ -254,6 +254,7 @@ def create_app(settings=None, payments=None, shipping=None):
         financing['state']=row['financing_state']
         reconciled=funding_summary(c,row,DEPOSIT)
         if reconciled:
+            reconciled['balance_checkout_allowed']=bool(settings.balance_checkout_enabled and reconciled['balance_checkout_allowed'])
             financing['funded_amount_cents']=reconciled['lender_funded_cents']
             head=lender_head(c,row)
             if (head and head['kind']=='correction') or (financing['state']=='lender_funded' and not reconciled['lender_funded_cents']):
@@ -308,7 +309,8 @@ def create_app(settings=None, payments=None, shipping=None):
         return {'mode':'dealer_fulfillment','partner_onboarding_status':onboarding,
             'sandbox_mode':settings.is_test_sandbox,'test_mode':settings.stripe_mode=='test',
             'supported_states':settings.supported_states,'payments_enabled':payments_enabled,
-            'payment_methods':list(settings.payment_method_types),'ach_enabled':payments_enabled and ('us_bank_account' in settings.balance_payment_method_types or 'us_bank_account' in settings.payment_method_types),
+            'payment_methods':list(settings.payment_method_types),'ach_enabled':payments_enabled and (settings.balance_payments_ready or 'us_bank_account' in settings.payment_method_types),
+            'balance_checkout_enabled':bool(settings.balance_payments_ready and approved and settings.supported_states),
             'balance_payment_methods':list(settings.balance_payment_method_types),'balance_payment_method':'us_bank_account','deposit_cents':DEPOSIT,'requests_enabled':True,'inventory_owner':'fulfilling_dealer'}
 
     @app.put('/api/admin/dealers/{dealer_id}',dependencies=[Depends(admin)])
@@ -350,7 +352,6 @@ def create_app(settings=None, payments=None, shipping=None):
             'stripe_publishable_key':settings.checkout_ui_mode=='hosted_page' or settings.publishable_key_matches_mode,
             'checkout_ui_mode':settings.checkout_ui_mode in {'hosted_page','embedded_page'},
             'deposit_payment_methods':bool(settings.payment_method_types) and set(settings.payment_method_types)<={'card','us_bank_account'},
-            'balance_payment_methods':bool(settings.balance_payment_method_types) and set(settings.balance_payment_method_types)<={'us_bank_account'},
             'live_https_and_agreements':settings.stripe_mode!='live' or (settings.origin.startswith('https://') and settings.platform_agreements_verified),
             'sandbox_key_mode':not settings.sandbox_mode or settings.stripe_mode=='test',
             'supported_sale_states':bool(settings.supported_states),
@@ -360,6 +361,9 @@ def create_app(settings=None, payments=None, shipping=None):
         return {
             'deposits':{'enabled':bool(settings.payments_ready and approved and settings.supported_states),'test_mode':settings.stripe_mode=='test',
                         'approved_seller_count':approved,'missing':missing},
+            'balance':{'enabled':bool(settings.balance_payments_ready and approved and settings.supported_states),
+                       'checkout_enable_setting':settings.balance_checkout_enabled,
+                       'payment_methods_valid':bool(settings.balance_payment_method_types) and set(settings.balance_payment_method_types)<={'us_bank_account'}},
             'shipping':{'provider':'Super Dispatch Pricing Insights','configured':bool(settings.super_dispatch_api_key),
                         'enabled':bool(settings.shipping_estimates_enabled and settings.super_dispatch_api_key),
                         'binding_carrier_quotes':False,'carrier_booking':False},
@@ -556,7 +560,7 @@ def create_app(settings=None, payments=None, shipping=None):
 
     @app.post('/api/orders/{order_id}/balance-checkout')
     def balance_checkout(order_id:str,body:BalanceCheckoutAcceptance,authorization:Annotated[str|None,Header()]=None):
-        if not settings.payments_ready:raise HTTPException(409,'Partner checkout is not yet configured')
+        if not settings.balance_payments_ready:raise HTTPException(409,'Partner checkout is not yet configured')
         now=int(time.time())
         with store.transaction() as c:
             row=order_access(c,order_id,authorization)
@@ -964,6 +968,8 @@ def create_app(settings=None, payments=None, shipping=None):
         with store.transaction() as c:
             row=get_order(c,order_id);dealer=dealer_for_order(c,row)
             if row['state'] not in ONLINE_STATES[body.kind]:raise HTTPException(409,'This online step is not available yet')
+            if body.kind=='pay_balance' and legacy_balance_payment_blocked(c,row):
+                raise HTTPException(409,'Balance collection is disabled or requires funding reconciliation')
             if url.scheme!='https' or url.hostname not in dealer.online_portal_hosts or url.username or url.password:
                 raise HTTPException(409,'Use an approved secure dealer portal')
             c.execute('INSERT INTO online_actions VALUES(?,?,?,?) ON CONFLICT(order_id,kind) DO UPDATE SET url=excluded.url,evidence_reference=excluded.evidence_reference',(order_id,body.kind,body.url,body.evidence_reference))

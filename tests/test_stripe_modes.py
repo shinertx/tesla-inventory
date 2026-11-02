@@ -60,7 +60,8 @@ def test_hosted_checkout_keeps_mode_and_live_gates_without_publishable_key(prefi
     settings = ready(prefix, checkout_ui_mode='hosted_page', stripe_publishable_key='')
     assert settings.payments_ready
     assert not replace(settings, payment_method_types=('unsupported',)).payments_ready
-    assert not replace(settings, balance_payment_method_types=('card',)).payments_ready
+    assert replace(settings, balance_checkout_enabled=True).balance_payments_ready
+    assert not replace(settings, balance_checkout_enabled=True, balance_payment_method_types=('card',)).balance_payments_ready
     if 'live' in prefix:
         assert not replace(settings, origin='http://example.test').payments_ready
 
@@ -142,3 +143,83 @@ def test_canonical_balance_and_signed_refund_modes_remain_separate(setup, prefix
     assert client.post('/api/stripe/webhook', json=payload, headers={'Stripe-Signature': 'valid-test-signature'}).status_code == 200
     assert status(client, order) == 'refunded'
     assert payments.refunds == 0
+
+
+@pytest.mark.parametrize('prefix', PREFIXES)
+def test_balance_collection_is_independent_and_disabled_by_default(prefix):
+    settings = ready(prefix)
+    assert settings.payments_ready and not settings.balance_checkout_enabled
+    assert not settings.balance_payments_ready
+    assert replace(settings, balance_checkout_enabled=True).balance_payments_ready
+    # Invalid balance setup cannot disable or silently expand deposit acceptance.
+    invalid = replace(settings, balance_checkout_enabled=True, balance_payment_method_types=('card',))
+    assert invalid.payments_ready and not invalid.balance_payments_ready
+    assert not replace(settings, balance_checkout_enabled=True, checkout_enabled=False).balance_payments_ready
+
+
+def test_balance_switch_from_env_requires_explicit_opt_in(monkeypatch):
+    monkeypatch.delenv('BALANCE_CHECKOUT_ENABLED', raising=False)
+    assert Settings.from_env().balance_checkout_enabled is False
+    monkeypatch.setenv('BALANCE_CHECKOUT_ENABLED', 'true')
+    assert Settings.from_env().balance_checkout_enabled is True
+
+
+@pytest.mark.parametrize('prefix', ('rk_test_', 'rk_live_'))
+def test_deposit_only_blocks_balance_and_stale_external_collection(setup, prefix):
+    _, settings, payments, store = setup
+    live = 'live' in prefix
+    client = TestClient(create_app(replace(settings, stripe_key=prefix+'fixture',
+        stripe_publishable_key='pk_'+('live' if live else 'test')+'_fixture',
+        origin='https://example.test', balance_checkout_enabled=False), payments))
+    config = client.get('/api/config').json()
+    assert config['payments_enabled'] is True and config['payment_methods'] == ['card']
+    assert config['balance_checkout_enabled'] is False and config['ach_enabled'] is False
+    integrations = client.get('/api/admin/integrations', headers=admin()).json()
+    assert integrations['deposits']['enabled'] is True and not integrations['balance']['enabled']
+    order = request(client); approve(client, order)
+    assert checkout(client, order).status_code == 200
+    assert event(client, payments, order, livemode=live).status_code == 200
+    with store.transaction() as db:
+        db.execute("UPDATE orders SET state='dealer_confirmed' WHERE id=?", (order['id'],))
+        db.execute('INSERT INTO online_actions VALUES(?,?,?,?)',
+            (order['id'], 'pay_balance', 'https://example.test/stale-payment', 'fixture:prior-approved-portal'))
+    result = client.get('/api/orders/'+order['id'], headers=auth(order)).json()
+    assert result['funding_summary']['balance_checkout_allowed'] is False
+    assert all(a['kind'] != 'pay_balance' for a in result['online_actions'])
+    before = payments.balance_calls
+    denied = client.post('/api/orders/'+order['id']+'/balance-checkout',
+        json={'quote_version':1,'terms_accepted':True}, headers=auth(order))
+    assert denied.status_code == 409 and payments.balance_calls == before
+    denied = client.post('/api/admin/orders/'+order['id']+'/online-actions', headers=admin(),
+        json={'kind':'pay_balance','url':'https://example.test/new-payment','evidence_reference':'fixture:portal'})
+    assert denied.status_code == 409
+    with store.connect() as db:
+        assert db.execute("SELECT COUNT(*) FROM online_actions WHERE order_id=? AND kind='pay_balance'",(order['id'],)).fetchone()[0] == 1
+    assert payments.session_calls == 1 and payments.refunds == 0
+
+
+def test_disabled_balance_switch_still_reconciles_historical_balance_and_refund(setup):
+    _, settings, payments, store = setup
+    enabled = TestClient(create_app(replace(settings, balance_checkout_enabled=True), payments))
+    order = request(enabled); approve(enabled, order); assert checkout(enabled, order).status_code == 200
+    assert event(enabled, payments, order).status_code == 200
+    with store.transaction() as db:
+        db.execute("UPDATE orders SET state='dealer_confirmed' WHERE id=?", (order['id'],))
+    assert enabled.post('/api/orders/'+order['id']+'/balance-checkout',
+        json={'quote_version':1,'terms_accepted':True}, headers=auth(order)).status_code == 200
+    session = next(s for s in payments.sessions.values() if s['metadata'].get('payment_stage') == 'balance_ach')
+    session.update(status='complete', payment_status='paid')
+    disabled = TestClient(create_app(replace(settings, balance_checkout_enabled=False), payments))
+    payload = {'id':'evt_balance_after_disable','type':'checkout.session.async_payment_succeeded',
+        'account':session['account'],'data':{'object':{'id':session['id']}}}
+    assert disabled.post('/api/stripe/webhook',json=payload,headers={'Stripe-Signature':'valid-test-signature'}).status_code == 200
+    result = disabled.get('/api/orders/'+order['id'],headers=auth(order)).json()
+    assert result['balance_payment_state'] == 'paid' and result['funding_summary']['settled_balance_cents'] > 0
+    assert not result['funding_summary']['balance_checkout_allowed']
+    with store.transaction() as db:
+        db.execute("UPDATE orders SET state='refund_pending' WHERE id=?", (order['id'],))
+    refund = {'id':'evt_refund_after_disable','type':'refund.updated','livemode':False,
+        'account':'acct_fixtureDealer','data':{'object':{'id':'re_historical','payment_intent':'pi_'+order['id'],
+        'amount':25000,'status':'succeeded'}}}
+    assert disabled.post('/api/stripe/webhook',json=refund,headers={'Stripe-Signature':'valid-test-signature'}).status_code == 200
+    assert status(disabled,order) == 'refunded' and payments.balance_calls == 1 and payments.refunds == 0

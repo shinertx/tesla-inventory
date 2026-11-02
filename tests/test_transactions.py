@@ -39,7 +39,7 @@ class Payments:
 def setup(tmp_path):
     inv=tmp_path/'inventory.json';inv.write_text(json.dumps({'items':[{'vin':VIN,'display_price':29000}]}))
     settings=Settings(db_path=tmp_path/'orders.db',inventory_path=inv,admin_token=TOKEN,
-        platform_agreements_verified=True,supported_states=('TX',),checkout_enabled=True,stripe_key='sk_test_fixture',stripe_publishable_key='pk_test_fixture',webhook_secret='whsec_fixture')
+        platform_agreements_verified=True,supported_states=('TX',),checkout_enabled=True,balance_checkout_enabled=True,stripe_key='sk_test_fixture',stripe_publishable_key='pk_test_fixture',webhook_secret='whsec_fixture')
     payments=Payments();app=create_app(settings,payments)
     profile=dict(id='fixture-dealer',legal_name='FIXTURE FULFILLING DEALER',license_number='TEST-LICENSE',address='TEST ADDRESS',supported_states=['TX'],stripe_account='acct_fixtureDealer',agreement_reference='agreement:fixture',license_evidence='license:fixture',verified=True)
     with app.state.store.transaction() as db:db.execute('INSERT INTO dealers VALUES(?,?,?)',(profile['id'],json.dumps(profile),int(time.time())))

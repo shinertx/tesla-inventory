@@ -60,3 +60,28 @@ This creates no lender application by itself. It does not establish an AutoFi co
 Ben has no agreed retail dealer yet. “Jockey” is a draft working label, not a licensed seller profile.
 
 All provider inquiries remain drafts. Do not send, submit, sign or enable accounts from placeholder information.
+
+## Deposit-only activation preparation
+
+Secret and restricted account keys are classified by test/live mode. Key prefixes
+establish neither actual permissions nor approval for automotive transactions.
+Unknown modes, mismatched publishable keys, live keys in sandbox, missing seller
+approval, missing agreements, and insecure live origins still fail closed.
+
+`CHECKOUT_ENABLED` controls the existing $250 reservation path. Full-balance
+collection now also requires **`BALANCE_CHECKOUT_ENABLED=true`**, which defaults
+to false. For card deposits only, use `STRIPE_PAYMENT_METHODS=card` and leave the
+balance switch false. The public configuration then reports ACH/balance checkout
+disabled, hides stored balance-payment portals, and blocks new balance sessions.
+This does not delete historical instructions or cancel existing provider sessions.
+
+Explicit sandbox balance testing may opt in separately. Existing signed outcome,
+refund, and ledger reconciliation continues when balance collection is disabled.
+An existing pending or paid balance remains recorded. Do not use this switch to
+claim funds were cancelled, reversed, refunded, or settled.
+
+No account, seller profile, key, webhook, deployment, or runtime flag is created
+or activated by these source changes. Live reservations still require the actual
+licensed selling dealer, existing eligible connected account, signed terms,
+verified per-VIN quote/hold/evidence, correct Connect webhook secret, and matching
+live account keys. The platform account is not a substitute for the retail seller.
