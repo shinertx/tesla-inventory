@@ -340,8 +340,30 @@ def create_app(settings=None, payments=None, shipping=None):
                 'financing':financing,'transport':transport,'shipping_estimate':customer_shipping_estimate(row,c),
                 'funding_summary':reconciled}
 
+    def request_internal_source_release(c,row,now):
+        """Close our commitment after cancellation, without claiming dealer release."""
+        if row['state'] not in ('cancelled','refunded'):return
+        source=c.execute('SELECT expires_at FROM source_holds WHERE order_id=?',(row['id'],)).fetchone()
+        if not source:return
+        try:funds=funding_summary(c,row,DEPOSIT)
+        except (ValueError,TypeError,KeyError):return  # Unclear funding keeps the commitment for review.
+        if (not funds or funds['funds_review_required']
+            or row['balance_payment_state'] in ('checkout_open','ach_processing','paid','payment_review')
+            or any(funds[key] for key in ('lender_funded_cents','settled_balance_cents',
+                'net_additional_cash_cents','prior_quote_unallocated_cash_cents','prior_quote_unallocated_lender_cents'))):return
+        prior=c.execute("SELECT 1 FROM events WHERE order_id=? AND kind='source_hold_release_requested' "
+            "AND json_extract(detail,'$.quote_version')=? LIMIT 1",(row['id'],row['quote_version'])).fetchone()
+        if prior:return
+        c.execute('UPDATE source_holds SET expires_at=MIN(expires_at,?) WHERE order_id=?',(now,row['id']))
+        store.event(c,row['id'],'source_hold_release_requested',{
+            'quote_version':row['quote_version'],'reason':'terminal_'+row['state'],
+            'previous_expires_at':source['expires_at'],'internal_expires_at':min(source['expires_at'],now),
+            'scope':'internal_commitment_only','dealer_release_confirmed':False,'external_request_sent':False},True)
+
     def _execute_deposit_refund(c,row,strict=True):
-        if row['state']=='refunded':return row
+        if row['state']=='refunded':
+            request_internal_source_release(c,row,int(time.time()))
+            return row
         if row['workflow_model']!='dealer_fulfillment' or not row['payment_account']:
             if strict:raise HTTPException(409,'Legacy payment requires manual review')
             return row
@@ -369,6 +391,7 @@ def create_app(settings=None, payments=None, shipping=None):
             c.execute('UPDATE holds SET expires_at=NULL WHERE order_id=?',(row['id'],))
         else:c.execute('DELETE FROM holds WHERE order_id=?',(row['id'],))
         store.event(c,row['id'],'refund_submitted',{'refund_id':result['id'],'status':result['status']},True)
+        request_internal_source_release(c,get_order(c,row['id']),now)
         return get_order(c,row['id'])
 
     def authorization_usable(c,row,now):
@@ -463,6 +486,7 @@ def create_app(settings=None, payments=None, shipping=None):
         if reason=='fully_funded_purchase' or external_funds:c.execute('UPDATE holds SET expires_at=NULL WHERE order_id=?',(row['id'],))
         else:c.execute('DELETE FROM holds WHERE order_id=?',(row['id'],))
         store.event(c,row['id'],'authorization_released',{'payment_id':intent['id'],'reason':reason},True)
+        request_internal_source_release(c,get_order(c,row['id']),now)
         return get_order(c,row['id'])
 
     def handle_manual_session(c,row,session,now):
@@ -1052,6 +1076,7 @@ def create_app(settings=None, payments=None, shipping=None):
                     elif row['state']!='refunded':
                         c.execute("UPDATE orders SET state='payment_review',updated_at=? WHERE id=?",(now,row['id']))
                         store.event(c,row['id'],'unexpected_refund',{'refund_id':obj['id']},True)
+                    request_internal_source_release(c,get_order(c,row['id']),now)
                 elif row and row['balance_payment_id']==pi and obj.get('status')=='succeeded':
                     c.execute("UPDATE orders SET state='payment_review',balance_payment_state='payment_review',updated_at=? WHERE id=?",(now,row['id']))
                     store.event(c,row['id'],'balance_refund_recorded',{'refund_id':obj['id'],'amount':obj.get('amount')},True)
@@ -1073,7 +1098,9 @@ def create_app(settings=None, payments=None, shipping=None):
         now=int(time.time())
         with store.transaction() as c:
             row=order_access(c,order_id,authorization)
-            if row['state'] in ('cancelled','refunded','refund_pending'):return public(row,c)
+            if row['state'] in ('cancelled','refunded','refund_pending'):
+                request_internal_source_release(c,row,now)
+                return public(row,c)
             if row['deposit_capture_method']=='manual' and row['state'] in ('checkout_pending','deposit_authorized','authorization_release_pending','quote_expired') and row['checkout_id']:
                 if not row['payment_id']:
                     try:session=payments.retrieve_checkout(row['checkout_id'],row['payment_account'])
@@ -1089,6 +1116,7 @@ def create_app(settings=None, payments=None, shipping=None):
                         c.execute("UPDATE orders SET state='cancelled',updated_at=? WHERE id=?",(now,order_id))
                         c.execute('DELETE FROM holds WHERE order_id=?',(order_id,))
                         store.event(c,order_id,'checkout_cancelled',{'reason':body.reason},True)
+                        request_internal_source_release(c,get_order(c,order_id),now)
                         return public(get_order(c,order_id),c)
                     else:raise HTTPException(409,'Card checkout cancellation is not confirmed')
                 if row['state'] in ('deposit_authorized','authorization_release_pending'):
@@ -1106,6 +1134,7 @@ def create_app(settings=None, payments=None, shipping=None):
             store.event(c,order_id,'cancellation_requested',{'reason':body.reason,'state':state},True)
             if state=='refund_pending' and settings.auto_refund_enabled and settings.payments_ready:
                 _execute_deposit_refund(c,get_order(c,order_id),strict=False)
+            request_internal_source_release(c,get_order(c,order_id),now)
             return public(get_order(c,order_id),c)
 
     def cash_response(c,row,entry):
