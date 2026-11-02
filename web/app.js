@@ -27,8 +27,8 @@
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const money = cents => new Intl.NumberFormat('en-US', {style:'currency',currency:'USD',maximumFractionDigits:2}).format(cents/100);
   const dollars = amount => new Intl.NumberFormat('en-US', {style:'currency',currency:'USD',maximumFractionDigits:0}).format(amount);
-  let embeddedCheckout=null,stripeLoader=null,orderPollTimer=null,lastOrderSnapshot='',orderViewVersion=0,shippingEstimateTimer=null;
-  function destroyCheckout(){if(embeddedCheckout){embeddedCheckout.destroy();embeddedCheckout=null;}}
+  let embeddedCheckout=null,checkoutMountInProgress=null,stripeLoader=null,orderPollTimer=null,lastOrderSnapshot='',orderViewVersion=0,shippingEstimateTimer=null;
+  function destroyCheckout(){checkoutMountInProgress=null;if(embeddedCheckout){embeddedCheckout.destroy();embeddedCheckout=null;}}
   function stopOrderPoll(){if(orderPollTimer){clearInterval(orderPollTimer);orderPollTimer=null;}if(shippingEstimateTimer){clearTimeout(shippingEstimateTimer);shippingEstimateTimer=null;}}
   $('order-dialog').addEventListener('close',()=>{orderViewVersion++;destroyCheckout();stopOrderPoll();});
   async function loadStripe(){
@@ -494,36 +494,44 @@
     $('delete-request').addEventListener('click',async()=>{$('order-error').textContent='';try{await api(`orders/${access.id}/privacy`,{method:'POST',headers:{Authorization:'Bearer '+access.token},body:'{}'});notify('Deletion request recorded for review against transaction retention requirements.');}catch(e){$('order-error').textContent=e.message;}});
     $('accept-quote')?.addEventListener('change',()=>{$('order-error').textContent='';});
     $('accept-balance')?.addEventListener('change',()=>{$('order-error').textContent='';});
-    const mountStripeResult=async result=>{
-      if(!isCurrentView())return;
+    const mountStripeResult=async(result,attempt)=>{
+      const isCurrentAttempt=()=>isCurrentView()&&checkoutMountInProgress===attempt;
+      if(!isCurrentAttempt())return;
       if(result.mode==='embedded_page'){
-        await loadStripe();if(!isCurrentView())return;destroyCheckout();
+        await loadStripe();if(!isCurrentAttempt())return;
         const provider=result.account?window.Stripe(result.publishable_key,{stripeAccount:result.account}):window.Stripe(result.publishable_key);
-        const checkout=await provider.createEmbeddedCheckoutPage({fetchClientSecret:async()=>result.client_secret,onComplete:async()=>{if(!isCurrentView())return;destroyCheckout();await refreshOrder();if(currentAccess()?.id===access.id)notify(config?.deposit_capture_method==='manual'?'Card hold submitted. Status updates after verification.':'Payment submitted. Status updates after verification.');}});
-        if(!isCurrentView()){checkout.destroy();return;}embeddedCheckout=checkout;
+        let checkout=null;
+        checkout=await provider.createEmbeddedCheckoutPage({fetchClientSecret:async()=>result.client_secret,onComplete:async()=>{if(!isCurrentView()||!checkout||embeddedCheckout!==checkout)return;destroyCheckout();await refreshOrder();if(currentAccess()?.id===access.id)notify(config?.deposit_capture_method==='manual'?'Card hold submitted. Status updates after verification.':'Payment submitted. Status updates after verification.');}});
+        if(!isCurrentAttempt()){checkout.destroy();return;}embeddedCheckout=checkout;
         embeddedCheckout.mount('#embedded-payment');$('embedded-payment').scrollIntoView({behavior:'smooth',block:'start'});
       }else{const target=new URL(result.url);if(target.protocol!=='https:'||target.hostname!=='checkout.stripe.com')throw new Error('Unexpected payment destination');location.assign(target.href);}
     };
+    const startStripeCheckout=async(path,button)=>{
+      const attempt={};checkoutMountInProgress=attempt;button.disabled=true;
+      try{const result=await api(path,{method:'POST',headers:{Authorization:'Bearer '+access.token},body:JSON.stringify({quote_version:order.quote_version,terms_accepted:true})});await mountStripeResult(result,attempt);}
+      catch(e){if(isCurrentView()&&checkoutMountInProgress===attempt){destroyCheckout();$('order-error').textContent=e.message;if(button.isConnected)button.disabled=false;}}
+      finally{if(checkoutMountInProgress===attempt)checkoutMountInProgress=null;}
+    };
     $('pay-deposit')?.addEventListener('click',async()=>{
+      if(checkoutMountInProgress||embeddedCheckout)return;
       $('order-error').textContent='';
       if(!$('accept-quote').checked){$('order-error').textContent='Review and accept the quote and linked terms first.';return;}
-      $('pay-deposit').disabled=true;
-      try{const result=await api(`orders/${access.id}/checkout`,{method:'POST',headers:{Authorization:'Bearer '+access.token},body:JSON.stringify({quote_version:order.quote_version,terms_accepted:true})});await mountStripeResult(result);}catch(e){if(isCurrentView()){$('order-error').textContent=e.message;$('pay-deposit').disabled=false;}}
+      await startStripeCheckout(`orders/${access.id}/checkout`,$('pay-deposit'));
     });
     $('pay-balance')?.addEventListener('click',async()=>{
+      if(checkoutMountInProgress||embeddedCheckout)return;
       $('order-error').textContent='';
       if(!$('accept-balance').checked){$('order-error').textContent='Authorize the ACH balance payment and accepted purchase terms first.';return;}
-      $('pay-balance').disabled=true;
-      try{const result=await api(`orders/${access.id}/balance-checkout`,{method:'POST',headers:{Authorization:'Bearer '+access.token},body:JSON.stringify({quote_version:order.quote_version,terms_accepted:true})});await mountStripeResult(result);}catch(e){if(isCurrentView()){$('order-error').textContent=e.message;$('pay-balance').disabled=false;}}
+      await startStripeCheckout(`orders/${access.id}/balance-checkout`,$('pay-balance'));
     });
     open('order-dialog');
     if(hasShippingEstimate){const panel=$('provider-shipping-estimate');shippingEstimateTimer=setTimeout(()=>{if(panel.isConnected)panel.remove();},Math.max(0,shippingEstimate.cache_expires_at*1000-Date.now()));}
     if(access&&(['requested','quoted','checkout_pending','deposit_authorized','funded_reservation','authorization_release_pending','deposit_processing','deposit_paid','dealer_confirmed','dealer_funded','in_transit','refund_pending'].includes(order.state)||balState==='ach_processing')){
       orderPollTimer=setInterval(async()=>{
-        if(!$('order-dialog').open||embeddedCheckout||!$('issue-form')?.hidden)return;
+        if(!$('order-dialog').open||embeddedCheckout||checkoutMountInProgress||!$('issue-form')?.hidden)return;
         try{
           const latest=await api('orders/'+encodeURIComponent(access.id),{headers:{Authorization:'Bearer '+access.token}});
-          if(isCurrentView()&&JSON.stringify(latest)!==lastOrderSnapshot)showOrder(latest);
+          if(isCurrentView()&&!embeddedCheckout&&!checkoutMountInProgress&&JSON.stringify(latest)!==lastOrderSnapshot)showOrder(latest);
         }catch{}
       },4000);
     }
