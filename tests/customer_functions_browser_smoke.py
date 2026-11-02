@@ -14,12 +14,12 @@ def main():
     threading.Thread(target=server.serve_forever,daemon=True).start()
     base=f'http://127.0.0.1:{server.server_port}/tesla-inventory/'
     source=json.loads((ROOT/'inventory.json').read_text())
-    rows=[dict(x) for x in source['items'] if x.get('photo')][:3]
+    rows=[dict(x,vin=x['stock_id']) for x in source['items'] if x.get('photo')][:3]
     for index,row in enumerate(rows):
         row.update(photo=f'https://example.test/photo-{index}-0.svg',photo_count=2,display_price=20000,
                    reference_price=[None,19000,20000][index],reference_sample=[0,10,10][index],
                    hardware=None,reservable=False)
-    empty=dict(source['items'][3],photo=None,photo_count=0,hardware=None,reservable=False)
+    empty=dict(source['items'][3],vin=source['items'][3]['stock_id'],photo=None,photo_count=0,hardware=None,reservable=False)
     fixture_rows=[*rows,empty]
     galleries={x['vin']:[{'url':f'https://example.test/photo-{i}-{p}.svg','title':f'Fixture angle {p+1}','category':'photos'} for p in range(2)] for i,x in enumerate(rows)}
     results={};errors=[]
@@ -100,7 +100,8 @@ def main():
                 context.add_init_script('Object.defineProperty(window,"sessionStorage",{get(){throw new DOMException("Storage blocked","SecurityError")}})')
                 page=context.new_page();page.on('pageerror',lambda error:errors.append(str(error)))
                 page.goto(base+'?vin='+rows[0]['vin']);page.locator('#vehicle-request').click();page.locator('#deal-zip').fill('78701');page.locator('#deal-continue').click()
-                page.locator('[name=name]').fill('Fixture Storage Test');page.locator('[name=email]').fill('fixture@example.test');page.locator('[name=consent]').check();page.locator('#submit-request').click()
+                page.locator('[name=name]').fill('Fixture Storage Test');page.locator('[name=email]').fill('fixture@example.test');page.locator('[name=consent]').check();page.locator('[name=phone]').fill('2105550100');page.locator('#submit-request').click()
+                if page.locator('#request-dialog[open] [name=phone]').count(): page.locator('#request-dialog [name=phone]').fill('2105550100')
                 page.locator('#access-warning').wait_for();assert 'Request received' in page.locator('#order-content').inner_text()
                 page.locator('#refresh-order').click();page.locator('#report-issue').wait_for();assert 'fixture-order' in page.locator('#order-content').inner_text()
                 results[f'storage_blocked_request_access_{width}']=True

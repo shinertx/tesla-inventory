@@ -8,6 +8,7 @@ from curl_cffi import requests
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
 from tools.inventory import ingest, export
 from tools.media import photo_url
+from app.catalog import title_risk_reasons
 LD_RE=re.compile(r'<script[^>]*application/ld\+json[^>]*>(.*?)</script>',re.S|re.I)
 
 class SourceError(RuntimeError):pass
@@ -18,7 +19,7 @@ def numeric(value):
     try:return int(float(str(value).replace(',','')))
     except (ValueError,TypeError):return None
 
-def normalized(vin,model,year,trim,price,mileage,dealer,city,state,photo,url,risk=False):
+def normalized(vin,model,year,trim,price,mileage,dealer,city,state,photo,url,risk=False,title_evidence=None):
     model=str(model or '').replace('Tesla ','').strip()
     if model not in ('Model 3','Model Y','Model S','Model X','Cybertruck'):return None
     price=numeric(price);mileage=numeric(mileage);year=numeric(year)
@@ -28,9 +29,11 @@ def normalized(vin,model,year,trim,price,mileage,dealer,city,state,photo,url,ris
     for value in values:
         media_url=photo_url(value if isinstance(value,str) else (value.get('contentUrl') or value.get('url')) if isinstance(value,dict) else '')
         if media_url:photos.append({'url':media_url,'title':'Vehicle photo','category':'photos'})
+    reasons=title_risk_reasons(title_evidence or {})
     return dict(vin=vin,model=model,year=year,dealer_trim=trim or 'Trim unverified',asking_price=price,mileage=mileage,
         dealer_name=dealer or 'Source dealer unverified',city=city or '',state=state or 'US',
-        photo_url=photos[0]['url'] if photos else '',photos=photos,source_url=url if isinstance(url,str) else '',risk_flag=risk)
+        photo_url=photos[0]['url'] if photos else '',photos=photos,source_url=url if isinstance(url,str) else '',
+        risk_flag=bool(risk or reasons),title_risk_reasons=reasons)
 
 def parse_source(source,response,model=None,year=None):
     rows=[]
@@ -42,13 +45,13 @@ def parse_source(source,response,model=None,year=None):
             vin=x.get('vin')
             photos=x.get('photo_urls') if isinstance(x.get('photo_urls'),list) and x.get('photo_urls') else x.get('primary_photo_url')
             link=x.get('url') or x.get('listing_url') or (f'/api/vehicles/{vin}' if vin else '')
-            rows.append(normalized(vin,x.get('model') or x.get('model_name'),x.get('year'),x.get('trim'),x.get('price_unformatted') if x.get('price_unformatted') is not None else x.get('price'),x.get('mileage_unformatted') if x.get('mileage_unformatted') is not None else x.get('mileage'),x.get('dealer_name'),x.get('city'),x.get('state'),photos,urljoin('https://www.autolist.com',link),bool(x.get('salvage') or x.get('is_salvage'))))
+            rows.append(normalized(vin,x.get('model') or x.get('model_name'),x.get('year'),x.get('trim'),x.get('price_unformatted') if x.get('price_unformatted') is not None else x.get('price'),x.get('mileage_unformatted') if x.get('mileage_unformatted') is not None else x.get('mileage'),x.get('dealer_name'),x.get('city'),x.get('state'),photos,urljoin('https://www.autolist.com',link),title_evidence=x))
     elif source=='cargurus':
         data=response.json()
         if not isinstance(data,list):raise SourceError('CarGurus response shape changed')
         for x in data:
             city=x.get('sellerCity') or '';state=x.get('sellerRegion')
-            rows.append(normalized(x.get('vin'),x.get('modelName') or x.get('model') or model,x.get('carYear') or year,x.get('trimName'),x.get('price'),x.get('mileage'),x.get('serviceProviderName'),city.split(',')[0],state,(x.get('originalPictureData') or {}).get('url'),f"https://www.cargurus.com/Cars/inventorylisting/viewDetailsFilterViewInventoryListing.action#listing={x['id']}" if x.get('id') else '',bool(x.get('salvage'))))
+            rows.append(normalized(x.get('vin'),x.get('modelName') or x.get('model') or model,x.get('carYear') or year,x.get('trimName'),x.get('price'),x.get('mileage'),x.get('serviceProviderName'),city.split(',')[0],state,(x.get('originalPictureData') or {}).get('url'),f"https://www.cargurus.com/Cars/inventorylisting/viewDetailsFilterViewInventoryListing.action#listing={x['id']}" if x.get('id') else '',title_evidence=x))
     else:
         blocks=LD_RE.findall(response.text)
         if not blocks:raise SourceError(f'{source}: structured listing data missing')
@@ -67,7 +70,7 @@ def parse_source(source,response,model=None,year=None):
             offer=x.get('offers') or {};offer=offer[0] if isinstance(offer,list) and offer else offer
             seller=offer.get('seller') or {};seller={'name':seller} if isinstance(seller,str) else seller
             address=seller.get('address') or {}
-            rows.append(normalized(x.get('vehicleIdentificationNumber'),x.get('model'),x.get('vehicleModelDate') or x.get('modelDate'),x.get('vehicleConfiguration') or x.get('description'),offer.get('price'),x.get('mileageFromOdometer'),'Carvana' if source=='carvana' else seller.get('name'),address.get('addressLocality'),address.get('addressRegion'),x.get('image'),offer.get('url') or x.get('url')))
+            rows.append(normalized(x.get('vehicleIdentificationNumber'),x.get('model'),x.get('vehicleModelDate') or x.get('modelDate'),x.get('vehicleConfiguration') or x.get('description'),offer.get('price'),x.get('mileageFromOdometer'),'Carvana' if source=='carvana' else seller.get('name'),address.get('addressLocality'),address.get('addressRegion'),x.get('image'),offer.get('url') or x.get('url'),title_evidence=x))
         if not vehicles:raise SourceError(f'{source}: no vehicle records; inspect source before treating this as empty inventory')
     return [x for x in rows if x]
 

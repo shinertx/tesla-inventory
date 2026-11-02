@@ -13,7 +13,18 @@ def main():
     out.mkdir(parents=True,exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
         sock=socket.socket();sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
-        settings=Settings(db_path=Path(tmp)/'orders.db',origin=f'http://127.0.0.1:{port}',sourcing_path=Path(tmp)/'absent-supplier.json')
+        private_catalog=ROOT/'.data/transaction_inventory.json'
+        private_fixture=False
+        if not private_catalog.exists():
+            from app.catalog import stock_id_for
+            public=json.loads((ROOT/'inventory.json').read_text())
+            known={stock_id_for(vin):vin for vin in json.loads((ROOT/'data/vehicle_photos.json').read_text())}
+            (ROOT/'.data').mkdir(exist_ok=True)
+            handle=tempfile.NamedTemporaryFile(dir=ROOT/'.data',prefix='browser-private-',suffix='.json',delete=False)
+            private_catalog=Path(handle.name);handle.close();private_fixture=True
+            private_catalog.write_text(json.dumps({**public,'items':[{**row,'vin':known[row['stock_id']]} for row in public['items'] if row['stock_id'] in known]}))
+            private_catalog.chmod(0o600)
+        settings=Settings(inventory_path=private_catalog,db_path=Path(tmp)/'orders.db',origin=f'http://127.0.0.1:{port}',sourcing_path=Path(tmp)/'absent-supplier.json')
         server=uvicorn.Server(uvicorn.Config(create_app(settings),log_level='error'))
         thread=threading.Thread(target=lambda:server.run(sockets=[sock]),daemon=True);thread.start()
         for _ in range(50):
@@ -50,15 +61,16 @@ def main():
                 page.locator('.verification-details summary').click()
                 detail=page.locator('#vehicle-content').inner_text();assert '97.4%' not in detail and '8.2mm' not in detail and '150-POINT CERTIFIED' not in detail
                 results['honest_vehicle_details']='No inspection report on file' in detail;assert results['honest_vehicle_details']
-                page.locator('#tab-pricing').click();assert 'Estimated shipping' in page.locator('#vehicle-panel').inner_text()
-                page.locator('#tab-process').click();assert 'Request received' in page.locator('#vehicle-panel').inner_text()
+                page.locator('#tab-pricing').click();assert 'Delivery budget' in page.locator('#vehicle-panel').inner_text()
+                page.locator('#tab-process').click();assert 'Choose your Tesla' in page.locator('#vehicle-panel').inner_text()
                 page.locator('#tab-details').click()
                 page.locator('#vehicle-request').click();page.wait_for_selector('#deal-dialog[open]')
-                assert 'Estimated total' in page.locator('#deal-summary').inner_text() and 'Monthly estimate' in page.locator('#deal-summary').inner_text()
+                assert 'Vehicle price' in page.locator('#deal-summary').inner_text() and 'Estimate monthly payment' in page.locator('#deal-summary').inner_text()
                 page.locator('[data-deal-mode=finance]').click();page.select_option('#deal-down','5000');page.select_option('#deal-term','72')
-                assert 'not a credit offer' in page.locator('#deal-summary').inner_text()
+                assert 'not a loan offer or approval' in page.locator('#deal-summary').inner_text()
                 page.locator('[data-deal-mode=cash]').click();results['deal_estimator_and_calculator']=True
-                page.locator('#deal-zip').fill('78201');page.locator('#deal-continue').click();page.wait_for_selector('#request-dialog[open]');assert page.locator('[name=state]').input_value()=='TX' and page.locator('[name=zip]').input_value()=='78201';results['zip_and_state_prefilled']=True;page.locator('[name=name]').fill('Browser Test Buyer');page.locator('[name=email]').fill('browser@example.test');page.locator('[name=consent]').check();page.locator('#submit-request').click()
+                page.locator('#deal-zip').fill('78201');page.locator('#deal-continue').click();page.wait_for_selector('#request-dialog[open]');assert page.locator('[name=state]').input_value()=='TX' and page.locator('[name=zip]').input_value()=='78201';results['zip_and_state_prefilled']=True;page.locator('[name=name]').fill('Browser Test Buyer');page.locator('[name=email]').fill('browser@example.test');page.locator('[name=consent]').check();page.locator('[name=phone]').fill('2105550100');page.locator('#submit-request').click()
+                if page.locator('#request-dialog[open] [name=phone]').count(): page.locator('#request-dialog [name=phone]').fill('2105550100')
                 page.wait_for_selector('#order-dialog[open]');assert 'Request received' in page.locator('#order-content').inner_text();results['durable_request']=True
                 access=page.evaluate('JSON.parse(sessionStorage.getItem("marketplace_order"))')
                 page.reload();page.wait_for_selector('.card');page.locator('[data-close=vehicle-dialog]').click();page.locator('#order-button').click();page.wait_for_selector('#order-dialog[open]');assert 'Request received' in page.locator('#order-content').inner_text();results['status_survives_reload']=True
@@ -82,7 +94,7 @@ def main():
                 def photo_response(route):
                     attempts.append(1)
                     if len(attempts)==1:route.fulfill(status=503,content_type='application/json',body='{}')
-                    else:route.fulfill(status=200,content_type='application/json',body=json.dumps({'7SAYGDED1RF039277':[{'url':f'https://example.test/angle-{i}.jpg','title':f'Angle {i}','category':'photos'} for i in range(3)]}))
+                    else:route.fulfill(status=200,content_type='application/json',body=json.dumps({__import__('app.catalog',fromlist=['stock_id_for']).stock_id_for('7SAYGDED1RF039277'):[{'url':f'https://example.test/angle-{i}.jpg','title':f'Angle {i}','category':'photos'} for i in range(3)]}))
                 race.route('**/media/*.json*',photo_response)
                 race.goto(base+'/?vin=7SAYGDED1RF039277');race.locator('#gallery-retry').wait_for(state='visible');race.locator('#gallery-retry').click()
                 race.wait_for_function('()=>document.querySelectorAll(".gallery-thumb").length===3')
@@ -101,11 +113,11 @@ def main():
                 assert forged.locator('#order-dialog[open]').count()==0
                 assert '150-POINT CERTIFIED' not in forged.content();results['forged_callback_ignored']=True
                 category=context.new_page();category.goto(base+'/models/model-y.html');category.wait_for_selector('.card');assert category.locator('#model').input_value()=='Model Y';results['category_preset']=True
-                missing_center=next(x['vin'] for x in json.loads((ROOT/'inventory.json').read_text())['items'] if x.get('photo') and not x.get('location_center'))
+                missing_center=next(x['stock_id'] for x in json.loads((ROOT/'inventory.json').read_text())['items'] if x.get('photo') and not x.get('location_center'))
                 incomplete=context.new_page();incomplete.goto(base+'/?vin='+missing_center);incomplete.locator('#vehicle-request').click()
-                assert 'Delivery and tax quote needed' in incomplete.locator('#deal-summary').inner_text()
+                assert 'Carrier quote needed' in incomplete.locator('#deal-summary').inner_text()
                 incomplete.locator('[data-deal-mode=finance]').click()
-                assert 'vehicle price only; tax and delivery extra' in incomplete.locator('#deal-summary').inner_text().lower()
+                assert 'vehicle price only; delivery, taxes, and fees are extra' in incomplete.locator('#deal-summary').inner_text().lower()
                 results['unknown_delivery_keeps_balance_pending']=True;incomplete.close()
                 mobile=browser.new_context(viewport={'width':390,'height':844},is_mobile=True,device_scale_factor=1)
                 mobile.route('**/*',lambda r:r.continue_() if r.request.url.startswith(base) else (r.fulfill(status=200,content_type='image/svg+xml',body='<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800"><rect width="1200" height="800" fill="#dce5eb"/></svg>') if r.request.resource_type=='image' else r.abort()))

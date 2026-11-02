@@ -5,7 +5,7 @@ from .models import Quote, canonical_reference
 
 CREDITED_STATES={'deposit_paid','dealer_confirmed','dealer_funded','in_transit','delivered','settlement_pending','completed'}
 REFUND_REVIEW_STATES={'cancelled','refunded','refund_pending'}
-CASH_RECORD_STATES={'deposit_paid','dealer_confirmed','dealer_funded','in_transit','delivered','settlement_pending'}
+CASH_RECORD_STATES={'deposit_authorized','funded_reservation','deposit_paid','dealer_confirmed','dealer_funded','in_transit','delivered','settlement_pending'}
 
 
 def seller_key(row):
@@ -155,7 +155,8 @@ def settled_balance(c,row):
 def funding_summary(c,row,deposit_cents=25000):
     if not row['quote'] or row['workflow_model']!='dealer_fulfillment':return None
     quote=Quote.model_validate_json(row['quote'])
-    deposit=deposit_cents if row['payment_id'] and row['state'] in CREDITED_STATES and not row['refund_id'] else 0
+    capture_verified=(row['deposit_capture_method']=='automatic' or row['deposit_captured_cents']==deposit_cents)
+    deposit=deposit_cents if capture_verified and row['payment_id'] and row['state'] in CREDITED_STATES and not row['refund_id'] else 0
     lender,lender_review,prior_lender,corrected=lender_proceeds(c,row)
     balance,balance_review=settled_balance(c,row)
     cash,unallocated=cash_totals(c,row)
@@ -166,7 +167,7 @@ def funding_summary(c,row,deposit_cents=25000):
         and row['balance_payment_state'] in {'checkout_open','ach_processing','payment_review'})
     review=bool(lender_review or balance_review or unallocated or prior_lender or overpaid or (corrected and remaining>0 and row['state'] not in REFUND_REVIEW_STATES)
                 or in_flight_conflict
-                or row['balance_payment_state']=='payment_review'
+                or row['balance_payment_state']=='payment_review' or row['state']=='payment_review'
                 or (row['state'] in REFUND_REVIEW_STATES and (cash or lender or balance))
                 or (row['state'] in {'dealer_funded','in_transit','delivered','settlement_pending','completed'} and remaining))
     checkout_allowed=bool(row['state']=='dealer_confirmed' and not (cash or lender or balance or review or remaining==0)

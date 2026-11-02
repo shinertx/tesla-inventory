@@ -4,6 +4,7 @@ Uses twelve synthetic listings, local ZIP/API responses, and intercepted SVGs.
 It checks control behavior, not live inventory, carrier prices, or lender access.
 """
 import functools
+import hashlib
 import json
 import threading
 from http.server import ThreadingHTTPServer
@@ -32,6 +33,9 @@ def fixtures():
             'photo':None if index==11 else f'https://fixture.invalid/car-{index}-0.svg',
             'photo_count':0 if index==11 else 2,'hardware':'HW4' if index==0 else None,
             'reservable':index==0})
+    for row in rows:
+        raw=row['vin'];stock='VV-'+hashlib.sha256(('volts-and-vins:'+raw).encode()).hexdigest()[:12].upper()
+        row.update(vin=stock,stock_id=stock,stock_number=stock,masked_vin=raw[:8]+'•••••••••')
     return rows
 
 
@@ -64,10 +68,10 @@ def main():
                         if path=='config':return request.fulfill(json={'requests_enabled':True,'payments_enabled':False})
                         if path=='requests':
                             data=request.request.post_data_json
-                            assert data['consent'] is True and data['vin'] in by_vin
+                            assert data['consent'] is True and data['stock_id'] in by_vin
                             assert request.request.headers.get('idempotency-key')
                             state['order']={'id':'controls-fixture-order','access_token':'controls-fixture-access',
-                                'vin':data['vin'],'state':'requested','payment_preference':data['payment_preference'],
+                                'vin':data['stock_id'],'state':'requested','payment_preference':data['payment_preference'],
                                 'quote_version':0,'quote':None,'online_actions':[]}
                             return request.fulfill(status=201,json=state['order'])
                         assert request.request.headers.get('authorization')=='Bearer controls-fixture-access'
@@ -109,7 +113,7 @@ def main():
                     expect_rows(expected)
                     assert page.locator('.discovery-chip.active').get_attribute('data-discover')==chip
                 checks['all_eight_discovery_buttons']=True
-                reset();page.locator('#search').fill('FIXTURE-0002');expect_rows([rows[2]])
+                reset();page.locator('#search').fill(rows[2]['stock_id']);expect_rows([rows[2]])
                 page.locator('#search').fill('NO-SUCH-FIXTURE-TESLA');expect_rows([])
                 assert page.locator('#empty').is_visible()
                 checks['search_and_empty_results']=True
@@ -165,7 +169,7 @@ def main():
                 page.locator('[data-close=privacy-dialog]').click();checks['privacy_notice_panel']=True
                 page.locator(f'[data-open="{rows[0]["vin"]}"]').first.click();page.locator('#vehicle-request').click()
                 page.locator('#deal-continue').click();page.locator('#request-dialog[open]').wait_for()
-                page.locator('[name=name]').fill('Controls Fixture Buyer');page.locator('[name=email]').fill('controls@example.test')
+                page.locator('[name=name]').fill('Controls Fixture Buyer');page.locator('[name=email]').fill('controls@example.test');page.locator('[name=phone]').fill('2105550100')
                 page.locator('[name=consent]').check();page.locator('#submit-request').click()
                 page.locator('#order-dialog[open]').wait_for();open_details(page, '.payment-settings');page.locator('#order-payment-pref').select_option('partner_financing')
                 page.wait_for_function('()=>document.querySelector("#order-payment-pref")?.value==="partner_financing"&&!document.querySelector("#order-payment-pref").disabled')

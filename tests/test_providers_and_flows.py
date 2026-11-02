@@ -149,8 +149,9 @@ def test_top_arbitrage_deals_filter(tmp_path, monkeypatch):
     assert top_arbitrage_deals.write_markdown_report(report, catalog_root=tmp_path)['all_count'] > 0
 
 
-def test_pipeline_jobs_status_and_order_matcher(tmp_path):
+def test_pipeline_jobs_status_and_order_matcher(tmp_path,monkeypatch):
     from tools.pipeline_jobs import job_match_customer_orders
+    monkeypatch.setattr('tools.pipeline_jobs.send_deal_alert_email',lambda *a,**kw:False)
     from app.store import Store
 
     db_path = tmp_path / 'orders.db'

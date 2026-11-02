@@ -33,7 +33,7 @@
 ## Machine-Readable Feeds & Indexes
 - AI Agent Filter & Search API (Filtered JSON): https://api.voltsandvins.com/api/search?model=Model+Y&max_price=36000&only_price_finds=true&limit=10
 - OpenAPI 3.1 Action Specification (ChatGPT / Claude / Gemini Tools): https://voltsandvins.com/openapi.json
-- Full Top-100 Price-Find VIN Digest: https://voltsandvins.com/llms-full.txt
+- Full Top-100 Price-Find Stock Digest: https://voltsandvins.com/llms-full.txt
 - XML Sitemap (15446 URLs): https://voltsandvins.com/sitemap.xml
 - Complete crawlable vehicle and category directory: https://voltsandvins.com/browse/index.html
 - Live Public JSON Catalog: https://voltsandvins.com/inventory.json

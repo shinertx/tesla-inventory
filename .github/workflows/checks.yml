@@ -28,3 +28,4 @@ jobs:
       - run: python tests/journey_regressions_browser_smoke.py
       - run: python tests/funding_browser_smoke.py
       - run: python tests/platform_checkout_browser_smoke.py
+      - run: python tests/manual_hold_browser_smoke.py

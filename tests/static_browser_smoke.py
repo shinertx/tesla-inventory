@@ -4,7 +4,8 @@ from http.server import SimpleHTTPRequestHandler,ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 from playwright.sync_api import sync_playwright
-ROOT=Path(__file__).resolve().parents[1]
+ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
+from app.catalog import stock_id_for
 class PagesHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith('/tesla-inventory/'):self.path=self.path[len('/tesla-inventory'):]
@@ -44,7 +45,7 @@ def main(out):
                 page.locator('#vehicle-dialog[open]').wait_for()
                 canonical=page.locator('link[rel=canonical]').get_attribute('href')
                 assert canonical.endswith('/v/'+urlsplit(page.url).path.split('/')[-1])
-                assert page.locator('body').get_attribute('data-initial-vin')==urlsplit(page.url).path.split('/')[-1][:-5]
+                assert page.locator('body').get_attribute('data-initial-stock-id')==urlsplit(page.url).path.split('/')[-1][:-5]
                 assert 'utm_source=google' in page.url and 'utm_campaign=seo-check' in page.url
                 assert '?' not in canonical
                 assert '?' not in page.locator('#dynamic-vehicle-schema').inner_text()
@@ -53,8 +54,8 @@ def main(out):
             nojs=b.new_context(java_script_enabled=False)
             crawl=nojs.new_page();crawl.goto(base+'browse/index.html',wait_until='domcontentloaded')
             assert crawl.locator('a[href^="../v/"]').count()==100
-            crawl.goto(base+'v/7SAYGDED1RF039277.html',wait_until='domcontentloaded')
-            assert crawl.locator('h1').count()==1 and '7SAYGDED1RF039277' in crawl.locator('h1').inner_text()
+            crawl.goto(base+'v/'+stock_id_for('7SAYGDED1RF039277')+'.html',wait_until='domcontentloaded')
+            assert crawl.locator('h1').count()==1 and stock_id_for('7SAYGDED1RF039277') in crawl.locator('h1').inner_text()
             assert 'Vehicle price' in crawl.locator('.category-intro').inner_text()
             result['discovery_works_without_javascript']=True
             nojs.close()
@@ -67,7 +68,7 @@ def main(out):
                 result['named_galleries'][vin]={'count':count,'first_and_last_rendered':True}
             page.locator('#vehicle-request').click();page.locator('#deal-zip').fill('78201');page.locator('#deal-continue').click()
             page.get_by_text('Price saved on this device. No request or reservation has been placed.').wait_for()
-            assert page.evaluate('JSON.parse(localStorage.getItem("marketplace_deal")).vin')=='5YJ3E1EA8KF413066'
+            assert page.evaluate('JSON.parse(localStorage.getItem("marketplace_deal")).vin')=='VV-'+__import__('hashlib').sha256(b'volts-and-vins:5YJ3E1EA8KF413066').hexdigest()[:12].upper()
             page.goto(base);page.wait_for_selector('.card');page.locator('#order-button').click();page.locator('#deal-dialog[open]').wait_for()
             assert page.locator('#deal-zip').input_value()=='78201'
             assert 'Model 3' in page.locator('#deal-summary').inner_text()

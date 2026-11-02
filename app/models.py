@@ -19,9 +19,11 @@ class FundingIdentifiersModel(StrictModel):
         return {key:canonical_reference(value) if key in fields else value for key,value in values.items()}
 
 class PurchaseRequest(StrictModel):
-    vin: str = Field(pattern=r'^[A-HJ-NPR-Z0-9]{17}$')
+    vin: str | None = Field(default=None,pattern=r'^[A-HJ-NPR-Z0-9]{17}$')
+    stock_id: str | None = Field(default=None,pattern=r'^VV-[A-F0-9]{12}$')
     name: str = Field(min_length=2, max_length=100)
     email: str = Field(max_length=254)
+    phone: str | None = Field(default=None,max_length=32)
     state: str = Field(pattern=r'^[A-Z]{2}$')
     zip: str = Field(pattern=r'^\d{5}$')
     demand_channel: str = Field(default="direct",pattern=r"^[a-z0-9_-]{1,60}$")
@@ -29,6 +31,21 @@ class PurchaseRequest(StrictModel):
     payment_preference: Literal['cash','partner_financing'] = 'cash'
     expected_vehicle_price_cents: int | None = Field(default=None, gt=0, le=100_000_000, strict=True)
     consent: Literal[True]
+
+    @model_validator(mode='after')
+    def one_vehicle_identity(self):
+        if bool(self.vin)==bool(self.stock_id):
+            raise ValueError('Provide one stock ID or legacy VIN')
+        if self.stock_id and not self.phone:
+            raise ValueError('Enter a phone number for your reservation')
+        return self
+
+    @field_validator('phone')
+    @classmethod
+    def phone_valid(cls,value):
+        if value is not None and (not re.fullmatch(r'[+()0-9 .-]+',value) or not 7<=len(re.sub(r'\D','',value))<=15):
+            raise ValueError('Enter a valid phone number')
+        return value
 
     @field_validator('email')
     @classmethod

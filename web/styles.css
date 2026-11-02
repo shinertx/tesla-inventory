@@ -193,3 +193,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,su
 @media(max-width:760px){.shortlist-row{gap:8px}.shortlist-row .shortlist-car{gap:9px}.shortlist-row .shortlist-car img{width:58px;height:48px}.shortlist-row .shortlist-car strong{font-size:12px}.shortlist-row .shortlist-car span:nth-child(2){gap:5px}.compare-choice{font-size:11px;gap:5px}.request-estimate-total{flex-wrap:wrap}.request-estimate-total strong{font-size:23px}.order-next-step{padding:14px}}
 
 .listing-overview-photo{display:block;width:min(100%,640px);height:auto;aspect-ratio:8/5;object-fit:contain;background:#eef1f4;border-radius:12px;margin:18px 0}.browse-pages{display:flex;flex-wrap:wrap;gap:8px 12px;margin:20px 0}.browse-pages a{padding:6px;min-width:32px;text-align:center}.browse-pages [aria-current=page]{font-weight:800;text-decoration:underline}.category-intro ol,.category-intro ul{line-height:1.8;overflow-wrap:anywhere}
+#purchase-payment-paths{display:flex;flex-direction:column;gap:12px}
+#purchase-payment-paths button,#purchase-payment-paths a{max-width:100%;white-space:normal;overflow-wrap:anywhere;text-align:center}
+#deal-apr{width:100%;min-height:44px;padding:10px;border:1px solid #cbd5df;border-radius:8px;background:#fff;color:#17212d}
+#purchase-payment-paths a.primary,#purchase-payment-paths a.primary:visited{background:#08749e;color:#fff}
+#order-dialog>.close{position:sticky;top:0;float:right;z-index:3;background:#fff}

@@ -104,6 +104,12 @@ class Store:
                 ('transport_detail','TEXT'),
                 ('refund_id','TEXT'),
                 ('price_commitment','TEXT'),
+                ('deposit_capture_method',"TEXT NOT NULL DEFAULT 'automatic'"),
+                ('authorized_cents','INTEGER NOT NULL DEFAULT 0'),
+                ('authorization_expires_at','INTEGER'),
+                ('deposit_captured_cents','INTEGER NOT NULL DEFAULT 0'),
+                ('deposit_released_at','INTEGER'),
+                ('authorization_release_reason','TEXT'),
             ]:
                 if name not in columns:c.execute(f'ALTER TABLE orders ADD COLUMN {name} {definition}')
             legacy=c.execute("SELECT id,state,quote FROM orders WHERE workflow_model='legacy_resale' AND quote IS NOT NULL AND state NOT IN ('model_review','cancelled','refunded')").fetchall()
@@ -144,11 +150,13 @@ class Store:
     @staticmethod
     def expire(c, now):
         rows = c.execute('SELECT o.id,o.checkout_id FROM orders o JOIN holds h ON h.order_id=o.id '
-                         'WHERE h.expires_at IS NOT NULL AND h.expires_at<=?', (now,)).fetchall()
+                         "WHERE h.expires_at IS NOT NULL AND h.expires_at<=? AND o.state NOT IN ('deposit_authorized','authorization_release_pending')", (now,)).fetchall()
         for r in rows:
             c.execute("UPDATE orders SET state='quote_expired',updated_at=? WHERE id=? AND state='checkout_pending'", (now,r['id']))
             Store.event(c,r['id'],'hold_expired',{'checkout_id':r['checkout_id']},True)
-        c.execute('DELETE FROM holds WHERE expires_at IS NOT NULL AND expires_at<=?',(now,))
+        # A card authorization needs provider-confirmed release before freeing its VIN.
+        c.execute("DELETE FROM holds WHERE expires_at IS NOT NULL AND expires_at<=? AND order_id NOT IN "
+                  "(SELECT id FROM orders WHERE deposit_capture_method='manual' AND state IN ('deposit_authorized','authorization_release_pending'))",(now,))
 
     def rate_limit(self, bucket, limit=10):
         now=int(time.time());window=now//3600
