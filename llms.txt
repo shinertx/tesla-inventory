@@ -1,12 +1,12 @@
 # Volts & VINs (https://voltsandvins.com)
 
-> Volts & VINs is a public used-Tesla marketplace and VIN-level price benchmark index covering 15,098 active used Tesla listings across the United States (1,154 priced $500+ below mileage-adjusted peer asking benchmarks).
+> Volts & VINs is a public used-Tesla marketplace and VIN-level price benchmark index covering 15,098 published discovery listings across the United States (1,154 priced $500+ below mileage-adjusted peer asking benchmarks). Availability requires dealer confirmation.
 
 ## Key Marketplace Facts
 - **Published VIN-Decoded Catalog**: 15,098 used Tesla vehicles (Model Y, Model 3, Model S, Model X, Cybertruck)
 - **Peer-Benchmarked Price Finds**: 1,154 listings priced `$500+` below mileage-adjusted peer asking prices (minimum 5 comparable peers in the same model, year, trim, drivetrain, and mileage band)
 - **VIN-Decoded Specifications**: Listings include VIN-derived build factory and drivetrain where decoded, with recorded mileage and vehicle location. Build factory is not the current vehicle location
-- **Purchase & Reservation Model**: Online deal builder with ZIP delivery distance estimation; `$250` refundable reservation deposit after licensed selling dealer confirmation and written hold (`dealer_fulfillment`)
+- **Purchase & Reservation Model**: Purchase requests are available online. A `$250` deposit requires enabled checkout, an approved licensed seller, accepted quote terms, and a written vehicle hold. Browse pages do not prove reservation eligibility.
 
 ## Used Tesla Inventory & Benchmark Summary by Model
 - **Tesla Cybertruck**: 248 listings | Low: `$63,331` | Median: `$82,193` | Price Finds (`$500+` below peer benchmark): 49 | Browse: https://voltsandvins.com/models/cybertruck.html
@@ -34,5 +34,6 @@
 - AI Agent Filter & Search API (Filtered JSON): https://api.voltsandvins.com/api/search?model=Model+Y&max_price=36000&only_price_finds=true&limit=10
 - OpenAPI 3.1 Action Specification (ChatGPT / Claude / Gemini Tools): https://voltsandvins.com/openapi.json
 - Full Top-100 Price-Find VIN Digest: https://voltsandvins.com/llms-full.txt
-- XML Sitemap (397 URLs): https://voltsandvins.com/sitemap.xml
+- XML Sitemap (15446 URLs): https://voltsandvins.com/sitemap.xml
+- Complete crawlable vehicle and category directory: https://voltsandvins.com/browse/index.html
 - Live Public JSON Catalog: https://voltsandvins.com/inventory.json

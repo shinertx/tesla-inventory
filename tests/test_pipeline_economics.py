@@ -108,3 +108,123 @@ def test_discovery_stops_a_host_after_first_access_denial(tmp_path, monkeypatch)
         partitions=[('cargurus', 'Model Y', 2024, 2), ('cargurus', 'Model 3', 2023, 2)],
         status_file=tmp_path / 'status.json')
     assert len(calls) == 1
+
+
+def test_publisher_includes_generated_vin_browse_and_discovery_artifacts(tmp_path, monkeypatch):
+    calls = []
+    for name in ('v', 'browse'):
+        (tmp_path / name).mkdir()
+    for name in ('openapi.json', 'CNAME', 'voltsandvins-indexnow-key.txt', 'search-release.json'):
+        (tmp_path / name).write_text('fixture')
+    def run(args, **kwargs):
+        calls.append(args)
+        return SimpleNamespace(stdout=' M v/fixture/index.html\n', returncode=0)
+    monkeypatch.setattr(jobs.subprocess, 'run', run)
+    jobs.job_publish_and_index(repo_dir=tmp_path, ping_search_engines=False,
+        git_push=True, status_file=tmp_path / 'status.json')
+    for operation in ('status', 'add', 'commit'):
+        command = next(args for args in calls if args[:2] == ['git', operation])
+        assert {'v', 'browse', 'openapi.json', 'CNAME', 'voltsandvins-indexnow-key.txt', 'search-release.json'} <= set(command)
+
+
+@pytest.mark.parametrize('deployed', [True, False])
+def test_publisher_waits_for_exact_public_sitemap_after_push(tmp_path, monkeypatch, deployed):
+    import io
+    sitemap = b'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://voltsandvins.com/v/fixture/</loc></url></urlset>'
+    (tmp_path / 'sitemap.xml').write_bytes(sitemap)
+    (tmp_path / 'search-release.json').write_bytes(b'current release')
+    operations = []
+    def run(args, **kwargs):
+        operations.append(args[1])
+        return SimpleNamespace(stdout=' M sitemap.xml\n' if args[1] == 'status' else '', returncode=0)
+    def fetch(url, timeout):
+        assert timeout == 10
+        if url.endswith('/sitemap.xml'):
+            assert operations[-1] == 'push'
+            operations.append('public_sitemap')
+            return io.BytesIO(sitemap if deployed else b'prior deployment')
+        assert url.endswith('/search-release.json') and operations[-1] == 'public_sitemap'
+        operations.append('public_release')
+        return io.BytesIO(b'current release')
+    def ping(*, urls):
+        assert operations[-1] == 'public_release'
+        assert urls == ['https://voltsandvins.com/v/fixture/']
+        operations.append('indexnow')
+        return {'accepted': True, 'submitted': 1}
+    monkeypatch.setattr(jobs.subprocess, 'run', run)
+    monkeypatch.setattr(jobs.urllib.request, 'urlopen', fetch)
+    monkeypatch.setattr(jobs, 'ping_indexnow', ping)
+    result = jobs.job_publish_and_index(repo_dir=tmp_path, git_push=True, status_file=tmp_path / 'status.json')
+    assert operations.count('public_sitemap') == 1
+    if deployed:
+        assert result['indexnow']['submitted'] == 1
+    else:
+        assert result['indexnow'] == {'deferred': True, 'reason': 'public_sitemap_not_deployed'}
+        assert 'indexnow' not in operations
+
+
+def test_publisher_retains_indexnow_partial_batch_receipt(tmp_path, monkeypatch):
+    import io
+    from tools.indexnow import IndexNowSubmissionError
+    sitemap = b'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"/>'
+    (tmp_path / 'sitemap.xml').write_bytes(sitemap)
+    (tmp_path / 'search-release.json').write_bytes(b'current release')
+    monkeypatch.setattr(jobs.urllib.request, 'urlopen', lambda url, **kw: io.BytesIO(sitemap if url.endswith('/sitemap.xml') else b'current release'))
+    partial = {'submitted': 10000, 'accepted': False, 'batches': [{'status': 200}, {'status': 429}]}
+    def ping(**kwargs):
+        raise IndexNowSubmissionError('second batch failed', partial)
+    monkeypatch.setattr(jobs, 'ping_indexnow', ping)
+    result = jobs.job_publish_and_index(repo_dir=tmp_path, status_file=tmp_path / 'status.json')
+    assert result['indexnow'] == {**partial, 'error': 'second batch failed'}
+
+
+def test_publisher_defers_indexing_after_failed_push(tmp_path, monkeypatch):
+    (tmp_path / 'sitemap.xml').write_text('fixture')
+    (tmp_path / 'search-release.json').write_bytes(b'current release')
+    def run(args, **kwargs):
+        if args[1] == 'push':
+            raise RuntimeError('push failed')
+        return SimpleNamespace(stdout=' M sitemap.xml\n', returncode=0)
+    monkeypatch.setattr(jobs.subprocess, 'run', run)
+    monkeypatch.setattr(jobs.urllib.request, 'urlopen', lambda *a, **kw: pytest.fail('No fetch after failed push'))
+    result = jobs.job_publish_and_index(repo_dir=tmp_path, git_push=True, status_file=tmp_path / 'status.json')
+    assert result['indexnow']['reason'] == 'git_publish_failed'
+
+
+def test_publisher_defers_once_when_public_sitemap_unavailable(tmp_path, monkeypatch):
+    (tmp_path / 'sitemap.xml').write_text('fixture')
+    (tmp_path / 'search-release.json').write_bytes(b'current release')
+    calls = []
+    def fetch(*args, **kwargs):
+        calls.append(args)
+        raise OSError('temporary public fetch failure')
+    monkeypatch.setattr(jobs.urllib.request, 'urlopen', fetch)
+    monkeypatch.setattr(jobs, 'ping_indexnow', lambda **kwargs: pytest.fail('Undeployed URLs must not be submitted'))
+    result = jobs.job_publish_and_index(repo_dir=tmp_path, status_file=tmp_path / 'status.json')
+    assert len(calls) == 1
+    assert result['indexnow']['deferred'] is True
+    assert result['indexnow']['reason'] == 'public_release_check_failed'
+
+
+def test_unchanged_sitemap_cannot_hide_stale_public_release(tmp_path, monkeypatch):
+    import io
+    sitemap = b'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"/>'
+    (tmp_path / 'sitemap.xml').write_bytes(sitemap)
+    (tmp_path / 'search-release.json').write_bytes(b'{"asset_digest":"new-price-or-js"}')
+    calls = []
+    def fetch(url, **kwargs):
+        calls.append(url)
+        return io.BytesIO(sitemap if url.endswith('/sitemap.xml') else b'{"asset_digest":"old-price-or-js"}')
+    monkeypatch.setattr(jobs.urllib.request, 'urlopen', fetch)
+    monkeypatch.setattr(jobs, 'ping_indexnow', lambda **kw: pytest.fail('Stale release must not be submitted'))
+    result = jobs.job_publish_and_index(repo_dir=tmp_path, status_file=tmp_path / 'status.json')
+    assert len(calls) == 2
+    assert result['indexnow'] == {'deferred': True, 'reason': 'public_release_manifest_not_deployed'}
+
+
+def test_missing_local_release_manifest_never_falls_back_to_sitemap(tmp_path, monkeypatch):
+    (tmp_path / 'sitemap.xml').write_text('fixture')
+    monkeypatch.setattr(jobs.urllib.request, 'urlopen', lambda *a, **kw: pytest.fail('Missing manifest must defer locally'))
+    monkeypatch.setattr(jobs, 'ping_indexnow', lambda **kw: pytest.fail('Missing manifest must not submit'))
+    result = jobs.job_publish_and_index(repo_dir=tmp_path, status_file=tmp_path / 'status.json')
+    assert result['indexnow'] == {'deferred': True, 'reason': 'local_release_manifest_missing'}
