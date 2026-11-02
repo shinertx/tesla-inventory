@@ -19,20 +19,27 @@ class StripePayments:
             raise ValueError('A valid bound payment account is required')
         mode=getattr(self.settings,'deposit_collection_mode','dealer_direct')
         if mode not in {'dealer_direct','platform'}:raise ValueError('Unknown deposit collection mode')
-        if mode=='platform':
-            pin=self._platform_pin()
-            if not pin:raise ValueError('Platform deposit account pin is not configured')
-            if account==pin:return {'api_key':self.settings.stripe_key}
-            if new_checkout:raise ValueError('Platform checkout account does not match its configured pin')
+        pin=self._platform_pin()
+        if mode=='platform' and not pin:raise ValueError('Platform deposit account pin is not configured')
+        if new_checkout:
+            if mode=='platform' and account!=pin:
+                raise ValueError('Platform checkout account does not match its configured pin')
+            if mode=='dealer_direct' and pin and account==pin:
+                raise ValueError('Dealer-direct checkout cannot charge the platform deposit account')
+        # Existing orders retain their exact account scope after collection mode changes.
+        if pin and account==pin:return {'api_key':self.settings.stripe_key}
         return {'api_key':self.settings.stripe_key,'stripe_account':account}
 
     def create_checkout(self, order, quote, expires_at):
         scope=self._scope(order['payment_account'],new_checkout=True)
         platform=getattr(self.settings,'deposit_collection_mode','dealer_direct')=='platform'
+        collector=getattr(self.settings,'platform_collection_legal_name','')
+        if platform and (not isinstance(collector,str) or not collector.strip()):
+            raise ValueError('Platform collector legal name is not configured')
         if platform and not self.dealer_can_charge(order['payment_account']):
             raise ValueError('Platform payment account identity or charging capability is not verified')
         branding=({'branding_settings':{'display_name':'Volts & VINs'},
-            'custom_text':{'submit':{'message':'Charged by JENNI PRO INC for Volts & VINs. This $250 reservation deposit is refundable under the accepted reservation terms.'}}} if platform else {})
+            'custom_text':{'submit':{'message':f'Charged by {collector.strip()} for Volts & VINs. This $250 reservation deposit is refundable under the accepted reservation terms.'}}} if platform else {})
         presentation=({'ui_mode':'embedded_page','redirect_on_completion':'never'}
             if self.settings.checkout_ui_mode=='embedded_page' else {
                 'ui_mode':'hosted_page','success_url':self.settings.origin+'/?checkout=returned',
@@ -57,6 +64,7 @@ class StripePayments:
     def create_balance_ach_checkout(self, order, quote, expires_at):
         if getattr(self.settings,'deposit_collection_mode','dealer_direct')=='platform':
             raise ValueError('Platform deposit collection does not support vehicle balance checkout')
+        scope=self._scope(order['payment_account'],new_checkout=True)
         total_cents = quote.total_cents if hasattr(quote, 'total_cents') else int(quote['total_cents'])
         balance_cents = total_cents - 25000
         if balance_cents <= 0:
@@ -66,7 +74,7 @@ class StripePayments:
                 'ui_mode':'hosted_page','success_url':self.settings.origin+'/?checkout=balance_returned',
                 'cancel_url':self.settings.origin+'/?checkout=balance_cancelled'})
         return _as_dict(stripe.checkout.Session.create(
-            api_key=self.settings.stripe_key, stripe_account=order['payment_account'], mode='payment',
+            **scope, mode='payment',
             payment_method_types=['us_bank_account'], client_reference_id=order['id'],
             payment_method_options={'us_bank_account':{'financial_connections':{'permissions':['payment_method']},'verification_method':'instant'}},
             metadata={'order_id':order['id'],'quote_version':str(order['quote_version']),'payment_stage':'balance_ach'},

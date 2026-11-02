@@ -12,7 +12,7 @@ ORDER={'id':'fixture-order','vin':'5YJ3E1EA8SF921313','quote_version':2,'payment
 def settings(**changes):
     return SimpleNamespace(deposit_collection_mode='platform',stripe_platform_account=PIN,
         stripe_key='sk_test_fixture',checkout_ui_mode='embedded_page',origin='https://example.test',
-        payment_method_types=('card',),**changes)
+        payment_method_types=('card',),platform_collection_legal_name='JENNI PRO INC',**changes)
 
 
 @pytest.fixture
@@ -95,3 +95,43 @@ def test_malformed_platform_pin_never_falls_back_to_own_account(sdk,pin):
     config=settings();config.stripe_platform_account=pin
     with pytest.raises(ValueError):StripePayments(config).retrieve_checkout('cs_fixture',PIN)
     sdk['retrieve'].assert_not_called()
+
+
+def test_historical_platform_scope_survives_switch_to_dealer_direct(sdk):
+    config=settings();config.deposit_collection_mode='dealer_direct'
+    provider=StripePayments(config)
+    provider.retrieve_checkout('cs_platform_history',PIN)
+    provider.expire_checkout('cs_platform_history',PIN)
+    provider.refund(ORDER)
+    for operation in ('retrieve','expire','refund'):
+        assert 'stripe_account' not in sdk[operation].call_args.kwargs
+    sdk['account'].assert_not_called()
+    with pytest.raises(ValueError,match='cannot charge the platform'):
+        provider.create_checkout(ORDER,{},4102444800)
+    with pytest.raises(ValueError,match='cannot charge the platform'):
+        provider.create_balance_ach_checkout(ORDER,{'total_cents':3000000},4102444800)
+    sdk['create'].assert_not_called()
+
+
+def test_other_historical_account_never_becomes_own_scope_after_mode_change(sdk):
+    config=settings();config.deposit_collection_mode='dealer_direct'
+    provider=StripePayments(config);other='acct_otherHistorical'
+    provider.retrieve_checkout('cs_old',other);provider.expire_checkout('cs_old',other)
+    provider.refund({**ORDER,'payment_account':other})
+    for operation in ('retrieve','expire','refund'):
+        assert sdk[operation].call_args.kwargs['stripe_account']==other
+
+
+def test_platform_submit_copy_uses_configured_legal_name(sdk):
+    config=settings();config.platform_collection_legal_name='OTHER VERIFIED LEGAL ENTITY'
+    StripePayments(config).create_checkout(ORDER,{},4102444800)
+    message=sdk['create'].call_args.kwargs['custom_text']['submit']['message']
+    assert 'OTHER VERIFIED LEGAL ENTITY' in message and 'JENNI PRO INC' not in message
+
+
+@pytest.mark.parametrize('name',['','   ',None])
+def test_platform_missing_legal_name_fails_before_new_checkout(sdk,name):
+    config=settings();config.platform_collection_legal_name=name
+    with pytest.raises(ValueError,match='legal name'):
+        StripePayments(config).create_checkout(ORDER,{},4102444800)
+    sdk['create'].assert_not_called();sdk['account'].assert_not_called()
