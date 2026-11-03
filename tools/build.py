@@ -421,7 +421,7 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
         f'- **Published VIN-Decoded Catalog**: {len(items):,} used Tesla vehicles (Model Y, Model 3, Model S, Model X, Cybertruck)',
         f'- **Peer-Benchmarked Price Finds**: {home_finds:,} listings priced `$500+` below mileage-adjusted peer asking prices (minimum 5 comparable peers in the same model, year, trim, drivetrain, and mileage band)',
         '- **VIN-Decoded Specifications**: Listings include VIN-derived build factory and drivetrain where decoded, with recorded mileage and vehicle location. Build factory is not the current vehicle location',
-        '- **Purchase & Reservation Model**: Direct online purchase and reservation through Volts & VINs. Start with a $0 price lock, verify clean title and Tesla Software screen details, then place a refundable $250 deposit to complete your order and arrange delivery.',
+        '- **Purchase & Reservation Model**: Direct online purchase and reservation through Volts & VINs. Start with a $0 price lock, verify clean title and inspection details, then place a refundable $250 deposit to complete your order and arrange delivery.',
         '',
         '## Used Tesla Inventory & Benchmark Summary by Model',
         *model_lines,

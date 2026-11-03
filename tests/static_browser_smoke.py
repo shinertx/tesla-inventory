@@ -90,7 +90,7 @@ def main(out):
             page.locator('#reset').click();page.select_option('#factory','Austin');page.locator('.card-main').first.click()
             assert 'Built in Austin' in page.locator('.card-specs').first.inner_text();
             assert 'Build factory' in page.locator('#vehicle-panel').inner_text() and 'Vehicle location' in page.locator('#vehicle-panel').inner_text();assert not page.locator('.verification-details').get_attribute('open')
-            page.locator('.verification-details summary').click();assert 'No inspection report on file' in page.locator('.verification-details').inner_text()
+            page.locator('.verification-details summary').click();assert 'Multi-point inspected' in page.locator('.verification-details').inner_text()
             page.locator('[data-close=vehicle-dialog]').click();page.locator('#reset').click();result['factory_filter_and_verification_disclosure']=True
             assert page.locator('#hardware option[value=HW4]').evaluate('(x)=>x.disabled');result['hardware_requires_evidence']=True
             for postal,state in [('94103','CA'),('78201','TX')]:

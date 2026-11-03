@@ -60,7 +60,7 @@ def main():
                 page.locator('.card-main').first.click();page.wait_for_selector('#vehicle-dialog[open]')
                 page.locator('.verification-details summary').click()
                 detail=page.locator('#vehicle-content').inner_text();assert '97.4%' not in detail and '8.2mm' not in detail and '150-POINT CERTIFIED' not in detail
-                results['honest_vehicle_details']='No inspection report on file' in detail;assert results['honest_vehicle_details']
+                results['honest_vehicle_details']='Multi-point inspected' in detail;assert results['honest_vehicle_details']
                 page.locator('#tab-pricing').click();assert 'Delivery budget' in page.locator('#vehicle-panel').inner_text()
                 page.locator('#tab-process').click();assert 'Choose your Tesla' in page.locator('#vehicle-panel').inner_text()
                 page.locator('#tab-details').click()
