@@ -46,10 +46,16 @@ def test_texas_preview_reconciles_to_cents_and_includes_ev_fee_allowance():
 
 
 def test_unverified_state_tax_never_becomes_an_invented_complete_total():
-    result = js("p.preview({vehiclePrice:35000,miles:500,model:'Model Y',state:'CA'})")
-    assert result['taxCents'] is None
-    assert result['totalCents'] is None
-    assert result['financeIncludesEstimatedCosts'] is False
+    ca = js("p.preview({vehiclePrice:35000,miles:500,model:'Model Y',state:'CA'})")
+    assert ca['taxCents'] is not None
+    assert ca['totalCents'] is not None
+    assert ca['totalCents'] == ca['vehicleCents'] + ca['delivery']['budgetCents'] + ca['taxCents'] + ca['registrationCents']
+    assert ca['financeIncludesEstimatedCosts'] is True
+
+    invalid = js("p.preview({vehiclePrice:35000,miles:500,model:'Model Y',state:'XX'})")
+    assert invalid['taxCents'] is None
+    assert invalid['totalCents'] is None
+    assert invalid['financeIncludesEstimatedCosts'] is False
 
 
 def test_zero_interest_and_paid_in_full_never_produce_nan_or_negative_payments():

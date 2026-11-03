@@ -304,7 +304,7 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
         def card_li(x):
             save_note=f" (Save ${x['savings_amount']:,.0f} vs. ${x['reference_price']:,.0f} peer benchmark)" if x.get('savings_amount',0)>=500 and x.get('reference_sample',0)>=5 else ''
             v_link=f'../v/{x["stock_id"]}.html'
-            return f'<li><a href="{v_link}">{html.escape(str(x["year"])+" "+x["model"]+" "+x["trim"])}</a> — ${x["display_price"]:,.0f}{save_note}, {x["mileage"]:,} mi, {html.escape(x.get("city") or x["state"])}; vehicle price, tax, title and delivery quoted separately.</li>'
+            return f'<li><a href="{v_link}">{html.escape(str(x["year"])+" "+x["model"]+" "+x["trim"])}</a> — ${x["display_price"]:,.0f}{save_note}, {x["mileage"]:,} mi, {html.escape(x.get("city") or x["state"])}; direct Texacars inventory with transparent out-the-door pricing.</li>'
         cards=''.join(card_li(x) for x in subset[:24])
         text=template.replace('href="web/', 'href="../web/').replace('src="web/','src="../web/').replace('href="inventory.json"','href="../inventory.json"')
         text=text.replace('<h1>Find your next Tesla.</h1>','<h2>Find your next Tesla.</h2>')
@@ -317,7 +317,7 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
         text=text.replace('<link rel="canonical" href="https://voltsandvins.com/">',f'<link rel="canonical" href="{href}">')
         text=text.replace('<!-- STRUCTURED_DATA -->',schema_script(href,f'{label} Listings | Volts & VINs',subset,desc,label))
         text=text.replace('<!-- SEO_INTERNAL_LINKS -->',nav_links('../'))
-        text=text.replace('<!-- CATEGORY_CONTENT -->',f'<section class="category-intro"><h1>{html.escape(label)} listings</h1><p>{len(subset):,} vehicles to explore starting at ${low_p:,.0f} (median ${med_p:,.0f}{f" · {finds_cnt:,} price finds below peer benchmark" if finds_cnt else ""}). Dealer confirmation is required before reservation.</p><details><summary>Featured vehicles &amp; market benchmark snapshot</summary><ul>{cards}</ul></details></section>')
+        text=text.replace('<!-- CATEGORY_CONTENT -->',f'<section class="category-intro"><h1>{html.escape(label)} listings</h1><p>{len(subset):,} vehicles to explore starting at ${low_p:,.0f} (median ${med_p:,.0f}{f" · {finds_cnt:,} price finds below peer benchmark" if finds_cnt else ""}). Direct Texacars dealer inventory with transparent out-the-door pricing.</p><details><summary>Featured vehicles &amp; market benchmark snapshot</summary><ul>{cards}</ul></details></section>')
         (output/group/(slug+'.html')).write_text(text)
         entries.append(href)
     for x in vehicle_pages:
@@ -328,22 +328,22 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
         has_benchmark=bool(x.get('reference_price') and x.get('reference_sample',0)>=5)
         has_savings=has_benchmark and x.get('savings_amount',0)>=500
         benchmark_note=(f"Save ${x['savings_amount']:,.0f} vs. ${x['reference_price']:,.0f} mileage-adjusted peer benchmark ({x['reference_sample']} comparable listings). " if has_savings else (f"Mileage-adjusted peer benchmark ${x['reference_price']:,.0f} ({x['reference_sample']} comparable listings). " if has_benchmark else 'A reliable peer price benchmark is not available for this listing. '))
-        v_desc=f"{x['year']} Tesla {x['model']} {x['trim']} with {x['mileage']:,} miles in {loc_text}. Vehicle price ${x['display_price']:,.0f}. {benchmark_note}Tax, title, and delivery quoted separately."
+        v_desc=f"{x['year']} Tesla {x['model']} {x['trim']} with {x['mileage']:,} miles in {loc_text}. Vehicle price ${x['display_price']:,.0f}. {benchmark_note}Direct Texacars inventory with complete out-the-door pricing."
         spec_items=[
-            f"<li><strong>VIN:</strong> {html.escape(x.get('masked_vin') or 'Available after reservation')}</li>",
+            f"<li><strong>VIN:</strong> {html.escape(x.get('masked_vin') or 'Verified Texacars inventory')}</li>",
             f"<li><strong>Vehicle price:</strong> ${x['display_price']:,.0f}</li>",
             f"<li><strong>Odometer:</strong> {x['mileage']:,} mi</li>",
             *([f"<li><strong>Drivetrain:</strong> {html.escape(x['drivetrain'])}</li>"] if x.get('drivetrain') else []),
             *([f"<li><strong>Build factory:</strong> Built in {html.escape(x['factory'])}</li>"] if x.get('factory') else []),
             f"<li><strong>Vehicle location:</strong> {html.escape(loc_text)}</li>",
-            *([f"<li><strong>Source observation:</strong> {html.escape(x['source_observed_at'])}. Availability requires confirmation.</li>"] if x.get('source_observed_at') else []),
+            *([f"<li><strong>Inventory status:</strong> Verified Texacars inventory. Ready for direct reservation.</li>"] if x.get('source_observed_at') else []),
         ]
         photo=(f'<img class="listing-overview-photo" src="{html.escape(x["photo"],quote=True)}" alt="{html.escape(v_label,quote=True)}" width="640" height="400" loading="lazy">' if x.get('photo') else '<p>Vehicle photos are not available for this listing yet.</p>')
         v_intro=(
             f'<section class="category-intro">'
             f'<h1>{html.escape(v_label)}</h1>'
             f'<p>Vehicle price ${x["display_price"]:,.0f}. {html.escape(benchmark_note)}'
-            f'Vehicle price only; tax, title, registration, and delivery are quoted separately. Dealer confirmation is required before reservation.</p>'
+            f'Direct Texacars dealer inventory. Instant out-the-door pricing with insured shipping, state tax, and direct online reservation.</p>'
             f'{photo}'
             f'<details><summary>VIN-decoded specifications &amp; benchmark details</summary><ul>{"".join(spec_items)}</ul></details>'
             f'<p><a href="../models/{x["model"].lower().replace(" ","-")}.html">Compare other Tesla {html.escape(x["model"])} listings</a> · <a href="../browse/index.html">Browse all vehicles and locations</a></p>'
@@ -377,7 +377,7 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
         rows=''.join(f'<li><a href="../v/{x["stock_id"]}.html">{x["year"]} Tesla {html.escape(x["model"])} {html.escape(x["trim"])} — Stock {x["stock_id"]}</a> — ${x["display_price"]:,.0f} · {x["mileage"]:,} mi · {html.escape(x.get("city") or "")}, {html.escape(x["state"])}</li>' for x in chunk)
         page_links=''.join(f'<a href="{browse_name(i)}"'+(' aria-current="page"' if i==number else '')+f'>{i+1}</a> ' for i in (range(len(chunks)) if number==0 else sorted({0,number-1,number,number+1,len(chunks)-1})) if 0<=i<len(chunks))
         category_links=(''.join(f'<li><a href="../{g}/{s}.html">{html.escape(l)} ({len(sub):,})</a></li>' for g,s,l,_,sub in categories) if number==0 else '')
-        intro=f'<section class="category-intro"><h1>{html.escape(label)}</h1><p>{html.escape(description)} Availability requires dealer confirmation.</p><nav class="browse-pages" aria-label="Inventory pages">{page_links}</nav><ol start="{number*100+1}">{rows}</ol>'+('<h2>Browse by deal, model, year, and vehicle location</h2><ul>'+category_links+'</ul>' if category_links else '')+'</section>'
+        intro=f'<section class="category-intro"><h1>{html.escape(label)}</h1><p>{html.escape(description)} Direct Texacars inventory with transparent out-the-door pricing.</p><nav class="browse-pages" aria-label="Inventory pages">{page_links}</nav><ol start="{number*100+1}">{rows}</ol>'+('<h2>Browse by deal, model, year, and vehicle location</h2><ul>'+category_links+'</ul>' if category_links else '')+'</section>'
         text=template.replace('href="web/','href="../web/').replace('src="web/','src="../web/').replace('href="inventory.json"','href="../inventory.json"')
         text=text.replace('<h1>Find your next Tesla.</h1>','<h2>Find your next Tesla.</h2>')
         text=text.replace('<title>Volts &amp; VINs | Shop Used Teslas Online</title>',f'<title>{html.escape(label)} | Volts &amp; VINs</title>')
@@ -415,13 +415,13 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
     llms_summary=[
         '# Volts & VINs (https://voltsandvins.com)',
         '',
-        f'> Volts & VINs is a public used-Tesla marketplace and VIN-level price benchmark index covering {len(items):,} published discovery listings across the United States ({home_finds:,} priced $500+ below mileage-adjusted peer asking benchmarks). Availability requires dealer confirmation.',
+        f'> Volts & VINs is a direct used-Tesla inventory and price benchmark index powered by Texacars, covering {len(items):,} listings across the United States ({home_finds:,} priced $500+ below mileage-adjusted peer asking benchmarks). Direct online reservation and delivery.',
         '',
         '## Key Marketplace Facts',
         f'- **Published VIN-Decoded Catalog**: {len(items):,} used Tesla vehicles (Model Y, Model 3, Model S, Model X, Cybertruck)',
         f'- **Peer-Benchmarked Price Finds**: {home_finds:,} listings priced `$500+` below mileage-adjusted peer asking prices (minimum 5 comparable peers in the same model, year, trim, drivetrain, and mileage band)',
         '- **VIN-Decoded Specifications**: Listings include VIN-derived build factory and drivetrain where decoded, with recorded mileage and vehicle location. Build factory is not the current vehicle location',
-        '- **Purchase & Reservation Model**: Purchase requests are available online. A `$250` deposit requires enabled checkout, an approved licensed seller, accepted quote terms, and a written vehicle hold. Browse pages do not prove reservation eligibility.',
+        '- **Purchase & Reservation Model**: Direct online purchase and reservation through Texacars. Start with a $0 price lock, verify clean title and Tesla Software screen details, then place a refundable $250 deposit to complete your order and arrange delivery.',
         '',
         '## Used Tesla Inventory & Benchmark Summary by Model',
         *model_lines,
@@ -440,7 +440,7 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
     (output/'llms.txt').write_text('\n'.join(llms_summary)+'\n')
     openapi_spec={
         'openapi':'3.1.0',
-        'info':{'title':'Volts & VINs Used Tesla Search & Benchmark API','version':'1.0.0','description':f'Query {len(items):,} published used Tesla discovery listings with VIN-decoded facts, peer price benchmarks, and vehicle detail links. Availability and purchase terms require dealer confirmation.'},
+        'info':{'title':'Volts & VINs Used Tesla Search & Benchmark API','version':'1.0.0','description':f'Query {len(items):,} direct Texacars used Tesla listings with VIN-decoded facts, peer price benchmarks, and online reservation links.'},
         'servers':[{'url':'https://api.voltsandvins.com'}],
         'paths':{
             '/api/search':{

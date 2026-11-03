@@ -6,6 +6,59 @@
   const roundUp50 = amount => Math.ceil(amount / 5000) * 5000;
   const TX_RATE = 0.0625;
   const TX_REGISTRATION_ALLOWANCE_CENTS = 35000;
+  const STATE_RULES = {
+    AL: { rate: 0.02, regCents: 16500 },
+    AK: { rate: 0.00, regCents: 20000 },
+    AZ: { rate: 0.056, regCents: 35000 },
+    AR: { rate: 0.065, regCents: 15000 },
+    CA: { rate: 0.0725, regCents: 37500 },
+    CO: { rate: 0.029, regCents: 35000 },
+    CT: { rate: 0.0635, regCents: 25000 },
+    DE: { rate: 0.0425, regCents: 15000 },
+    DC: { rate: 0.06, regCents: 25000 },
+    FL: { rate: 0.06, regCents: 35000 },
+    GA: { rate: 0.066, regCents: 15000 },
+    HI: { rate: 0.04, regCents: 25000 },
+    ID: { rate: 0.06, regCents: 20000 },
+    IL: { rate: 0.0625, regCents: 35000 },
+    IN: { rate: 0.07, regCents: 25000 },
+    IA: { rate: 0.05, regCents: 25000 },
+    KS: { rate: 0.065, regCents: 20000 },
+    KY: { rate: 0.06, regCents: 15000 },
+    LA: { rate: 0.0445, regCents: 25000 },
+    ME: { rate: 0.055, regCents: 20000 },
+    MD: { rate: 0.06, regCents: 30000 },
+    MA: { rate: 0.0625, regCents: 25000 },
+    MI: { rate: 0.06, regCents: 30000 },
+    MN: { rate: 0.06875, regCents: 25000 },
+    MS: { rate: 0.05, regCents: 25000 },
+    MO: { rate: 0.04225, regCents: 20000 },
+    MT: { rate: 0.00, regCents: 30000 },
+    NE: { rate: 0.055, regCents: 25000 },
+    NV: { rate: 0.0685, regCents: 35000 },
+    NH: { rate: 0.00, regCents: 25000 },
+    NJ: { rate: 0.033125, regCents: 30000 },
+    NM: { rate: 0.04, regCents: 15000 },
+    NY: { rate: 0.04, regCents: 30000 },
+    NC: { rate: 0.03, regCents: 25000 },
+    ND: { rate: 0.05, regCents: 20000 },
+    OH: { rate: 0.0575, regCents: 30000 },
+    OK: { rate: 0.0325, regCents: 20000 },
+    OR: { rate: 0.005, regCents: 30000 },
+    PA: { rate: 0.06, regCents: 25000 },
+    RI: { rate: 0.07, regCents: 25000 },
+    SC: { rate: 0.05, regCents: 15000, maxTaxCents: 50000 },
+    SD: { rate: 0.04, regCents: 15000 },
+    TN: { rate: 0.07, regCents: 25000 },
+    TX: { rate: TX_RATE, regCents: TX_REGISTRATION_ALLOWANCE_CENTS },
+    UT: { rate: 0.0685, regCents: 25000 },
+    VT: { rate: 0.06, regCents: 20000 },
+    VA: { rate: 0.0415, regCents: 25000 },
+    WA: { rate: 0.065, regCents: 35000 },
+    WV: { rate: 0.06, regCents: 20000 },
+    WI: { rate: 0.05, regCents: 25000 },
+    WY: { rate: 0.04, regCents: 25000 }
+  };
 
   function shippingAt(miles, model, roadFactor) {
     if (!finite(miles) || miles < 0 || !['Model 3', 'Model S', 'Model Y', 'Model X'].includes(model)) return null;
@@ -42,15 +95,34 @@
     if (!finite(vehiclePrice) || vehiclePrice <= 0) throw new Error('Vehicle price is unavailable');
     const vehicleCents = cents(vehiclePrice);
     const delivery = deliveryBudget(miles, model, state, originState);
-    // Texas preview conservatively treats transport as pre-sale consideration.
-    // The written quote classifies the actual delivery and county fees.
-    const taxCents = state === 'TX' && delivery ? Math.round((vehicleCents + delivery.budgetCents) * TX_RATE) : null;
-    const registrationCents = state === 'TX' ? TX_REGISTRATION_ALLOWANCE_CENTS : null;
-    const totalCents = delivery && taxCents !== null ? vehicleCents + delivery.budgetCents + taxCents + registrationCents : null;
+    const stateCode = state && typeof state === 'string' ? state.toUpperCase() : '';
+    const rule = STATE_RULES[stateCode] || null;
+    let taxCents = null;
+    if (rule && delivery) {
+      const taxableBasis = vehicleCents + delivery.budgetCents;
+      const computedTax = Math.round(taxableBasis * rule.rate);
+      taxCents = rule.maxTaxCents ? Math.min(computedTax, rule.maxTaxCents) : computedTax;
+    }
+    const registrationCents = rule ? rule.regCents : null;
+    const totalCents = delivery && taxCents !== null && registrationCents !== null
+      ? vehicleCents + delivery.budgetCents + taxCents + registrationCents
+      : null;
     const finance = loanPayment(totalCents ?? vehicleCents, cents(downPayment), apr, term);
-    return {vehicleCents, delivery, taxCents, taxRate: state === 'TX' ? TX_RATE : null,
-      registrationCents, documentationCents: 0, totalCents, finance,
-      financeIncludesEstimatedCosts: totalCents !== null, apr, term, downPaymentCents: cents(downPayment)};
+    return {
+      vehicleCents,
+      delivery,
+      taxCents,
+      taxRate: rule ? rule.rate : null,
+      taxState: rule ? stateCode : null,
+      registrationCents,
+      documentationCents: 0,
+      totalCents,
+      finance,
+      financeIncludesEstimatedCosts: totalCents !== null,
+      apr,
+      term,
+      downPaymentCents: cents(downPayment)
+    };
   }
 
   const api = {deliveryBudget, loanPayment, preview};
