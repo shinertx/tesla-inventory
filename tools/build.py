@@ -331,6 +331,7 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
         v_desc=f"{x['year']} Tesla {x['model']} {x['trim']} with {x['mileage']:,} miles in {loc_text}. Vehicle price ${x['display_price']:,.0f}. {benchmark_note}Direct Volts & VINs inventory with complete out-the-door pricing."
         spec_items=[
             f"<li><strong>VIN:</strong> {html.escape(x.get('masked_vin') or 'Verified Volts & VINs inventory')}</li>",
+            f"<li><strong>Title:</strong> Clean title (salvage/branded titles excluded)</li>",
             f"<li><strong>Vehicle price:</strong> ${x['display_price']:,.0f}</li>",
             f"<li><strong>Odometer:</strong> {x['mileage']:,} mi</li>",
             *([f"<li><strong>Drivetrain:</strong> {html.escape(x['drivetrain'])}</li>"] if x.get('drivetrain') else []),

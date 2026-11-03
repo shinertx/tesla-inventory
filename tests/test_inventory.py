@@ -214,3 +214,14 @@ def test_supported_catalog_savings_and_comparability_guard(tmp_path,monkeypatch)
     assert items[mismatch_id]['display_price']==30000
     assert items[mismatch_id]['reference_price'] is None
     assert items[mismatch_id]['savings_amount']==0
+
+
+def test_collector_enforces_clean_title_and_dealer_only_filters():
+    from tools.collect import source_url, normalized
+    cg_url = source_url('cargurus', 'Model Y', 2024, 1)
+    for flag in ('hideFrameDamage=true', 'hideSalvage=true', 'hideLemon=true', 'hideTheft=true', 'sellerType=DEALER'):
+        assert flag in cg_url
+    assert normalized(VIN, 'Model S', 2015, '70D', 20000, 60000, 'Private Seller', 'Austin', 'TX', '', 'https://example.test/1') is None
+    assert normalized(VIN, 'Model S', 2015, '70D', 20000, 60000, 'Dealer', 'Austin', 'TX', '', 'https://www.tesla.com/ms/order/' + VIN) is None
+    assert normalized(VIN, 'Model S', 2015, '70D', 20000, 60000, 'Dealer', 'Austin', 'TX', '', 'https://example.test/1', title_evidence={'sellerType': 'PRIVATE'}) is None
+

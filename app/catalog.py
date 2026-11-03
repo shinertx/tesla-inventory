@@ -86,6 +86,7 @@ _RISK_FLAGS = {
     'waterdamage': 'flood', 'iswaterdamaged': 'flood',
     'framedamage': 'structural_damage', 'hasframedamage': 'structural_damage',
     'structuraldamage': 'structural_damage', 'isstructurallydamaged': 'structural_damage',
+    'salvagesource': 'salvage', 'hasthefthistory': 'theft', 'isthefthistory': 'theft',
 }
 _TITLE_FIELDS = {'titlestatus', 'titletype', 'titlebrand', 'titlebrands', 'brandedtitle',
                  'vehicletitlestatus', 'vehicletitle', 'sourcetitlestatus'}

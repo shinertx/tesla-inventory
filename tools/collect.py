@@ -22,6 +22,10 @@ def numeric(value):
 def normalized(vin,model,year,trim,price,mileage,dealer,city,state,photo,url,risk=False,title_evidence=None):
     model=str(model or '').replace('Tesla ','').strip()
     if model not in ('Model 3','Model Y','Model S','Model X','Cybertruck'):return None
+    if 'tesla.com' in str(url or '').lower():return None
+    seller_kind=str((title_evidence or {}).get('sellerType') or (title_evidence or {}).get('seller_type') or '').strip().lower()
+    if seller_kind in ('private','private_party','fsbo','owner','individual'):return None
+    if re.search(r'\b(private seller|private party|for sale by owner|fsbo|by owner)\b',str(dealer or ''),re.I):return None
     price=numeric(price);mileage=numeric(mileage);year=numeric(year)
     if price is None or mileage is None or year is None:return None
     values=photo if isinstance(photo,list) else [photo]
@@ -79,7 +83,7 @@ def source_url(source,model,year,page):
         return 'https://www.autolist.com/api/v2/search?'+urlencode(dict(make='Tesla',model=model,year_min=year,year_max=year,latitude=39.8283,longitude=-98.5795,radius='all',page=page,limit=100,sort_filter='price:asc'))
     if source=='cargurus':
         entities={'Model 3':'d2475','Model Y':'d3044','Model S':'d2039','Model X':'d2132','Cybertruck':'d3353'}
-        return 'https://www.cargurus.com/Cars/searchResults.action?'+urlencode({'zip':'78201','distance':50000,'entitySelectingHelper.selectedEntity':entities[model],'startYear':year,'endYear':year,'offset':(page-1)*48,'maxResults':48,'sortType':'PRICE','sortDir':'ASC'})
+        return 'https://www.cargurus.com/Cars/searchResults.action?'+urlencode({'zip':'78201','distance':50000,'entitySelectingHelper.selectedEntity':entities[model],'startYear':year,'endYear':year,'offset':(page-1)*48,'maxResults':48,'sortType':'PRICE','sortDir':'ASC','hideFrameDamage':'true','hideSalvage':'true','hideLemon':'true','hideTheft':'true','sellerType':'DEALER'})
     if source=='carvana':return f'https://www.carvana.com/cars/tesla-{model.lower().replace(" ","-")}?page={page}'
     return 'https://www.truecar.com/used-cars-for-sale/listings/tesla/'+model.lower().replace(' ','-')+f'/?year_low={year}&year_high={year}&page={page}'
 
