@@ -3,7 +3,7 @@
   "info": {
     "title": "Volts & VINs Used Tesla Search & Benchmark API",
     "version": "1.0.0",
-    "description": "Query 15,098 direct Texacars used Tesla listings with VIN-decoded facts, peer price benchmarks, and online reservation links."
+    "description": "Query 15,098 direct Volts & VINs used Tesla listings with VIN-decoded facts, peer price benchmarks, and online reservation links."
   },
   "servers": [
     {

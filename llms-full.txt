@@ -1,12 +1,12 @@
 # Volts & VINs (https://voltsandvins.com)
 
-> Volts & VINs is a direct used-Tesla inventory and price benchmark index powered by Texacars, covering 15,098 listings across the United States (1,154 priced $500+ below mileage-adjusted peer asking benchmarks). Direct online reservation and delivery.
+> Volts & VINs is a direct used-Tesla inventory and price benchmark index covering 15,098 listings across the United States (1,154 priced $500+ below mileage-adjusted peer asking benchmarks). Direct online reservation and delivery.
 
 ## Key Marketplace Facts
 - **Published VIN-Decoded Catalog**: 15,098 used Tesla vehicles (Model Y, Model 3, Model S, Model X, Cybertruck)
 - **Peer-Benchmarked Price Finds**: 1,154 listings priced `$500+` below mileage-adjusted peer asking prices (minimum 5 comparable peers in the same model, year, trim, drivetrain, and mileage band)
 - **VIN-Decoded Specifications**: Listings include VIN-derived build factory and drivetrain where decoded, with recorded mileage and vehicle location. Build factory is not the current vehicle location
-- **Purchase & Reservation Model**: Direct online purchase and reservation through Texacars. Start with a $0 price lock, verify clean title and Tesla Software screen details, then place a refundable $250 deposit to complete your order and arrange delivery.
+- **Purchase & Reservation Model**: Direct online purchase and reservation through Volts & VINs. Start with a $0 price lock, verify clean title and Tesla Software screen details, then place a refundable $250 deposit to complete your order and arrange delivery.
 
 ## Used Tesla Inventory & Benchmark Summary by Model
 - **Tesla Cybertruck**: 248 listings | Low: `$63,331` | Median: `$82,193` | Price Finds (`$500+` below peer benchmark): 49 | Browse: https://voltsandvins.com/models/cybertruck.html
