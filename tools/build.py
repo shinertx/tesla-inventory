@@ -42,7 +42,7 @@ def schema_script(page_url, page_name, subset, description='', breadcrumb_name=N
                 'mileageFromOdometer':{'@type':'QuantitativeValue','value':x['mileage'],'unitCode':'SMI'},
                 **({'driveWheelConfiguration':'https://schema.org/'+{'AWD':'AllWheelDriveConfiguration','RWD':'RearWheelDriveConfiguration'}[x['drivetrain']]} if x.get('drivetrain') in ('AWD','RWD') else {}),
                 **({'image':x['photo']} if x.get('photo') else {}),
-                **({'offers':{'@type':'Offer','priceCurrency':'USD','price':x['display_price'],'availability':'https://schema.org/InStock','url':f"{BASE}/v/{x['stock_id']}.html"}} if x.get('reservable') else {}),
+                **({'offers':{'@type':'Offer','priceCurrency':'USD','price':x['display_price'],'availability':'https://schema.org/InStock','url':f"{BASE}/v/{x['stock_id']}.html"}} if x.get('display_price') else {}),
                 'url':f"{BASE}/v/{x['stock_id']}.html"
             }} for i,x in enumerate(subset[:24])
         ]}

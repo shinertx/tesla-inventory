@@ -62,7 +62,7 @@ def test_top_price_find_vehicle_pages_render_with_initial_stock_id(tmp_path):
     schema=json.loads(re.search(r'<script type="application/ld\+json">(.*?)</script>',v_html).group(1))
     listing=next(node for node in schema['@graph'] if node['@type']=='ItemList')['itemListElement'][0]['item']
     assert listing['url']=='https://voltsandvins.com/v/VV-6C2CD3B68849.html'
-    assert 'offers' not in listing
+    assert listing['offers']=={'@type':'Offer','priceCurrency':'USD','price':30149,'availability':'https://schema.org/InStock','url':'https://voltsandvins.com/v/VV-6C2CD3B68849.html'}
     assert 'Save $3,400' in v_html
     assert 'Built in Fremont' in v_html
     assert 'PRIVATE SUPPLIER NAME' not in v_html
@@ -135,7 +135,7 @@ def test_vehicle_schema_matches_visible_facts_and_escapes_markup(tmp_path):
     car=next(x for x in schema['@graph'] if x['@type']=='ItemList')['itemListElement'][0]['item']
     assert car['driveWheelConfiguration']=='https://schema.org/RearWheelDriveConfiguration'
     assert car['url'].endswith('/v/VV-6C2CD3B68849.html')
-    assert 'offers' not in car and '<script>alert(1)</script>' not in text
+    assert car['offers']['price']==34948 and '<script>alert(1)</script>' not in text
 
 
 def test_release_fingerprint_changes_when_price_changes_without_url_change(tmp_path):
