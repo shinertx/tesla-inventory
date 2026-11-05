@@ -26,11 +26,11 @@ PRICING_POLICY=PricingPolicy(
 def schema_script(page_url, page_name, subset, description='', breadcrumb_name=None):
     graph=[
         {'@type':'Organization','@id':BASE+'/#organization','name':'Volts & VINs','url':BASE,
-         'description':'Online used-Tesla marketplace with VIN-decoded specs and mileage-adjusted peer price benchmarks.'},
+         'description':'Online used-Tesla retailer and direct purchase platform with upfront out-the-door pricing, $0 price lock, online financing or cash checkout, and nationwide home delivery.'},
         {'@type':'WebSite','@id':BASE+'/#website','url':BASE,'name':'Volts & VINs','publisher':{'@id':BASE+'/#organization'},
          'potentialAction':{'@type':'SearchAction','target':BASE+'/?q={search_term_string}','query-input':'required name=search_term_string'}},
         {'@type':'CollectionPage','name':page_name,
-         'description':description or f'VIN-decoded catalog and mileage-adjusted peer price comparisons across {len(subset):,} used Tesla listings on Volts & VINs.',
+         'description':description or f'Buy from {len(subset):,} VIN-decoded used Tesla vehicles online with upfront out-the-door pricing, $0 price lock, and nationwide home delivery on Volts & VINs.',
          'url':page_url,'creator':{'@id':BASE+'/#organization'},'isAccessibleForFree':True,
          'keywords':['Used Tesla','Tesla Model Y','Tesla Model 3','Tesla Cybertruck','Tesla Model S','Tesla Model X','Used Tesla Price Benchmark','Tesla VIN Lookup']},
         {'@type':'ItemList','name':page_name,'url':page_url,'numberOfItems':len(subset),'itemListElement':[
@@ -287,7 +287,7 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
         links+=[f'<a href="{prefix}{g}/{s}.html">{html.escape(l)}</a>' for g,s,l,_,_ in categories if g=='states'][:18]
         return '<nav class="seo-links" aria-label="Browse Used Tesla inventory by deal, model, year, and state">'+''.join(links)+'</nav>'
     home_finds=sum(1 for x in items if x.get('savings_amount',0)>=500 and x.get('reference_sample',0)>=5)
-    home_desc=f"Compare {len(items):,} VIN-decoded used Tesla Model Y, Model 3, Model S, Model X, and Cybertruck listings ({home_finds:,} priced $500+ below mileage-adjusted peer benchmarks) on Volts & VINs."
+    home_desc=f"Buy from {len(items):,} VIN-decoded used Tesla Model Y, Model 3, Model S, Model X, and Cybertruck vehicles 100% online ({home_finds:,} priced $500+ below mileage-adjusted peer benchmarks) with $0 price lock, online checkout, and home delivery on Volts & VINs."
     root_html=template.replace('<!-- STRUCTURED_DATA -->',schema_script(BASE+'/','Volts & VINs Used Tesla Inventory',items,home_desc)).replace('<!-- SEO_INTERNAL_LINKS -->',nav_links(''))
     (output/'index.html').write_text(root_html)
     vehicle_pages=sorted(items,key=lambda x:x['stock_id'])
@@ -300,7 +300,7 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
         low_p,med_p=prices[0],prices[len(prices)//2]
         finds_cnt=sum(1 for x in subset if x.get('savings_amount',0)>=500 and x.get('reference_sample',0)>=5)
         max_save=max((x.get('savings_amount',0) for x in subset if x.get('reference_sample',0)>=5),default=0)
-        desc=f"Browse {len(subset):,} {label} listings starting at ${low_p:,.0f} (median ${med_p:,.0f}). Compare VIN-decoded specs, photos, and {finds_cnt:,} peer-benchmarked price finds{f' saving up to ${max_save:,.0f}' if max_save>=500 else ''} on Volts & VINs."
+        desc=f"Buy {label} online from {len(subset):,} vehicles starting at ${low_p:,.0f} (median ${med_p:,.0f}). Lock your price for $0, get upfront out-the-door pricing{f', and shop {finds_cnt:,} price finds saving up to ${max_save:,.0f}' if max_save>=500 else ''}, with home delivery on Volts & VINs."
         def card_li(x):
             save_note=f" (Save ${x['savings_amount']:,.0f} vs. ${x['reference_price']:,.0f} peer benchmark)" if x.get('savings_amount',0)>=500 and x.get('reference_sample',0)>=5 else ''
             v_link=f'../v/{x["stock_id"]}.html'
@@ -310,9 +310,9 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
         text=text.replace('<h1>Find your next Tesla.</h1>','<h2>Find your next Tesla.</h2>')
         text=text.replace('data-preset=""',f'data-preset="{html.escape(preset,quote=True)}"')
         text=text.replace('<title>Volts &amp; VINs | Shop Used Teslas Online</title>',f'<title>{html.escape(label)} Listings ({len(subset):,}) — From ${low_p:,.0f} | Volts &amp; VINs</title>')
-        text=text.replace('<meta name="description" content="Explore used Tesla Model Y, Model 3, Model S, Model X, and Cybertruck listings. Compare vehicle photos, mileage, and vehicle prices on Volts &amp; VINs.">',f'<meta name="description" content="{html.escape(desc,quote=True)}">')
+        text=text.replace('<meta name="description" content="Buy used Tesla Model Y, Model 3, Model S, Model X, and Cybertruck vehicles 100% online at Volts &amp; VINs. Lock your price for $0 today, finance or pay cash online, and get insured delivery to your door.">',f'<meta name="description" content="{html.escape(desc,quote=True)}">')
         text=text.replace('<meta property="og:title" content="Volts &amp; VINs | Shop Used Teslas Online">',f'<meta property="og:title" content="{html.escape(label)} Listings ({len(subset):,}) | Volts &amp; VINs">')
-        text=text.replace('<meta property="og:description" content="Compare used Teslas by model, mileage, vehicle price, and vehicle photos.">',f'<meta property="og:description" content="{html.escape(desc,quote=True)}">')
+        text=text.replace('<meta property="og:description" content="Buy used Teslas 100% online with upfront out-the-door pricing, $0 price lock, online financing or cash checkout, and nationwide home delivery.">',f'<meta property="og:description" content="{html.escape(desc,quote=True)}">')
         text=text.replace('<meta property="og:url" content="https://voltsandvins.com/">',f'<meta property="og:url" content="{href}">')
         text=text.replace('<link rel="canonical" href="https://voltsandvins.com/">',f'<link rel="canonical" href="{href}">')
         text=text.replace('<!-- STRUCTURED_DATA -->',schema_script(href,f'{label} Listings | Volts & VINs',subset,desc,label))
@@ -328,7 +328,7 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
         has_benchmark=bool(x.get('reference_price') and x.get('reference_sample',0)>=5)
         has_savings=has_benchmark and x.get('savings_amount',0)>=500
         benchmark_note=(f"Save ${x['savings_amount']:,.0f} vs. ${x['reference_price']:,.0f} mileage-adjusted peer benchmark ({x['reference_sample']} comparable listings). " if has_savings else (f"Mileage-adjusted peer benchmark ${x['reference_price']:,.0f} ({x['reference_sample']} comparable listings). " if has_benchmark else 'A reliable peer price benchmark is not available for this listing. '))
-        v_desc=f"{x['year']} Tesla {x['model']} {x['trim']} with {x['mileage']:,} miles in {loc_text}. Vehicle price ${x['display_price']:,.0f}. {benchmark_note}Direct Volts & VINs inventory with complete out-the-door pricing."
+        v_desc=f"Buy this {x['year']} Tesla {x['model']} {x['trim']} ({x['mileage']:,} miles in {loc_text}) online for ${x['display_price']:,.0f}. {benchmark_note}Direct Volts & VINs inventory with $0 price lock, online checkout, and home delivery."
         spec_items=[
             f"<li><strong>VIN:</strong> {html.escape(x.get('masked_vin') or 'Verified Volts & VINs inventory')}</li>",
             f"<li><strong>Title:</strong> Clean title (salvage/branded titles excluded)</li>",
@@ -355,9 +355,9 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
         v_text=v_text.replace('data-preset=""',f'data-preset="{html.escape("model:"+x["model"],quote=True)}" data-initial-stock-id="{html.escape(stock,quote=True)}"')
         v_title=f'{x["year"]} Tesla {x["model"]} — ${x["display_price"]:,.0f} | {stock} | Volts & VINs'
         v_text=v_text.replace('<title>Volts &amp; VINs | Shop Used Teslas Online</title>',f'<title>{html.escape(v_title)}</title>')
-        v_text=v_text.replace('<meta name="description" content="Explore used Tesla Model Y, Model 3, Model S, Model X, and Cybertruck listings. Compare vehicle photos, mileage, and vehicle prices on Volts &amp; VINs.">',f'<meta name="description" content="{html.escape(v_desc,quote=True)}">')
+        v_text=v_text.replace('<meta name="description" content="Buy used Tesla Model Y, Model 3, Model S, Model X, and Cybertruck vehicles 100% online at Volts &amp; VINs. Lock your price for $0 today, finance or pay cash online, and get insured delivery to your door.">',f'<meta name="description" content="{html.escape(v_desc,quote=True)}">')
         v_text=v_text.replace('<meta property="og:title" content="Volts &amp; VINs | Shop Used Teslas Online">',f'<meta property="og:title" content="{html.escape(v_label)} — ${x["display_price"]:,.0f} | Volts &amp; VINs">')
-        v_text=v_text.replace('<meta property="og:description" content="Compare used Teslas by model, mileage, vehicle price, and vehicle photos.">',f'<meta property="og:description" content="{html.escape(v_desc,quote=True)}">')
+        v_text=v_text.replace('<meta property="og:description" content="Buy used Teslas 100% online with upfront out-the-door pricing, $0 price lock, online financing or cash checkout, and nationwide home delivery.">',f'<meta property="og:description" content="{html.escape(v_desc,quote=True)}">')
         v_text=v_text.replace('<meta property="og:url" content="https://voltsandvins.com/">',f'<meta property="og:url" content="{v_href}">')
         v_text=v_text.replace('<link rel="canonical" href="https://voltsandvins.com/">',f'<link rel="canonical" href="{v_href}">')
         if x.get('photo'):
@@ -374,7 +374,7 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
     for number,chunk in enumerate(chunks):
         url=f'{BASE}/browse/{browse_name(number)}'
         label=f'Used Tesla inventory — page {number+1} of {len(chunks)}'
-        description=f'Browse used Tesla listings {number*100+1 if chunk else 0}–{number*100+len(chunk)} of {len(vehicle_pages):,}. Compare vehicle prices, mileage, locations, and VIN-specific details.'
+        description=f'Buy used Tesla vehicles {number*100+1 if chunk else 0}–{number*100+len(chunk)} of {len(vehicle_pages):,} online at Volts & VINs with $0 price lock, upfront out-the-door pricing, and home delivery.'
         rows=''.join(f'<li><a href="../v/{x["stock_id"]}.html">{x["year"]} Tesla {html.escape(x["model"])} {html.escape(x["trim"])} — Stock {x["stock_id"]}</a> — ${x["display_price"]:,.0f} · {x["mileage"]:,} mi · {html.escape(x.get("city") or "")}, {html.escape(x["state"])}</li>' for x in chunk)
         page_links=''.join(f'<a href="{browse_name(i)}"'+(' aria-current="page"' if i==number else '')+f'>{i+1}</a> ' for i in (range(len(chunks)) if number==0 else sorted({0,number-1,number,number+1,len(chunks)-1})) if 0<=i<len(chunks))
         category_links=(''.join(f'<li><a href="../{g}/{s}.html">{html.escape(l)} ({len(sub):,})</a></li>' for g,s,l,_,sub in categories) if number==0 else '')
@@ -385,7 +385,7 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
         text=re.sub(r'<meta name="description" content="[^"]*">',f'<meta name="description" content="{html.escape(description,quote=True)}">',text,count=1)
         text=text.replace('content="https://voltsandvins.com/"',f'content="{url}"').replace('<link rel="canonical" href="https://voltsandvins.com/">',f'<link rel="canonical" href="{url}">')
         text=text.replace('<meta property="og:title" content="Volts &amp; VINs | Shop Used Teslas Online">',f'<meta property="og:title" content="{html.escape(label,quote=True)} | Volts &amp; VINs">')
-        text=text.replace('<meta property="og:description" content="Compare used Teslas by model, mileage, vehicle price, and vehicle photos.">',f'<meta property="og:description" content="{html.escape(description,quote=True)}">')
+        text=text.replace('<meta property="og:description" content="Buy used Teslas 100% online with upfront out-the-door pricing, $0 price lock, online financing or cash checkout, and nationwide home delivery.">',f'<meta property="og:description" content="{html.escape(description,quote=True)}">')
         text=text.replace('<!-- STRUCTURED_DATA -->',schema_script(url,label,chunk,description,label)).replace('<!-- SEO_INTERNAL_LINKS -->',nav_links('../')).replace('<!-- CATEGORY_CONTENT -->',intro)
         (output/'browse'/browse_name(number)).write_text(text)
         entries.append(url)
@@ -416,9 +416,9 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
     llms_summary=[
         '# Volts & VINs (https://voltsandvins.com)',
         '',
-        f'> Volts & VINs is a direct used-Tesla inventory and price benchmark index covering {len(items):,} listings across the United States ({home_finds:,} priced $500+ below mileage-adjusted peer asking benchmarks). Direct online reservation and delivery.',
+        f'> Volts & VINs is a direct-to-consumer online used-Tesla retailer where buyers purchase and reserve from {len(items):,} clean-title Teslas 100% online ({home_finds:,} priced $500+ below mileage-adjusted peer benchmarks) with upfront out-the-door pricing, $0 price lock, online financing or cash checkout, and insured home delivery across all 50 states.',
         '',
-        '## Key Marketplace Facts',
+        '## Key Online Dealership Facts',
         f'- **Published VIN-Decoded Catalog**: {len(items):,} used Tesla vehicles (Model Y, Model 3, Model S, Model X, Cybertruck)',
         f'- **Peer-Benchmarked Price Finds**: {home_finds:,} listings priced `$500+` below mileage-adjusted peer asking prices (minimum 5 comparable peers in the same model, year, trim, drivetrain, and mileage band)',
         '- **VIN-Decoded Specifications**: Listings include VIN-derived build factory and drivetrain where decoded, with recorded mileage and vehicle location. Build factory is not the current vehicle location',
