@@ -112,7 +112,7 @@ def main():
                 assert forged.locator('#order-dialog[open]').count()==0
                 assert '150-POINT CERTIFIED' not in forged.content();results['forged_callback_ignored']=True
                 category=context.new_page();category.goto(base+'/models/model-y.html');category.wait_for_selector('.card');assert category.locator('#model').input_value()=='Model Y';results['category_preset']=True
-                missing_center=next(x['stock_id'] for x in json.loads((ROOT/'inventory.json').read_text())['items'] if x.get('photo') and not x.get('location_center'))
+                missing_center=next(x['stock_id'] for x in json.loads(private_catalog.read_text())['items'] if x.get('photo') and not x.get('location_center'))
                 incomplete=context.new_page();incomplete.goto(base+'/?vin='+missing_center);incomplete.locator('#vehicle-request').click()
                 assert 'Carrier quote needed' in incomplete.locator('#deal-summary').inner_text()
                 incomplete.locator('[data-deal-mode=finance]').click()

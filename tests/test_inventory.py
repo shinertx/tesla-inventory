@@ -146,8 +146,8 @@ def test_seo_schema_jsonld_cname_and_indexnow_are_built(tmp_path):
     assert 'Volts &amp; VINs' in home
     assert 'application/ld+json' in home and VIN not in home
     assert stock_id_for(VIN) in home
-    assert '"@type":"CollectionPage"' in home and '"@type":"Organization"' in home and '"@type":"SearchAction"' in home
-    assert '"@type":"FAQPage"' not in home and '"AutoDealer"' not in home
+    assert '"@type":"CollectionPage"' in home and '"@type":"AutoDealer"' in home and '"@type":"SearchAction"' in home
+    assert '"@type":"FAQPage"' not in home
     cat=(tmp_path/'models/model-s.html').read_text()
     assert '"@type":"BreadcrumbList"' in cat and 'Used Tesla Model S Listings (1) — From $20,000' in cat
     assert (tmp_path/'CNAME').read_text().strip()=='voltsandvins.com'

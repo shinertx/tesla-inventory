@@ -130,7 +130,7 @@ def test_vehicle_schema_matches_visible_facts_and_escapes_markup(tmp_path):
     render_public_pages(data,tmp_path)
     text=(tmp_path/'v'/'VV-6C2CD3B68849.html').read_text()
     schema=json.loads(re.search(r'<script type="application/ld\+json">(.*?)</script>',text).group(1))
-    assert schema['@graph'][0]['@type']=='Organization'
+    assert schema['@graph'][0]['@type']=='AutoDealer'
     assert all(x['@type']!='FAQPage' for x in schema['@graph'])
     car=next(x for x in schema['@graph'] if x['@type']=='ItemList')['itemListElement'][0]['item']
     assert car['driveWheelConfiguration']=='https://schema.org/RearWheelDriveConfiguration'
