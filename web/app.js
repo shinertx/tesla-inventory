@@ -686,7 +686,7 @@
     $('purchase-availability').textContent='';
     $('business-status').textContent=paymentsOn?'Compare Teslas · See your out-the-door price · Buy online · $250 refundable reservation':'Compare Teslas · See your out-the-door price · Buy online';
     $('order-button').hidden=false;$('order-button').textContent=apiReady?'Track my request':'Saved price';
-    $('hero-description').textContent='Compare Teslas, see your out-the-door price with shipping & tax, and buy online.';
+    $('hero-description').textContent='Every Tesla for sale in the USA — see your out-the-door price with shipping & tax, and buy 100% online.';
     if(items.length)applyFilters(false);
     const button=$('vehicle-request');if(button){button.disabled=false;button.textContent='Review price';}
     if($('deal-zip'))$('deal-zip').required=!apiReady;
