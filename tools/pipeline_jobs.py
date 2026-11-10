@@ -348,7 +348,7 @@ def send_deal_alert_email(
     packet: dict,
     *,
     to_email: str = os.getenv("ALERT_EMAIL_TO", "ben@jockeyvc.com"),
-    from_email: str = os.getenv("ALERT_EMAIL_FROM", "ben@jockeyvc.com"),
+    from_email: str = os.getenv("ALERT_EMAIL_FROM", "deals@use-flows.com"),
     sendgrid_key: str | None = None,
 ) -> bool:
     """Send an instant dealer-arbitrage alert email via SendGrid v3 API when a customer requests a VIN."""
@@ -395,6 +395,7 @@ def send_deal_alert_email(
     payload = json.dumps({
         "personalizations": [{"to": [{"email": to_email}]}],
         "from": {"email": from_email, "name": "Volts & VINs Deal Desk"},
+        "reply_to": {"email": to_email, "name": "Volts & VINs Deal Desk"},
         "subject": subject,
         "content": [{"type": "text/plain", "value": text_body}],
     }).encode("utf-8")
