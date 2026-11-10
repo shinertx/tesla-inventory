@@ -125,14 +125,14 @@
   const odometer=x=>x.mileage>0?`${x.mileage.toLocaleString()} mi`:'Odometer to confirm';
   const saving=x=>x&&x.reference_sample>=5&&x.reference_price>x.display_price?Math.round(x.reference_price-x.display_price):0;
   const TITLE_ALERTS={
-    'VV-8B03768DFBEC':{badge:'⚠️ Prior Salvage / Auction History',note:'Public auction records show a prior Copart salvage certificate (CA). Price reflects salvage history.',alt:'VV-0AAF2D2D3C17',altLabel:'2025 Cybertruck ($70,998 · Clean Title)'},
-    'VV-DD6BC6D276FD':{badge:'⚠️ Prior Copart Auction Claim',note:'Public auction records show a prior Copart insurance/vandalism claim (Lot #56141156).',alt:'VV-5194CED2CD63',altLabel:'2024 Cybertruck AWD ($73,978 · Clean Title)'},
-    'VV-15E8211448F3':{badge:'⚠️ Prior IAAI Auction Record',note:'Public auction records show prior right-side damage at IAAI Houston.',alt:'VV-9E94293447F8',altLabel:'2024 Cyberbeast ($83,590 · Clean Title)'},
-    'VV-3F2FFE4AC9DB':{badge:'⚠️ Branded / Buyback History',note:'Listing history notes a prior manufacturer buyback / branded title record.',alt:'VV-5194CED2CD63',altLabel:'2024 Cybertruck AWD ($73,978 · Clean Title)'},
-    'VV-865EAB501B0C':{badge:'⚠️ Manufacturer Buyback',note:'Dealer disclosure notes Tesla reacquired this vehicle under warranty (manufacturer buyback).',alt:'VV-732281226963',altLabel:'2025 Cybertruck AWD ($73,294 · Clean Title)'},
-    'VV-09C920CD49D5':{badge:'⚠️ Reported Accident History',note:'Vehicle history records note a prior reported accident.',alt:'VV-9E94293447F8',altLabel:'2024 Cyberbeast ($83,590 · Clean Title)'}
+    'VV-8B03768DFBEC':{badge:'Branded / Salvage Title',note:'Public auction records show a prior Copart salvage certificate (CA).',alt:'VV-0AAF2D2D3C17',altLabel:'2025 Cybertruck ($70,998 · Clean title)'},
+    'VV-DD6BC6D276FD':{badge:'Prior Auction Claim',note:'Public auction records show a prior Copart insurance claim (Lot #56141156).',alt:'VV-5194CED2CD63',altLabel:'2024 Cybertruck AWD ($73,978 · Clean title)'},
+    'VV-15E8211448F3':{badge:'Prior Auction Record',note:'Public auction records show prior right-side damage at IAAI Houston.',alt:'VV-9E94293447F8',altLabel:'2024 Cyberbeast ($83,590 · Clean title)'},
+    'VV-3F2FFE4AC9DB':{badge:'Branded / Buyback Title',note:'Vehicle history records note a prior manufacturer buyback / branded title.',alt:'VV-5194CED2CD63',altLabel:'2024 Cybertruck AWD ($73,978 · Clean title)'},
+    'VV-865EAB501B0C':{badge:'Manufacturer Buyback',note:'Dealer disclosure notes Tesla reacquired this vehicle under warranty.',alt:'VV-732281226963',altLabel:'2025 Cybertruck AWD ($73,294 · Clean title)'},
+    'VV-09C920CD49D5':{badge:'Accident Reported',note:'Vehicle history records note a prior reported accident.',alt:'VV-9E94293447F8',altLabel:'2024 Cyberbeast ($83,590 · Clean title)'}
   };
-  const titleAlert=x=>TITLE_ALERTS[x?.stock_id||x?.vin]||(x?.pricing_basis==='source_asking_pending_review'?{badge:'⚠️ Deep Discount · Check History',note:'Priced >25% below peer market value — our deal desk checks IAAI/Copart auction and title records before any deposit is collected.'}:null);
+  const titleAlert=x=>TITLE_ALERTS[x?.stock_id||x?.vin]||null;
   function benchDate(x){
     const raw=x?.benchmark_date||x?.source_observed_at||snapshotDate;
     if(!raw)return 'current snapshot';
@@ -165,8 +165,8 @@
   }
   function titleAlertBanner(x,mode='vehicle'){
     const alert=titleAlert(x);if(!alert)return '';
-    const altBtn=alert.alt&&byVIN.has(alert.alt)?`<div style="margin-top:6px"><button type="button" class="secondary" data-clean-alt="${esc(alert.alt)}" data-clean-mode="${mode}" style="font-size:12px;padding:6px 10px">View Clean-Title Alternative (${esc(alert.altLabel)}) →</button></div>`:'';
-    return `<div class="notice title-alert-banner" style="background:#fffbeb;border:1px solid #f59e0b;color:#78350f;padding:10px 12px;border-radius:10px;margin:10px 0;font-size:13px"><strong>${esc(alert.badge)}:</strong> ${esc(alert.note)}${altBtn}</div>`;
+    const altBtn=alert.alt&&byVIN.has(alert.alt)?`<div style="margin-top:6px"><button type="button" class="secondary" data-clean-alt="${esc(alert.alt)}" data-clean-mode="${mode}" style="font-size:12px;padding:6px 10px">See Clean-Title Match (${esc(alert.altLabel)}) →</button></div>`:'';
+    return `<div class="notice title-alert-banner" style="background:#f8fafc;border:1px solid #cbd5e1;color:#334155;padding:10px 12px;border-radius:10px;margin:10px 0;font-size:13px"><strong>Title disclosure (${esc(alert.badge)}):</strong> ${esc(alert.note)}${altBtn}</div>`;
   }
   function rank(x){return (titleAlert(x)?-10:0)+Math.min(saving(x)/Math.max(x.reference_price||1,1),.15)*20+Math.min(x.photo_count||0,20)/20+Math.max(0,(x.year-2014)/14)+(x.mileage>0?Math.max(0,1-x.mileage/150000):.2);}
   function varied(rows){
@@ -174,8 +174,8 @@
     const result=[];while(buckets.size){for(const [key,list] of [...buckets]){result.push(list.shift());if(!list.length)buckets.delete(key);}}return result;
   }
   function applyFilters(resetLimit=true){
-    const search=$('search').value.trim().toLowerCase();
-    filtered=items.filter(x=>(!$('photos-only').checked||(!!x.photo&&!failedPhotos.has(x.vin)))&&(discovery!=='finds'||saving(x)>=500)&&(!$('model').value||x.model===$('model').value)&&(!$('year').value||x.year===Number($('year').value))&&(!$('state').value||x.state===$('state').value)&&(!$('drivetrain').value||x.drivetrain===$('drivetrain').value)&&(!$('trim-family').value||x.trim_family===$('trim-family').value)&&(!$('factory').value||x.factory===$('factory').value)&&(!$('hardware').value||x.hardware===$('hardware').value)&&x.display_price<=Number($('price').value)&&x.mileage<=Number($('mileage').value)&&($('mileage').value==='999999'||x.mileage>0)&&(!$('saved-only').checked||saved.has(x.vin))&&(!search||[x.vin,x.model,x.trim,x.stock_number,x.city,x.state,x.drivetrain,x.factory].join(' ').toLowerCase().includes(search)));
+    const search=$('search').value.trim().toLowerCase(),cleanOnly=$('clean-title-only')?$('clean-title-only').checked:true;
+    filtered=items.filter(x=>(!cleanOnly||!titleAlert(x)||Boolean(search&&(x.vin||'').toLowerCase().includes(search)))&&(!$('photos-only').checked||(!!x.photo&&!failedPhotos.has(x.vin)))&&(discovery!=='finds'||saving(x)>=500)&&(!$('model').value||x.model===$('model').value)&&(!$('year').value||x.year===Number($('year').value))&&(!$('state').value||x.state===$('state').value)&&(!$('drivetrain').value||x.drivetrain===$('drivetrain').value)&&(!$('trim-family').value||x.trim_family===$('trim-family').value)&&(!$('factory').value||x.factory===$('factory').value)&&(!$('hardware').value||x.hardware===$('hardware').value)&&x.display_price<=Number($('price').value)&&x.mileage<=Number($('mileage').value)&&($('mileage').value==='999999'||x.mileage>0)&&(!$('saved-only').checked||saved.has(x.vin))&&(!search||[x.vin,x.model,x.trim,x.stock_number,x.city,x.state,x.drivetrain,x.factory].join(' ').toLowerCase().includes(search)));
     const sort=$('sort').value;
     filtered.sort((a,b)=>sort==='recommended'?rank(b)-rank(a)||a.vin.localeCompare(b.vin):sort==='savings'?saving(b)-saving(a)||rank(b)-rank(a)||a.display_price-b.display_price||a.vin.localeCompare(b.vin):sort==='distance'?(distance(a)??Infinity)-(distance(b)??Infinity)||rank(b)-rank(a):sort==='price-desc'?b.display_price-a.display_price:sort==='mileage'?a.mileage-b.mileage:sort==='year'?b.year-a.year:a.display_price-b.display_price);
     if(sort==='recommended')filtered=varied(filtered);
@@ -668,9 +668,9 @@
     $('model').value=['Model Y','Model 3','Cybertruck'].includes(discovery)?discovery:'';
     $('price').value=discovery==='under25'?'25000':discovery==='under30'?'30000':'999999';$('mileage').value=discovery==='lowmiles'?'30000':'999999';$('search').value='';applyFilters();
   }));
-  ['model','year','state','price','mileage','sort','saved-only','photos-only','drivetrain','trim-family','factory','hardware'].forEach(id=>$(id)?.addEventListener('change',applyFilters));
+  ['model','year','state','price','mileage','sort','clean-title-only','saved-only','photos-only','drivetrain','trim-family','factory','hardware'].forEach(id=>$(id)?.addEventListener('change',applyFilters));
   let searchTimer;$('search').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(applyFilters,140);});
-  $('reset').addEventListener('click',()=>{['model','year','state','search','drivetrain','trim-family','factory','hardware'].forEach(id=>$(id).value='');$('price').value='999999';$('mileage').value='999999';$('saved-only').checked=false;discovery='all';document.querySelectorAll('[data-discover]').forEach(b=>b.classList.toggle('active',b.dataset.discover==='all'));$('photos-only').checked=true;applyFilters();});
+  $('reset').addEventListener('click',()=>{['model','year','state','search','drivetrain','trim-family','factory','hardware'].forEach(id=>$(id).value='');$('price').value='999999';$('mileage').value='999999';$('saved-only').checked=false;if($('clean-title-only'))$('clean-title-only').checked=true;discovery='all';document.querySelectorAll('[data-discover]').forEach(b=>b.classList.toggle('active',b.dataset.discover==='all'));$('photos-only').checked=true;applyFilters();});
   $('load-more').addEventListener('click',()=>{limit+=36;render();});
   $('saved-button').addEventListener('click',showShortlist);
   function toggleFilters(expanded){$('filters').classList.toggle('expanded',expanded);$('mobile-filters').setAttribute('aria-expanded',String(expanded));}
