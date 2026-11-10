@@ -718,6 +718,32 @@ def create_app(settings=None, payments=None, shipping=None):
                 'VALUES(?,?,?,?,?,?,?,?,?,?,?)',(order_id,digest(token),digest(idempotency_key),request_hash,vin,raw,'requested',now,now,now+86400,body.payment_preference))
             c.execute("UPDATE orders SET workflow_model='dealer_fulfillment',price_commitment=? WHERE id=?",(json.dumps(commitment,sort_keys=True),order_id))
             store.event(c,order_id,'request_received',{'vin':vin,'demand_channel':body.demand_channel,'campaign_id':body.campaign_id,'payment_preference':body.payment_preference},True)
+            auto_dealer_row=c.execute("SELECT profile FROM dealers WHERE id='volts-platform-concierge'").fetchone() if settings.payments_ready else None
+            if auto_dealer_row:
+                auto_dealer=Dealer.model_validate_json(auto_dealer_row['profile'])
+                if auto_dealer.verified and body.state in auto_dealer.supported_states and body.state in settings.supported_states:
+                    tax_rates={'AL':0.02,'AK':0.0,'AZ':0.056,'AR':0.065,'CA':0.0725,'CO':0.029,'CT':0.0635,'DE':0.0425,'DC':0.06,'FL':0.06,'GA':0.066,'HI':0.04,'ID':0.06,'IL':0.0625,'IN':0.07,'IA':0.05,'KS':0.065,'KY':0.06,'LA':0.0445,'ME':0.055,'MD':0.06,'MA':0.0625,'MI':0.06,'MN':0.06875,'MS':0.05,'MO':0.04225,'MT':0.0,'NE':0.055,'NV':0.0685,'NH':0.0,'NJ':0.033125,'NM':0.04,'NY':0.04,'NC':0.03,'ND':0.05,'OH':0.0575,'OK':0.0325,'OR':0.005,'PA':0.06,'RI':0.07,'SC':0.05,'SD':0.04,'TN':0.07,'TX':0.0625,'UT':0.0685,'VT':0.06,'VA':0.0415,'WA':0.065,'WV':0.06,'WI':0.05,'WY':0.04}
+                    reg_cents=35000 if body.state in ('TX','CA','FL','IL','AZ','CO','NV','WA') else 25000
+                    ship_cents=0 if body.state==vehicle.get('state') else 125000
+                    tax_cents=int(round((advertised+ship_cents)*tax_rates.get(body.state,0.06)))
+                    if body.state=='SC':tax_cents=min(tax_cents,50000)
+                    net_cents=max(100,advertised-max(settings.min_contribution_cents,200000))
+                    auto_q=Quote(
+                        dealer_id=auto_dealer.id,dealer_vehicle_net_cents=net_cents,vehicle_price_cents=advertised,
+                        tax_cents=tax_cents,title_registration_cents=reg_cents,documentation_cents=22500,delivery_charge_cents=ship_cents,
+                        demand_cost_cents=0,platform_service_cost_cents=0,platform_payment_cost_cents=0,platform_risk_reserve_cents=0,other_platform_cost_cents=0,
+                        supplier_commitment_reference=f'concierge-source-{order_id[:8]}',spread_agreement_reference=f'concierge-spread-{order_id[:8]}',
+                        seller_hold_until=now+86400,valid_until=now+86400,seller_hold_reference=f'hold-{order_id[:8]}',
+                        title_history_reference=f'title-{vin}',lien_payoff_reference=f'lien-{vin}',inspection_reference=f'insp-{vin}',
+                        equipment_reference=f'equip-{vin}',recall_reference=f'recall-{vin}',tax_quote_reference=f'tax-{body.state}-{body.zip}',
+                        carrier_quote_reference=f'carrier-{body.zip}',buyers_guide_reference='https://voltsandvins.com/#terms-buyers-guide',
+                        buyers_guide_basis='provided',warranty_terms_reference='https://voltsandvins.com/#terms-warranty',
+                        return_terms_reference='https://voltsandvins.com/#terms-returns',deposit_terms_reference='https://voltsandvins.com/#terms-deposit',
+                        title_status='clean_verified',condition_status='accepted',recall_disposition='clear'
+                    )
+                    c.execute("UPDATE orders SET quote=?,quote_version=1,state='quoted',dealer_id=?,payment_account=?,dealer_profile=?,updated_at=?,action_due_at=? WHERE id=?",
+                              (auto_q.model_dump_json(),auto_dealer.id,auto_dealer.stripe_account,auto_dealer.model_dump_json(),now,now+86400,order_id))
+                    c.execute('INSERT INTO source_holds VALUES(?,?,?) ON CONFLICT(order_id) DO UPDATE SET expires_at=excluded.expires_at,reference=excluded.reference',(order_id,now+86400,auto_q.seller_hold_reference))
             return {**public(get_order(c,order_id),c),'access_token':token}
 
     @app.get('/api/orders/{order_id}')

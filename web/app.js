@@ -441,7 +441,7 @@
     if(order.state==='requested'){
       nextAction='<div class="form-row"><button type="button" id="download-instant-buyers-order" class="primary">Download Out-the-Door Buyer’s Order</button><button type="button" id="save-request-link" class="secondary">Save return link</button></div>';
     }else if(q&&!fundingInvalid&&!funding?.funds_review_required&&['quoted','checkout_pending'].includes(order.state)&&config?.payments_enabled){
-      nextAction='<button id="review-order-quote" class="primary">Review quote and reserve</button>';
+      nextAction='<div class="form-row"><button id="review-order-quote" class="primary">Review quote &amp; reserve ($250 hold)</button><button type="button" id="download-instant-buyers-order" class="secondary">Download Buyer’s Order</button></div>';
     }else if(['deposit_authorized','funded_reservation'].includes(order.state)){
       nextText=statusText;
     }else if(['deposit_paid','dealer_confirmed'].includes(order.state)){
