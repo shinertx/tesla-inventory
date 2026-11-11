@@ -15,13 +15,16 @@ from tools.features import vehicle_features
 from tools.pricing import PricingPolicy,propose_price,mileage_reference
 BASE=os.getenv('PUBLIC_BASE_URL','https://voltsandvins.com').rstrip('/')
 INDEXNOW_KEY='7f9a2d4c8e1b6a3f5c0d9e8b7a6f5e4d'
-PRICING_POLICY=PricingPolicy(
-    buyer_savings_cents=int(os.getenv('BUYER_SAVINGS_CENTS','150000')),
-    minimum_contribution_cents=int(os.getenv('MIN_CONTRIBUTION_CENTS','100000')),
-    platform_cost_floor_cents=int(os.getenv('PLATFORM_COST_FLOOR_CENTS','130000')),
-    minimum_buyer_savings_cents=int(os.getenv('MIN_BUYER_SAVINGS_CENTS','50000')),
-    buyer_surplus_share=float(os.getenv('BUYER_SURPLUS_SHARE','0.5')),
-)
+def _pricing_policy():
+    return PricingPolicy(
+        buyer_savings_cents=int(os.getenv('BUYER_SAVINGS_CENTS','150000')),
+        minimum_contribution_cents=int(os.getenv('MIN_CONTRIBUTION_CENTS','100000')),
+        platform_cost_floor_cents=int(os.getenv('PLATFORM_COST_FLOOR_CENTS','130000')),
+        minimum_buyer_savings_cents=int(os.getenv('MIN_BUYER_SAVINGS_CENTS','50000')),
+        buyer_surplus_share=float(os.getenv('BUYER_SURPLUS_SHARE','0.5')),
+    )
+PRICING_POLICY=_pricing_policy()
+NO_HAGGLE_CHAINS=('carvana','carmax','autonation','echopark','drivetime')
 
 def schema_script(page_url, page_name, subset, description='', breadcrumb_name=None):
     graph=[
@@ -91,6 +94,7 @@ def build(source=None,output=ROOT,now=None,gallery_source=None):
     city_file=ROOT/'data/us_city_centers.json'
     city_centers=json.loads(city_file.read_text()) if city_file.exists() else {}
     raw=json.loads(source.read_text());items=[];seen=set();excluded=collections.Counter();supplier_rows={};source_prices={}
+    peer_groups=collections.defaultdict(list)
     blocked=json.loads((ROOT/'data/exclusions.json').read_text())
     for x in raw['items']:
         vin=x.get('vin','')
@@ -98,11 +102,19 @@ def build(source=None,output=ROOT,now=None,gallery_source=None):
         seen.add(vin)
         if title_risk_reasons(x) or vin in blocked:excluded['title_or_condition_risk']+=1;continue
         age=timestamp(x.get('observed_at') or x.get('imported_at'))
-        if not age or age<now-timedelta(days=7):excluded['expired_snapshot']+=1;continue
         price=x.get('asking_price');mileage=x.get('mileage')
+        url=safe_url(x.get('source_url'))
+        if age and now-timedelta(days=21)<=age<now-timedelta(days=7):
+            excluded['expired_snapshot']+=1
+            if isinstance(price,int) and price>=10000 and isinstance(mileage,int) and mileage>=0 and url:
+                feats=vehicle_features(x)
+                ptrim=customer_trim(x.get('verified_trim') if x.get('configuration_evidence_reference') else x.get('dealer_trim'),x['model'])
+                band=next((b for b in (15000,30000,50000,75000) if mileage<=b),999999)
+                peer_groups[(x['model'],x['year'],ptrim.casefold(),feats.get('drivetrain') or 'unknown',band)].append({'vin':vin,'mileage':mileage,'asking_cents':price*100})
+            continue
+        if not age or age<now-timedelta(days=7):excluded['expired_snapshot']+=1;continue
         if not isinstance(price,int) or price<10000 or not isinstance(mileage,int) or mileage<0:
             excluded['invalid_price_or_mileage']+=1;continue
-        url=safe_url(x.get('source_url'))
         if not url:excluded['missing_source']+=1;continue
         supplier_rows[vin]=x;source_prices[vin]=price
         observed=timestamp(x.get('observed_at'))
@@ -131,16 +143,19 @@ def build(source=None,output=ROOT,now=None,gallery_source=None):
         key=(x['model'],x['year'],pricing_trim.casefold(),x.get('drivetrain') or 'unknown',band)
         groups[key].append(x)
     opportunities=[]
-    for group in groups.values():
-        peers=[{'vin':x['vin'],'mileage':x['mileage'],'asking_cents':source_prices[x['vin']]*100} for x in group]
+    policy=_pricing_policy()
+    min_curated_spread=int(os.getenv('MIN_CURATED_SPREAD_CENTS','50000'))
+    rare_buffer_cents=int(os.getenv('RARE_TRIM_BUFFER_CENTS','0'))
+    for key,group in groups.items():
+        peers=[{'vin':x['vin'],'mileage':x['mileage'],'asking_cents':source_prices[x['vin']]*100} for x in group]+peer_groups.get(key,[])
         for x in group:
-            reference,sample=mileage_reference(x,peers,PRICING_POLICY)
+            reference,sample=mileage_reference(x,peers,policy)
             supplier=supplier_rows[x['vin']]
             net=supplier.get('agreed_dealer_net_cents')
             committed=bool(net and supplier.get('supplier_commitment_reference'))
             net=int(net) if committed else source_prices[x['vin']]*100
             costs=supplier.get('platform_cost_cents')
-            proposal=propose_price(net,reference,sample,costs,PRICING_POLICY)
+            proposal=propose_price(net,reference,sample,costs,policy)
             hints=[]
             drive=(supplier.get('decoded_drive_hint') or '').lower()
             trim=(supplier.get('decoded_trim_hint') or '').lower()
@@ -153,8 +168,16 @@ def build(source=None,output=ROOT,now=None,gallery_source=None):
             if not supplier.get('configuration_evidence_reference'):hints.append('equipment_evidence_required')
             verified_commit=bool(committed and supplier.get('configuration_evidence_reference'))
             needs_review=bool((proposal['requires_market_review'] or 'drivetrain_mismatch_review' in hints or 'performance_trim_review' in hints) and not verified_commit)
-            x['display_price']=(source_prices[x['vin']]*100 if needs_review else proposal['proposed_retail_cents'])/100
-            x['pricing_basis']='source_asking_pending_review' if needs_review else proposal['pricing_basis']
+            dealer_blob=(str(supplier.get('dealer_name') or '')+' '+str(supplier.get('source_url') or '')+' '+str(x.get('photo') or '')).lower()
+            is_retail_chain=any(chain in dealer_blob for chain in NO_HAGGLE_CHAINS)
+            rare_curated=bool(rare_buffer_cents>0 and not is_retail_chain and not needs_review and not committed and proposal['pricing_basis']=='source_asking_only')
+            if rare_curated:
+                x['display_price']=(source_prices[x['vin']]*100+rare_buffer_cents)/100
+                x['pricing_basis']='rare_trim_retail_buffer'
+            else:
+                x['display_price']=(source_prices[x['vin']]*100 if needs_review else proposal['proposed_retail_cents'])/100
+                x['pricing_basis']='source_asking_pending_review' if needs_review else proposal['pricing_basis']
+            x['curated']=bool(not is_retail_chain and not needs_review and (proposal['modeled_gross_spread_cents']>=min_curated_spread or rare_curated))
             public_reference=reference if not needs_review else None
             x['reference_price']=public_reference/100 if public_reference else None
             x['reference_sample']=sample if public_reference else 0

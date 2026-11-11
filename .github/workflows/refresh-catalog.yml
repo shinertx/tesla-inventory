@@ -1,7 +1,5 @@
-name: Scheduled Catalog & Dynamic Pricing Refresh
+name: Manual Catalog & Dynamic Pricing Refresh (Scheduled Live Refresh Runs on GCP VM)
 on:
-  schedule:
-    - cron: '17 */2 * * *'
   workflow_dispatch:
 permissions:
   contents: write

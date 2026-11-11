@@ -1579,6 +1579,7 @@ def create_app(settings=None, payments=None, shipping=None):
     if (public_root/'media').is_dir():
         app.mount('/media',StaticFiles(directory=public_root/'media'),name='vehicle-photos')
     @app.get('/inventory.json')
+    @app.get('/api/inventory',include_in_schema=False)
     def published_inventory():
         with store.transaction() as c:
             store.expire(c,int(time.time()))

@@ -159,3 +159,15 @@ def test_dns_timeout_is_bounded_without_connecting(monkeypatch):
         with pytest.raises(proxy.ImageUnavailable):
             proxy.fetch_image(URL,resolver=slow,connection_factory=lambda *a:pytest.fail('Unexpected connect'))
     finally:release.set()
+
+
+def test_full_size_photo_gets_three_percent_border_crop_and_jpeg_reencode(tmp_path):
+    import io
+    from PIL import Image
+    buf=io.BytesIO()
+    Image.new('RGB',(800,600),(30,60,90)).save(buf,format='PNG')
+    raw_png=buf.getvalue()
+    response=proxy.image_response(vehicle(),STOCK,IMAGE,tmp_path,fetcher=lambda _:proxy.FetchedImage(raw_png,'image/png'))
+    assert response.status_code==200 and response.headers['content-type']=='image/jpeg'
+    with Image.open(io.BytesIO(response.body)) as out:
+        assert out.size==(752,564)

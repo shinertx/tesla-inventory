@@ -20,3 +20,11 @@ def test_trim_and_unknown_codes_stay_distinct_from_verified_features():
     assert values['drivetrain'] is None
     assert values['factory']=='Fremont'
     assert vehicle_features(row(trim='Performance'))['trim_family']=='Performance'
+
+def test_conservative_infotainment_lfp_and_fsd_tags():
+    y24=vehicle_features(row(model='Model Y',year=2024,trim='Long Range AWD with FSD'))
+    assert y24['infotainment']=='AMD Ryzen' and y24['fsd_mentioned'] is True and y24['hardware'] is None
+    m3_lfp=vehicle_features(row(vin='5YJ3E1EA1PF000001',model='Model 3',year=2023,trim='Base RWD'))
+    assert m3_lfp['infotainment']=='AMD Ryzen' and m3_lfp['battery_chemistry']=='LFP (100% Daily)'
+    m3_20=vehicle_features(row(vin='5YJ3E1EA1LF000001',model='Model 3',year=2020,trim='FSD Capable'))
+    assert m3_20['infotainment']=='Intel Atom' and m3_20['fsd_mentioned'] is False

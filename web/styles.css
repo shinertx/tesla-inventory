@@ -199,3 +199,15 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,su
 #deal-apr{width:100%;min-height:44px;padding:10px;border:1px solid #cbd5df;border-radius:8px;background:#fff;color:#17212d}
 #purchase-payment-paths a.primary,#purchase-payment-paths a.primary:visited{background:#08749e;color:#fff}
 #order-dialog>.close{position:sticky;top:0;float:right;z-index:3;background:#fff}
+/* Tabular numbers, Cash vs. Est. Monthly toggle, and EV Protection add-on */
+.price,.line-item strong,.deal-total strong,.summary-facts strong,.deal-finance-headline strong,.request-estimate-total strong{font-variant-numeric:tabular-nums}
+.toolbar-controls{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap}
+.browse-mode-toggle{display:inline-grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:9px;background:#fff;border:1px solid var(--line);min-height:44px;align-items:center}
+.browse-mode-btn{border:0;border-radius:6px;padding:8px 12px;background:transparent;color:var(--muted);font-size:12px;font-weight:600;min-height:34px;white-space:nowrap;transition:background .15s,color .15s}
+.browse-mode-btn.active{background:var(--navy);color:#fff}
+.monthly-unit{font-size:13px;font-weight:600;color:var(--muted);margin-left:2px;letter-spacing:0}
+.monthly-sub{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.ev-credit-pill{background:#eff6ff!important;border-color:#bfdbfe!important;color:#1d4ed8!important}
+.protection-addon{padding:12px 14px;border:1px solid var(--line);border-radius:9px;background:#f8f9fb;margin:12px 0!important;gap:10px}
+.protection-addon strong{color:var(--navy);font-weight:650}
+@media(max-width:760px){.results-toolbar{flex-direction:column;align-items:stretch}.toolbar-controls{justify-content:space-between;align-items:center}.browse-mode-toggle{flex:1}}

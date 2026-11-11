@@ -225,3 +225,16 @@ def test_collector_enforces_clean_title_and_dealer_only_filters():
     assert normalized(VIN, 'Model S', 2015, '70D', 20000, 60000, 'Dealer', 'Austin', 'TX', '', 'https://www.tesla.com/ms/order/' + VIN) is None
     assert normalized(VIN, 'Model S', 2015, '70D', 20000, 60000, 'Dealer', 'Austin', 'TX', '', 'https://example.test/1', title_evidence={'sellerType': 'PRIVATE'}) is None
 
+
+def test_curated_excludes_no_haggle_chains_and_supports_rare_trim_buffer(tmp_path, monkeypatch):
+    monkeypatch.setenv('RARE_TRIM_BUFFER_CENTS', '100000')
+    rare_indep = {**candidate(), 'dealer_name': 'Independent EV Auto', 'asking_price': 68000}
+    carvana_vin = '7SAYGDED1RF039277'
+    chain_row = {**candidate(), 'vin': carvana_vin, 'model': 'Model Y', 'year': 2024, 'dealer_name': 'AutoNation USA', 'asking_price': 68000}
+    build(write_source(tmp_path, [rare_indep, chain_row]), tmp_path)
+    items = {x['stock_id']: x for x in json.loads((tmp_path / 'inventory.json').read_text())['items']}
+    assert items[stock_id_for(VIN)]['curated'] is True
+    assert items[stock_id_for(VIN)]['display_price'] == 69000
+    assert items[stock_id_for(carvana_vin)]['curated'] is False
+    assert items[stock_id_for(carvana_vin)]['display_price'] == 68000
+

@@ -25,4 +25,11 @@ def vehicle_features(row):
     listed_trim=next((name for name in ('Plaid','Performance','Long Range','Standard Range') if name.lower() in trim.lower()),'Other / unspecified')
     hardware=row.get('hardware_generation') if row.get('hardware_verified') is True and row.get('hardware_evidence_reference') else None
     if hardware not in ('HW3','HW4'):hardware=None
-    return {'drivetrain':drive,'drivetrain_basis':basis,'trim_family':listed_trim,'factory':factory,'factory_basis':'VIN-derived' if factory else None,'hardware':hardware}
+    infotainment=None
+    if (model in ('Model S','Model X','Cybertruck') and 2022<=year<=2026) or (model in ('Model 3','Model Y') and 2023<=year<=2026):
+        infotainment='AMD Ryzen'
+    elif (model=='Model 3' and 2018<=year<=2021) or (model=='Model Y' and 2020<=year<=2021) or (model in ('Model S','Model X') and 2018<=year<=2020):
+        infotainment='Intel Atom'
+    battery_chemistry='LFP (100% Daily)' if (model=='Model 3' and drive=='RWD' and year in (2022,2023) and listed_trim in ('Standard Range','Other / unspecified') and 'long range' not in trim.lower() and 'performance' not in trim.lower()) else None
+    fsd_mentioned=bool(re.search(r'\b(full self[- ]driving|fsd)\b',trim,re.I) and not re.search(r'\b(capable|ready|prep)\b',trim,re.I))
+    return {'drivetrain':drive,'drivetrain_basis':basis,'trim_family':listed_trim,'factory':factory,'factory_basis':'VIN-derived' if factory else None,'hardware':hardware,'infotainment':infotainment,'battery_chemistry':battery_chemistry,'fsd_mentioned':fsd_mentioned}

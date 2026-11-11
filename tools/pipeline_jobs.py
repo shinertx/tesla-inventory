@@ -37,14 +37,30 @@ from tools.public_site import public_files, is_public_artifact, VIN_RE
 
 
 DEFAULT_PARTITIONS = [
-    ("cargurus", "Model Y", 2024, 1),
-    ("cargurus", "Model Y", 2023, 1),
-    ("cargurus", "Model 3", 2024, 1),
-    ("cargurus", "Model 3", 2023, 1),
-    ("autolist", "Model Y", 2024, 1),
-    ("autolist", "Model 3", 2024, 1),
-    ("truecar", "Model Y", 2024, 1),
-    ("carvana", "Model Y", 2023, 1),
+    ("cargurus", "Cybertruck", 2025, 2),
+    ("cargurus", "Cybertruck", 2024, 3),
+    ("cargurus", "Model Y", 2026, 2),
+    ("cargurus", "Model Y", 2025, 3),
+    ("cargurus", "Model Y", 2024, 4),
+    ("cargurus", "Model Y", 2023, 4),
+    ("cargurus", "Model Y", 2022, 3),
+    ("cargurus", "Model Y", 2021, 3),
+    ("cargurus", "Model 3", 2025, 3),
+    ("cargurus", "Model 3", 2024, 4),
+    ("cargurus", "Model 3", 2023, 4),
+    ("cargurus", "Model 3", 2022, 3),
+    ("cargurus", "Model 3", 2021, 3),
+    ("cargurus", "Model X", 2024, 2),
+    ("cargurus", "Model X", 2023, 2),
+    ("cargurus", "Model X", 2022, 2),
+    ("cargurus", "Model S", 2024, 2),
+    ("cargurus", "Model S", 2023, 2),
+    ("cargurus", "Model S", 2022, 2),
+    ("autolist", "Cybertruck", 2024, 2),
+    ("autolist", "Model Y", 2024, 3),
+    ("autolist", "Model Y", 2023, 3),
+    ("autolist", "Model 3", 2024, 3),
+    ("autolist", "Model 3", 2023, 3),
 ]
 
 

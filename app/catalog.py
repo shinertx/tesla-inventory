@@ -3,7 +3,7 @@ import hashlib
 import json
 import re
 from pathlib import Path
-from urllib.parse import unquote
+from urllib.parse import unquote, urlsplit
 
 
 def catalog_exclusions(inventory_path):
@@ -50,15 +50,19 @@ def masked_vin_for(vin):
 
 
 def public_photo_url(vin, url):
-    """Hide VIN-bearing photo URLs while preserving their private source identity."""
+    """Hide third-party dealer/marketplace photo URLs while preserving private source identity."""
     if not isinstance(url, str) or not url:
+        return url
+    if url.startswith('https://api.voltsandvins.com/api/vehicles/'):
         return url
     decoded=url
     for _ in range(3):
         updated=unquote(decoded)
         if updated==decoded:break
         decoded=updated
-    if isinstance(vin,str) and vin.lower() in decoded.lower():
+    host=(urlsplit(url).hostname or '').lower().rstrip('.')
+    external_source=bool(host and host!='example.test' and not host.endswith(('.example.test','voltsandvins.com')))
+    if isinstance(vin,str) and (vin.lower() in decoded.lower() or external_source):
         image_id=hashlib.sha256(url.encode()).hexdigest()[:20]
         return f'https://api.voltsandvins.com/api/vehicles/{stock_id_for(vin)}/images/{image_id}'
     return url
@@ -168,7 +172,7 @@ def title_risk_reasons(record):
     return sorted(reasons)
 
 
-PUBLIC_FIELDS={'drivetrain','drivetrain_basis','trim_family','factory','factory_basis','location_center','pricing_basis','photo_count','photos','stock_id','stock_number','masked_vin','model','year','trim','mileage','display_price','pricing_status',
+PUBLIC_FIELDS={'curated','drivetrain','drivetrain_basis','trim_family','factory','factory_basis','infotainment','battery_chemistry','fsd_mentioned','location_center','pricing_basis','photo_count','photos','stock_id','stock_number','masked_vin','model','year','trim','mileage','display_price','pricing_status',
  'city','state','photo','fulfillment','source_observed_at','benchmark_date','expires_at','reservable','availability','title_status',
  'hardware','inspection_status','reference_price','reference_sample','savings_amount'}
 PUBLIC_META={'media_version','built_at','count','reservable_count','mode','partner_onboarding_status','availability_note'}

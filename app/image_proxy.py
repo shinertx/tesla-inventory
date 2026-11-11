@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 import hashlib
 import http.client
+import io
 import ipaddress
 import json
 import os
@@ -205,6 +206,29 @@ def _save_cache(directory,image_id,image):
         except (OSError,UnboundLocalError):pass
 
 
+def _crop_and_strip_photo(image):
+    """Trim 3% outer border frames and strip EXIF metadata on full-size vehicle photos."""
+    if image.content_type not in {'image/jpeg','image/png','image/webp'}:
+        return image
+    try:
+        from PIL import Image, ImageOps
+        with Image.open(io.BytesIO(image.body)) as raw:
+            im=ImageOps.exif_transpose(raw)
+            if im.width<320 or im.height<240:
+                return image
+            dx=max(4,round(im.width*0.03))
+            dy=max(4,round(im.height*0.03))
+            cropped=im.crop((dx,dy,im.width-dx,im.height-dy)).convert('RGB')
+            out=io.BytesIO()
+            cropped.save(out,format='JPEG',quality=88,optimize=True)
+            payload=out.getvalue()
+            if payload and len(payload)<=MAX_IMAGE_BYTES:
+                return FetchedImage(payload,'image/jpeg')
+    except Exception:
+        return image
+    return image
+
+
 def image_response(vehicle,stock_id,image_id,cache_dir,fetcher=None):
     """Resolve a known private image hash and return safe bytes or a generic failure."""
     headers={'X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer',
@@ -223,7 +247,7 @@ def image_response(vehicle,stock_id,image_id,cache_dir,fetcher=None):
     directory=Path(cache_dir)/stock_id
     image=_cached(directory,image_id)
     if image is None:
-        try:image=_validate_image((fetcher or fetch_image)(url))
+        try:image=_crop_and_strip_photo(_validate_image((fetcher or fetch_image)(url)))
         except Exception:return failure(502)
         _save_cache(directory,image_id,image)
     return Response(image.body,media_type=image.content_type,headers={**headers,
