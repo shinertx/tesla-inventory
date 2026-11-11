@@ -132,7 +132,7 @@ def main():
                 visible_button(page, '#submit-request')
                 assert '$22,343.75' in page.locator('#request-estimate').inner_text()
                 assert '$3,000' in page.locator('#request-estimate').inner_text()
-                assert page.locator('#submit-request').inner_text() == 'Start online purchase · $0 today'
+                assert page.locator('#submit-request').inner_text() == 'Lock price for 24 hours · $0 today'
                 page.locator('[name=zip]').fill('90210')
                 page.wait_for_function('()=>document.querySelector("#request-estimate").textContent.includes("90210")')
                 assert page.locator('[name=state]').input_value() == 'CA'
