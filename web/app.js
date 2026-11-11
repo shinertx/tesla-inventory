@@ -208,7 +208,7 @@
   function showVehicle(vin){
     const x=byVIN.get(vin);if(!x){const cleanUrl=new URL(location.href);if(cleanUrl.searchParams.has('id')){cleanUrl.searchParams.delete('id');history.replaceState(null,'',cleanUrl);}notify('That Tesla was recently sold or removed — showing available clean-title Teslas.');return;}
     // A static VIN document must keep its overview, canonical, and JSON-LD together.
-    if((useExternalApi||document.body.dataset.initialStockId)&&document.body.dataset.initialStockId!==vin){location.assign(vehicleURL(vin));return;}
+    if(document.body.dataset.initialStockId&&document.body.dataset.initialStockId!==vin){location.assign(vehicleURL(vin));return;}
     activeVIN=vin;trackVisit('vin_view',vin);
     const url=new URL(location.href);url.searchParams.delete('reservation');url.searchParams.delete('session_id');url.searchParams.delete('test_mode');url.searchParams.delete('vin');if(document.body.dataset.initialStockId===vin)url.searchParams.delete('id');else url.searchParams.set('id',vin);history.replaceState(null,'',url);
     document.title=`${x.year} Tesla ${x.model} ${x.trim} · Stock ${x.stock_id} | Volts & VINs`;
