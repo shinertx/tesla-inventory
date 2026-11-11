@@ -36,12 +36,19 @@ from app.catalog import stock_id_for, VIN_PATTERN
 from tools.public_site import public_files, is_public_artifact, VIN_RE
 
 
+CARGURUS_REGIONAL_HUBS = (
+    "90001", "94102", "98101", "85001", "80202", "75201", "77002",
+    "60601", "55401", "64106", "30303", "33101", "28202", "20001",
+    "10001", "02108", "44101", "96813", "99501",
+)
+
 DEFAULT_PARTITIONS = (
-    [("cargurus", "Cybertruck", yr, 25) for yr in range(2026, 2023, -1)]
-    + [("cargurus", "Model Y", yr, 25) for yr in range(2026, 2019, -1)]
-    + [("cargurus", "Model 3", yr, 25) for yr in range(2026, 2016, -1)]
-    + [("cargurus", "Model X", yr, 25) for yr in range(2026, 2015, -1)]
-    + [("cargurus", "Model S", yr, 25) for yr in range(2026, 2012, -1)]
+    [(f"cargurus_hub:{z}", m, 0, 21) for z in CARGURUS_REGIONAL_HUBS for m in ("Model Y", "Model 3", "Model S", "Model X", "Cybertruck")]
+    + [("cargurus", "Cybertruck", yr, 21) for yr in range(2026, 2023, -1)]
+    + [("cargurus", "Model Y", yr, 21) for yr in range(2026, 2019, -1)]
+    + [("cargurus", "Model 3", yr, 21) for yr in range(2026, 2016, -1)]
+    + [("cargurus", "Model X", yr, 21) for yr in range(2026, 2015, -1)]
+    + [("cargurus", "Model S", yr, 21) for yr in range(2026, 2012, -1)]
 )
 
 
@@ -80,16 +87,23 @@ def job_discover_vehicles(
     accepted_total = 0
     partition_results = []
     blocked_hosts = set()
-    for source, model, year, pages in partitions:
+    for raw_source, model, year, pages in partitions:
+        hub_zip = None
+        source = raw_source
+        if raw_source.startswith("cargurus_hub:"):
+            source = "cargurus"
+            hub_zip = raw_source.split(":", 1)[1]
         seen_vins: set[str] = set()
-        min_price: int | None = None
-        max_windows = 8 if (source == "cargurus" and pages >= 20) else 1
-        for _window in range(max_windows):
-            window_max_price = 0
-            new_in_window = 0
+        sort_passes = [("PRICE", "ASC"), ("PRICE", "DESC"), ("DEAL_SCORE", "ASC")] if (source == "cargurus" and pages >= 20) else [("PRICE", "ASC")]
+        for sort_type, sort_dir in sort_passes:
             exhausted = False
             for page in range(1, pages + 1):
-                url = source_url(source, model, year, page, min_price=min_price) if min_price is not None else source_url(source, model, year, page)
+                if hub_zip:
+                    url = source_url(source, model, year, page, zip_code=hub_zip, distance=500, sort_type=sort_type, sort_dir=sort_dir)
+                elif (sort_type, sort_dir) != ("PRICE", "ASC"):
+                    url = source_url(source, model, year, page, sort_type=sort_type, sort_dir=sort_dir)
+                else:
+                    url = source_url(source, model, year, page)
                 host = urlsplit(url).hostname
                 if host in blocked_hosts:
                     exhausted = True
@@ -124,9 +138,6 @@ def job_discover_vehicles(
                     for r in valid_rows:
                         if r.get("vin"):
                             seen_vins.add(r["vin"])
-                        if isinstance(r.get("asking_price"), int) and r["asking_price"] > window_max_price:
-                            window_max_price = r["asking_price"]
-                    new_in_window += len(fresh_rows)
                     if fresh_rows:
                         accepted = ingest(db_path, fresh_rows, source, _utc_now(), complete=False)
                         accepted_total += accepted
@@ -139,7 +150,13 @@ def job_discover_vehicles(
                             "fetched": len(fresh_rows),
                             "accepted": accepted,
                         })
-                    if source == "cargurus" and (isinstance(raw_json, list) and len(raw_json) < 48 or not rows):
+                    if source == "cargurus":
+                        if isinstance(raw_json, list) and len(raw_json) < 48 or not rows:
+                            exhausted = True
+                            break
+                        if not fresh_rows:
+                            break
+                    if source == "truecar" and not fresh_rows:
                         exhausted = True
                         break
                 except Exception as exc:
@@ -153,9 +170,8 @@ def job_discover_vehicles(
                     })
                     exhausted = True
                     break
-            if exhausted or new_in_window == 0 or window_max_price <= 0:
+            if exhausted:
                 break
-            min_price = (window_max_price + 1) if (min_price is not None and window_max_price <= min_price) else window_max_price
     if accepted_total > 0 and db_path.exists():
         export(db_path, snapshot_path)
     result = {

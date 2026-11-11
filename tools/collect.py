@@ -56,8 +56,35 @@ def parse_source(source,response,model=None,year=None):
         if not isinstance(data,list):raise SourceError('CarGurus response shape changed')
         for x in data:
             city=x.get('sellerCity') or '';state=x.get('sellerRegion')
-            rows.append(normalized(x.get('vin'),x.get('modelName') or x.get('model') or model,x.get('carYear') or year,x.get('trimName'),x.get('price'),x.get('mileage'),x.get('serviceProviderName'),city.split(',')[0],state,(x.get('originalPictureData') or {}).get('url'),f"https://www.cargurus.com/Cars/inventorylisting/viewDetailsFilterViewInventoryListing.action#listing={x['id']}" if x.get('id') else '',title_evidence=x))
+            m_val=x.get('modelName') or x.get('model') or (None if model=='All' else model)
+            rows.append(normalized(x.get('vin'),m_val,x.get('carYear') or year,x.get('trimName'),x.get('price'),x.get('mileage'),x.get('serviceProviderName'),city.split(',')[0],state,(x.get('originalPictureData') or {}).get('url'),f"https://www.cargurus.com/Cars/inventorylisting/viewDetailsFilterViewInventoryListing.action#listing={x['id']}" if x.get('id') else '',title_evidence=x))
     else:
+        nd_match=re.search(r'<script[^>]*id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>',response.text,re.S|re.I) if source=='truecar' else None
+        if nd_match:
+            try:apollo=((json.loads(nd_match.group(1)).get('props') or {}).get('pageProps') or {}).get('__APOLLO_STATE__') or {}
+            except json.JSONDecodeError:apollo={}
+            csls=[v for k,v in apollo.items() if k.startswith('ConsumerSummaryListing:') and isinstance(v,dict)]
+            if csls:
+                for csl in csls:
+                    veh=csl.get('vehicle') or {};det=veh.get('details') or {};style=veh.get('style') or {}
+                    dlr_ref=(csl.get('dealership') or {}).get('__ref') or '';dlr=apollo.get(dlr_ref) if dlr_ref else (csl.get('dealership') or {})
+                    geo=((dlr.get('location') or {}).get('geolocation') or {}) if isinstance(dlr,dict) else {}
+                    cond=csl.get('conditionHistory') or {}
+                    if isinstance(cond,dict) and '__ref' in cond:cond=apollo.get(cond['__ref']) or {}
+                    is_clean=cond.get('isCleanTitle') if isinstance(cond,dict) else None
+                    vin=veh.get('vin') or det.get('vin')
+                    m_name=((veh.get('model') or {}).get('name')) or (None if model=='All' else model)
+                    yr=veh.get('year') or year
+                    trim_name=style.get('name') or style.get('trimName')
+                    list_price=(csl.get('pricing') or {}).get('listPrice')
+                    miles=veh.get('mileage') if veh.get('mileage') is not None else det.get('mileage')
+                    dealer_name=dlr.get('name') if isinstance(dlr,dict) else None
+                    city=det.get('dealerCity') or geo.get('city') or ''
+                    state=det.get('dealerState') or geo.get('state') or 'US'
+                    imgs=[e['node']['url'] for k,v in csl.items() if k.startswith('galleryImages') and isinstance(v,dict) for e in (v.get('edges') or []) if isinstance(e,dict) and isinstance(e.get('node'),dict) and e['node'].get('url')]
+                    ev={'salvage':True} if is_clean is False else {}
+                    rows.append(normalized(vin,m_name,yr,trim_name,list_price,miles,dealer_name,city,state,imgs,f'https://www.truecar.com/used-cars-for-sale/listing/{vin}/' if vin else '',risk=(is_clean is False),title_evidence=ev))
+                return [x for x in rows if x]
         blocks=LD_RE.findall(response.text)
         if not blocks:raise SourceError(f'{source}: structured listing data missing')
         vehicles=[]
@@ -79,16 +106,19 @@ def parse_source(source,response,model=None,year=None):
         if not vehicles:raise SourceError(f'{source}: no vehicle records; inspect source before treating this as empty inventory')
     return [x for x in rows if x]
 
-def source_url(source,model,year,page,min_price=None):
+def source_url(source,model,year,page,min_price=None,zip_code='78201',distance=50000,sort_type='PRICE',sort_dir='ASC'):
     if source=='autolist':
         return 'https://www.autolist.com/api/v2/search?'+urlencode(dict(make='Tesla',model=model,year_min=year,year_max=year,latitude=39.8283,longitude=-98.5795,radius='all',page=page,limit=100,sort_filter='price:asc'))
     if source=='cargurus':
-        entities={'Model 3':'d2475','Model Y':'d3044','Model S':'d2039','Model X':'d2132','Cybertruck':'d3353'}
-        params={'zip':'78201','distance':50000,'entitySelectingHelper.selectedEntity':entities[model],'startYear':year,'endYear':year,'offset':(page-1)*48,'maxResults':48,'sortType':'PRICE','sortDir':'ASC','hideFrameDamage':'true','hideSalvage':'true','hideLemon':'true','hideTheft':'true','sellerType':'DEALER'}
+        entities={'Model 3':'d2475','Model Y':'d3044','Model S':'d2039','Model X':'d2132','Cybertruck':'d3353','All':'m112'}
+        params={'zip':zip_code,'distance':distance,'entitySelectingHelper.selectedEntity':entities.get(model,'m112'),'offset':(page-1)*48,'maxResults':48,'sortType':sort_type,'sortDir':sort_dir,'hideFrameDamage':'true','hideSalvage':'true','hideLemon':'true','hideTheft':'true','sellerType':'DEALER'}
+        if year:params['startYear']=year;params['endYear']=year
         if min_price is not None:params['minPrice']=int(min_price)
         return 'https://www.cargurus.com/Cars/searchResults.action?'+urlencode(params)
     if source=='carvana':return f'https://www.carvana.com/cars/tesla-{model.lower().replace(" ","-")}?page={page}'
-    return 'https://www.truecar.com/used-cars-for-sale/listings/tesla/'+model.lower().replace(' ','-')+f'/?year_low={year}&year_high={year}&page={page}'
+    slug='' if model=='All' else model.lower().replace(' ','-')+'/'
+    yr_q=f'&year_low={year}&year_high={year}' if year else ''
+    return f'https://www.truecar.com/used-cars-for-sale/listings/tesla/{slug}location-austin-tx/?searchRadius=5000&excludeExpandedDelivery=false&salvage=false&lemon=false&frameDamage=false&theftRecovered=false{yr_q}&page={page}'
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--source',choices=['autolist','cargurus','truecar','carvana'],required=True)
