@@ -59,7 +59,7 @@ def test_missing_source_shape_is_a_visible_failure():
     class Response:
         text='<html>captcha</html>'
         def json(self):return {'not':'listings'}
-    for source in ('autolist','cargurus','truecar','carvana'):
+    for source in ('autolist','cargurus','truecar','carvana','carmax','marketcheck'):
         with pytest.raises(SourceError):parse_source(source,Response())
 
 def test_cargurus_query_supplies_model_when_response_omits_it():
@@ -230,11 +230,56 @@ def test_curated_excludes_no_haggle_chains_and_supports_rare_trim_buffer(tmp_pat
     monkeypatch.setenv('RARE_TRIM_BUFFER_CENTS', '100000')
     rare_indep = {**candidate(), 'dealer_name': 'Independent EV Auto', 'asking_price': 68000}
     carvana_vin = '7SAYGDED1RF039277'
-    chain_row = {**candidate(), 'vin': carvana_vin, 'model': 'Model Y', 'year': 2024, 'dealer_name': 'AutoNation USA', 'asking_price': 68000}
-    build(write_source(tmp_path, [rare_indep, chain_row]), tmp_path)
+    chain_row = {**candidate(), 'vin': carvana_vin, 'model': 'Model Y', 'year': 2024, 'dealer_name': 'Carvana', 'asking_price': 68000}
+    carmax_vin = '5YJ3E1EA1LF654321'
+    for d in '0123456789X':
+        cand = '5YJ3E1EA' + d + 'LF654321'
+        if valid_vin(cand):
+            carmax_vin = cand
+            break
+    carmax_row = {**candidate(), 'vin': carmax_vin, 'model': 'Model 3', 'year': 2020, 'dealer_name': 'CarMax Austin', 'asking_price': 25998}
+    build(write_source(tmp_path, [rare_indep, chain_row, carmax_row]), tmp_path)
     items = {x['stock_id']: x for x in json.loads((tmp_path / 'inventory.json').read_text())['items']}
     assert items[stock_id_for(VIN)]['curated'] is True
     assert items[stock_id_for(VIN)]['display_price'] == 69000
     assert items[stock_id_for(carvana_vin)]['curated'] is False
     assert items[stock_id_for(carvana_vin)]['display_price'] == 68000
+    assert items[stock_id_for(carmax_vin)]['curated'] is False
+    assert items[stock_id_for(carmax_vin)]['display_price'] == 25998
+
+
+def test_carmax_and_marketcheck_strictly_enforce_tesla_only_and_clean_title():
+    from tools.collect import source_url
+    cm_url = source_url('carmax', 'All', 0, 1)
+    assert 'carmax.com/cars/api/search/run' in cm_url and 'tesla' in cm_url
+    mc_url = source_url('marketcheck', 'Model Y', 2024, 1)
+    assert 'make=Tesla' in mc_url and 'seller_type=dealer' in mc_url and 'clean_title=true' in mc_url
+
+    class CarMaxResp:
+        text = ''
+        def json(self):
+            return {'items': [
+                {'stockNumber': 70327211, 'vin': '7SAYGDED1RF039277', 'year': 2024, 'make': 'Tesla', 'model': 'Model Y', 'trim': 'Long Range', 'basePrice': 38998, 'mileage': 14000, 'storeName': 'Austin', 'storeCity': 'Austin', 'stateAbbreviation': 'TX', 'heroImageUrl': 'https://img2.carmax.com/assets/70327211/hero.jpg?width=800', 'isSaleable': True, 'isReserved': False},
+                {'stockNumber': 70327212, 'vin': '1FA6P8CF8H5300001', 'year': 2023, 'make': 'Ford', 'model': 'Mustang Mach-E', 'trim': 'GT', 'basePrice': 32998, 'mileage': 12000, 'isSaleable': True, 'isReserved': False},
+                {'stockNumber': 70327213, 'vin': VIN, 'year': 2020, 'make': 'Tesla', 'model': 'Model S', 'basePrice': 29998, 'mileage': 40000, 'isSaleable': True, 'isReserved': True},
+            ]}
+    cm_rows = parse_source('carmax', CarMaxResp(), 'All', 0)
+    assert len(cm_rows) == 1
+    assert cm_rows[0]['vin'] == '7SAYGDED1RF039277'
+    assert cm_rows[0]['model'] == 'Model Y'
+    assert cm_rows[0]['dealer_name'] == 'CarMax Austin'
+
+    class MarketCheckResp:
+        text = ''
+        def json(self):
+            return {'listings': [
+                {'id': 'mc-1', 'vin': '7SAYGDED1RF039277', 'price': 36500, 'miles': 18500, 'clean_title': True, 'vdp_url': 'https://dealer.example.test/vdp/1', 'build': {'make': 'Tesla', 'model': 'Model Y', 'year': 2024, 'trim': 'Performance'}, 'dealer': {'name': 'Metro EV Motors', 'city': 'Dallas', 'state': 'TX', 'seller_type': 'dealer'}, 'media': {'photo_links': ['https://dealer.example.test/1.jpg']}},
+                {'id': 'mc-2', 'vin': '7SAYGDED1RF039277', 'price': 31000, 'miles': 20000, 'clean_title': True, 'vdp_url': 'https://dealer.example.test/vdp/2', 'build': {'make': 'Rivian', 'model': 'R1S', 'year': 2024}, 'dealer': {'name': 'Metro EV Motors', 'seller_type': 'dealer'}},
+                {'id': 'mc-3', 'vin': VIN, 'price': 19500, 'miles': 55000, 'clean_title': False, 'vdp_url': 'https://dealer.example.test/vdp/3', 'build': {'make': 'Tesla', 'model': 'Model S', 'year': 2015}, 'dealer': {'name': 'Metro EV Motors', 'seller_type': 'dealer'}},
+            ]}
+    mc_rows = parse_source('marketcheck', MarketCheckResp(), 'All', 0)
+    assert len(mc_rows) == 2
+    assert mc_rows[0]['vin'] == '7SAYGDED1RF039277' and mc_rows[0]['risk_flag'] is False
+    assert mc_rows[1]['vin'] == VIN and mc_rows[1]['risk_flag'] is True
+
 

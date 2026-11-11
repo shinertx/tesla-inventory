@@ -4,7 +4,7 @@
 > **Single Source of Truth (`Volts-and-VINs` Production Stack)**
 > - **Live Storefront:** https://voltsandvins.com/ (`GitHub Pages` CDN, repo [`/Users/benjijmac/Projects/Volts-and-VINs`](file:///Users/benjijmac/Projects/Volts-and-VINs))
 > - **Live Checkout, Search & Image Proxy API:** https://api.voltsandvins.com/ (`meme-snipe-v19-vm` `/opt/volts-api/current`, `systemd` `volts-api.service` + 4-hour `volts-catalog-refresh.timer`)
-> - **Nationwide Clean-Title Dealer Catalog (`Option 1`):** **`10,514`** Live, 7-Day Fresh, Clean-Title US Dealer Teslas (`19,129` total VINs indexed; `3,454` unbuyable `Carvana` + `CarMax` retail-chain cars excluded from public listings while feeding peer benchmarks; `1,637` Price Finds saving `$500+`).
+> - **Nationwide Clean-Title Dealer Catalog (`Option 1`):** **`13,184`** Live, 7-Day Fresh, Clean-Title US Dealer Teslas (`20,072` total VINs indexed across 19 regional `500-mile` CarGurus hubs + CarMax + Carvana + TrueCar, plus native MarketCheck support ready when `MARKETCHECK_API_KEY` is set in `/etc/volts-api.env`; `1,639` Price Finds saving `$500+`; `0` non-Teslas).
 > - **Regulatory Architecture:** **43 TAC § 215.85(a) W-2 Acquisition Director + `$25` `"Volts & VINs"` DBA** under Licensed Texas GDN (Day 1) $\rightarrow$ **Dedicated Volts & VINs Texas Independent GDN** (Day 45).
 
 ---
@@ -14,7 +14,7 @@
 Non-Tesla franchise dealerships (Ford, Toyota, Chevy, BMW, Honda) take Teslas on trade-in every day without understanding Tesla motor codes, `AMD Ryzen` vs. `Intel Atom` MCUs, `LFP` battery packs, `HW4` cameras, or paid Full Self-Driving—routinely pricing high-spec Teslas **`$1,500–$8,000` below mileage-adjusted peer value** and dumping them at auction after 45 days.
 
 **Volts & VINs** turns fragmented, mispriced franchise Tesla trade-ins into a **Carvana-grade 100% online Tesla dealership with zero balance-sheet inventory risk**:
-1. **Nationwide Clean-Title Dealer Discovery (`$0` Lock Publicly):** Shoppers browse **`10,500+` clean-title dealer Teslas** (excluding Carvana and CarMax) with proxied, OCR-scrubbed, `3%` border-cropped photography, Cash vs. Est. Monthly (`$XXX/mo`) pricing, `AMD Ryzen` / `LFP (100% Daily)` / `$4k` EV Tax Credit filters, instant 50-state shipping + tax estimates, and a **`$0` 24-Hour Price Lock + Printable Out-the-Door Buyer's Order**.
+1. **Nationwide Clean-Title Dealer Discovery (`$0` Lock Publicly):** Shoppers browse **`13,180+` clean-title dealer Teslas** (spanning franchise/independent dealerships, CarMax, and Carvana) with proxied, OCR-scrubbed, `3%` border-cropped photography, Cash vs. Est. Monthly (`$XXX/mo`) pricing, `AMD Ryzen` / `LFP (100% Daily)` / `$4k` EV Tax Credit filters, instant 50-state shipping + tax estimates, and a **`$0` 24-Hour Price Lock + Printable Out-the-Door Buyer's Order**.
 2. **1-on-1 Licensed GDN Fulfillment (`$250` Hold Into Dealer Stripe):** Upon a `$0` lock, our Deal Desk verifies physical availability, clean in-house title, and B2B wholesale net (`$500–$1,000` below retail ask + `$0` retail doc fee using TX Resale Certificate `Form 01-339`), issues a **1-on-1 written Buyer's Order (`43 TAC § 215.244(1)(B)`)**, collects the refundable `$250` hold into the licensed TX GDN's Stripe account, closes financing/wire, and ships insured direct from source lot to the buyer's driveway.
 
 ---
@@ -33,7 +33,7 @@ Non-Tesla franchise dealerships (Ford, Toyota, Chevy, BMW, Honda) take Teslas on
 ## 3. Shipped Production Architecture (Verified Live)
 
 1. **Option B Curated Pricing & Rare-Trim Engine ([`tools/build.py`](file:///Users/benjijmac/Projects/Volts-and-VINs/tools/build.py), [`tools/pricing.py`](file:///Users/benjijmac/Projects/Volts-and-VINs/tools/pricing.py)):**
-   - Excludes `Carvana`, `CarMax`, `AutoNation`, `EchoPark`, and `DriveTime` from `curated` browse.
+   - Publishes all clean-title dealership Teslas (including `Carvana` and `CarMax`), while marking fixed-price retail chains (`curated=false`) so negotiable franchise/independent dealer cars rank highest on `Recommended` sort.
    - Uses a `21-day` national peer-group baseline (`16,600+` Teslas) for `mileage_reference` while publishing only `7-day` fresh listings.
    - Sets `$500` pre-negotiation gross spread floor on negotiable dealers (`MIN_CURATED_SPREAD_CENTS=50000`) + `+$1,000` retail buffer (`RARE_TRIM_BUFFER_CENTS=100000`) on rare `<5`-peer trims (e.g., 2025 Cyberbeast, 2026 trims).
 2. **OCR Banner Scrubber + `3%` Anti-Reverse-Search Image Proxy ([`tools/ocr_photo_scrubber.py`](file:///Users/benjijmac/Projects/Volts-and-VINs/tools/ocr_photo_scrubber.py), [`app/image_proxy.py`](file:///Users/benjijmac/Projects/Volts-and-VINs/app/image_proxy.py)):**
@@ -46,7 +46,7 @@ Non-Tesla franchise dealerships (Ford, Toyota, Chevy, BMW, Honda) take Teslas on
    - Optional **4-Year Battery & Drive-Unit Protection + GAP (`+$2,340` or `~$39/mo`)** add-on carried seamlessly from `deal-dialog` into `request-dialog`.
    - Native `<dialog closedby="any">` light-dismiss with Safari coordinate fallback and `enterkeyhint` / step-heading focus transitions.
 4. **Automated 4-Hour VM Refresh Pipeline (`meme-snipe-v19-vm`):**
-   - `volts-catalog-refresh.timer` sweeps live CarGurus + Autolist partitions, runs OCR photo scrubbing, rebuilds `Option B` curated catalog + static SEO pages, updates `/opt/volts-api/current`, and publishes public artifacts to `voltsandvins.com`.
+   - `volts-catalog-refresh.timer` sweeps live 19-hub CarGurus + CarMax + Autolist/TrueCar partitions (and MarketCheck automatically when `MARKETCHECK_API_KEY` is set in `/etc/volts-api.env`), runs OCR photo scrubbing, rebuilds the clean-title Tesla catalog + static SEO pages, updates `/opt/volts-api/current`, and publishes public artifacts to `voltsandvins.com`.
 
 ---
 

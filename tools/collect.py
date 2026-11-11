@@ -2,8 +2,8 @@
 """Bounded source collection. Fail visibly; never claim complete national coverage."""
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urlencode, urljoin
-import argparse, json, re, sys
+from urllib.parse import urlencode, urljoin, quote
+import argparse, json, os, re, sys
 from curl_cffi import requests
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
 from tools.inventory import ingest, export
@@ -58,6 +58,46 @@ def parse_source(source,response,model=None,year=None):
             city=x.get('sellerCity') or '';state=x.get('sellerRegion')
             m_val=x.get('modelName') or x.get('model') or (None if model=='All' else model)
             rows.append(normalized(x.get('vin'),m_val,x.get('carYear') or year,x.get('trimName'),x.get('price'),x.get('mileage'),x.get('serviceProviderName'),city.split(',')[0],state,(x.get('originalPictureData') or {}).get('url'),f"https://www.cargurus.com/Cars/inventorylisting/viewDetailsFilterViewInventoryListing.action#listing={x['id']}" if x.get('id') else '',title_evidence=x))
+    elif source=='carmax':
+        items=None
+        try:
+            data=response.json()
+            if isinstance(data,dict) and isinstance(data.get('items'),list):items=data['items']
+        except Exception:
+            data=None
+        if items is None:
+            m_cars=re.search(r'const\s+cars\s*=\s*(\[.*?\]);\s*\r?\n',response.text,re.S)
+            if m_cars:
+                try:items=json.loads(m_cars.group(1))
+                except json.JSONDecodeError:items=None
+        if not isinstance(items,list):raise SourceError('CarMax response shape changed')
+        for x in items:
+            if str(x.get('make') or '').strip().lower()!='tesla':continue
+            if x.get('isSaleable') is False or x.get('isReserved') is True:continue
+            stock_no=x.get('stockNumber')
+            m_val=x.get('model') or (None if model=='All' else model)
+            trim_val=' '.join(p for p in (x.get('series'),x.get('trim')) if p).strip() or x.get('trim') or x.get('series')
+            photo=x.get('heroImageUrl') or (f'https://img2.carmax.com/assets/{stock_no}/hero.jpg?width=800' if stock_no else '')
+            link=f'https://www.carmax.com/car/{stock_no}' if stock_no else ''
+            dealer_label=f"CarMax {x.get('storeName') or ''}".strip()
+            rows.append(normalized(x.get('vin'),m_val,x.get('year') or year,trim_val,x.get('basePrice'),x.get('mileage'),dealer_label,x.get('storeCity'),x.get('stateAbbreviation'),photo,link,title_evidence=x))
+    elif source=='marketcheck':
+        data=response.json()
+        items=data.get('listings') if isinstance(data,dict) else None
+        if not isinstance(items,list):raise SourceError('MarketCheck response shape changed')
+        for x in items:
+            b=x.get('build') or {}
+            make_val=str(b.get('make') or x.get('make') or '').strip().lower()
+            if make_val!='tesla':continue
+            dlr=x.get('dealer') or {}
+            media=x.get('media') or {}
+            photos=media.get('photo_links') or media.get('photo_url') or x.get('photo_links')
+            vdp_url=x.get('vdp_url') or (f"https://www.marketcheck.com/listing/{x['id']}" if x.get('id') else '')
+            ev={**x,'seller_type':dlr.get('seller_type') or x.get('seller_type') or x.get('inventory_type') or 'dealer'}
+            is_clean=x.get('clean_title')
+            if is_clean is False:ev['salvage']=True
+            m_val=b.get('model') or x.get('model') or (None if model=='All' else model)
+            rows.append(normalized(x.get('vin'),m_val,b.get('year') or x.get('year') or year,b.get('trim') or x.get('trim'),x.get('price'),x.get('miles') if x.get('miles') is not None else x.get('mileage'),dlr.get('name'),dlr.get('city'),dlr.get('state'),photos,vdp_url,risk=(is_clean is False),title_evidence=ev))
     else:
         nd_match=re.search(r'<script[^>]*id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>',response.text,re.S|re.I) if source=='truecar' else None
         if nd_match:
@@ -115,23 +155,41 @@ def source_url(source,model,year,page,min_price=None,zip_code='78201',distance=5
         if year:params['startYear']=year;params['endYear']=year
         if min_price is not None:params['minPrice']=int(min_price)
         return 'https://www.cargurus.com/Cars/searchResults.action?'+urlencode(params)
-    if source=='carvana':return f'https://www.carvana.com/cars/tesla-{model.lower().replace(" ","-")}?page={page}'
+    if source=='carmax':
+        uri='/cars/tesla' if model in (None,'All') else f"/cars/tesla/{model.lower().replace(' ','-')}"
+        return f'https://www.carmax.com/cars/api/search/run?uri={quote(uri,safe="")}&skip={(page-1)*96}&take=96&zipCode=78701&radius=radius-nationwide&shipping=-1&sort=20'
+    if source=='marketcheck':
+        params={'api_key':(os.getenv('MARKETCHECK_API_KEY') or '').strip(),'make':'Tesla','car_type':'used','seller_type':'dealer','clean_title':'true','rows':50,'start':(page-1)*50}
+        if model and model!='All':params['model']=model
+        if year:params['year']=year
+        return 'https://mc-api.marketcheck.com/v2/search/car/active?'+urlencode(params)
+    if source=='carvana':return f'https://www.carvana.com/cars/tesla?page={page}' if model=='All' else f'https://www.carvana.com/cars/tesla-{model.lower().replace(" ","-")}?page={page}'
     slug='' if model=='All' else model.lower().replace(' ','-')+'/'
     yr_q=f'&year_low={year}&year_high={year}' if year else ''
     return f'https://www.truecar.com/used-cars-for-sale/listings/tesla/{slug}location-austin-tx/?searchRadius=5000&excludeExpandedDelivery=false&salvage=false&lemon=false&frameDamage=false&theftRecovered=false{yr_q}&page={page}'
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--source',choices=['autolist','cargurus','truecar','carvana'],required=True)
-    parser.add_argument('--model',choices=['Model 3','Model Y','Model S','Model X','Cybertruck'],required=True);parser.add_argument('--year',type=int,required=True)
+    parser=argparse.ArgumentParser();parser.add_argument('--source',choices=['autolist','cargurus','truecar','carvana','carmax','marketcheck'],required=True)
+    parser.add_argument('--model',choices=['Model 3','Model Y','Model S','Model X','Cybertruck','All'],required=True);parser.add_argument('--year',type=int,default=0)
     parser.add_argument('--pages',type=int,default=1);parser.add_argument('--db',type=Path,default=ROOT/'.data/inventory.db');parser.add_argument('--output',type=Path,default=ROOT/'.data/source_snapshot.json')
     args=parser.parse_args()
-    if not 1<=args.pages<=10:parser.error('Use 1–10 pages per bounded run')
-    if not 2012<=args.year<=datetime.now(timezone.utc).year+1:parser.error('Unsupported model year')
+    if not 1<=args.pages<=25:parser.error('Use 1–25 pages per bounded run')
+    if args.year and not 2012<=args.year<=datetime.now(timezone.utc).year+1:parser.error('Unsupported model year')
+    if args.source=='marketcheck' and not (os.getenv('MARKETCHECK_API_KEY') or '').strip():
+        raise SystemExit('MARKETCHECK_API_KEY is not set')
     manifest={'source':args.source,'model':args.model,'year':args.year,'pages':[],'scope':'partial; not a national coverage claim'};all_rows=[]
+    carmax_session=None
     for page in range(1,args.pages+1):
         url=source_url(args.source,args.model,args.year,page)
         try:
-            response=requests.get(url,impersonate='chrome120',timeout=15);response.raise_for_status()
+            if args.source=='carmax':
+                if carmax_session is None:
+                    carmax_session=requests.Session(impersonate='chrome120')
+                    carmax_session.get('https://www.carmax.com/cars/tesla',timeout=15)
+                response=carmax_session.get(url,headers={'Referer':'https://www.carmax.com/cars/tesla','Accept':'application/json'},timeout=15)
+            else:
+                response=requests.get(url,impersonate='chrome120',timeout=15)
+            response.raise_for_status()
             rows=parse_source(args.source,response,args.model,args.year)
             # Model/year are source-query filters; preserve them if response omits redundant fields.
             for row in rows:

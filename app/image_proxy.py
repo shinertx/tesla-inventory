@@ -136,6 +136,26 @@ def fetch_image(url,*,resolver=_resolve,connection_factory=_PinnedHTTPSConnectio
             host,path,address=_target(current,lambda h,p:_bounded_resolve(resolver,h,p,deadline))
             remaining=deadline-time.monotonic()
             if remaining<=0:raise ImageUnavailable('Image response is unavailable')
+            if connection_factory is _PinnedHTTPSConnection and host.endswith('.carmax.com'):
+                from curl_cffi import requests as cffi_requests, CurlOpt
+                r=cffi_requests.get(
+                    current,
+                    impersonate='chrome120',
+                    allow_redirects=False,
+                    timeout=min(CONNECT_TIMEOUT,remaining),
+                    curl_options={CurlOpt.RESOLVE:[f'{host}:443:{address}']},
+                )
+                if r.status_code in {301,302,303,307,308}:
+                    location=r.headers.get('Location')
+                    if not location or redirect==MAX_REDIRECTS:
+                        raise ImageUnavailable('Image response is unavailable')
+                    current=urljoin(current,location)
+                    continue
+                if r.status_code!=200:raise ImageUnavailable('Image response is unavailable')
+                content_type=(r.headers.get('Content-Type') or '').split(';',1)[0].lower().strip()
+                if content_type not in MIME_TYPES or len(r.content)>MAX_IMAGE_BYTES:
+                    raise ImageUnavailable('Image response is unavailable')
+                return _validate_image(FetchedImage(r.content,content_type))
             connection=connection_factory(host,address,min(CONNECT_TIMEOUT,remaining))
             timer=threading.Timer(remaining,_abort,args=(connection,));timer.daemon=True;timer.start()
             response=None

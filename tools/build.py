@@ -24,7 +24,6 @@ def _pricing_policy():
         buyer_surplus_share=float(os.getenv('BUYER_SURPLUS_SHARE','0.5')),
     )
 PRICING_POLICY=_pricing_policy()
-EXCLUDED_RETAIL_CHAINS=('carvana','carmax')
 NO_HAGGLE_CHAINS=('carvana','carmax','autonation','echopark','drivetime')
 
 def schema_script(page_url, page_name, subset, description='', breadcrumb_name=None):
@@ -105,15 +104,6 @@ def build(source=None,output=ROOT,now=None,gallery_source=None):
         age=timestamp(x.get('observed_at') or x.get('imported_at'))
         price=x.get('asking_price');mileage=x.get('mileage')
         url=safe_url(x.get('source_url'))
-        raw_dealer_blob=(str(x.get('dealer_name') or '')+' '+str(x.get('source_url') or '')+' '+str(x.get('photo_url') or '')).lower()
-        if any(chain in raw_dealer_blob for chain in EXCLUDED_RETAIL_CHAINS):
-            excluded['unbuyable_retail_chain']+=1
-            if age and age>=now-timedelta(days=21) and isinstance(price,int) and price>=10000 and isinstance(mileage,int) and mileage>=0 and url:
-                feats=vehicle_features(x)
-                ptrim=customer_trim(x.get('verified_trim') if x.get('configuration_evidence_reference') else x.get('dealer_trim'),x['model'])
-                band=next((b for b in (15000,30000,50000,75000) if mileage<=b),999999)
-                peer_groups[(x['model'],x['year'],ptrim.casefold(),feats.get('drivetrain') or 'unknown',band)].append({'vin':vin,'mileage':mileage,'asking_cents':price*100})
-            continue
         if age and now-timedelta(days=21)<=age<now-timedelta(days=7):
             excluded['expired_snapshot']+=1
             if isinstance(price,int) and price>=10000 and isinstance(mileage,int) and mileage>=0 and url:

@@ -43,7 +43,8 @@ CARGURUS_REGIONAL_HUBS = (
 )
 
 DEFAULT_PARTITIONS = (
-    [(f"cargurus_hub:{z}", m, 0, 21) for z in CARGURUS_REGIONAL_HUBS for m in ("Model Y", "Model 3", "Model S", "Model X", "Cybertruck")]
+    [("carmax", "All", 0, 22)]
+    + [(f"cargurus_hub:{z}", m, 0, 21) for z in CARGURUS_REGIONAL_HUBS for m in ("Model Y", "Model 3", "Model S", "Model X", "Cybertruck")]
     + [("cargurus", "Cybertruck", yr, 21) for yr in range(2026, 2023, -1)]
     + [("cargurus", "Model Y", yr, 21) for yr in range(2026, 2019, -1)]
     + [("cargurus", "Model 3", yr, 21) for yr in range(2026, 2016, -1)]
@@ -82,11 +83,16 @@ def job_discover_vehicles(
     """Job 1: Collect fresh Tesla listings across sources without discarding existing snapshot on 403/rate-limit."""
     from curl_cffi import requests
 
-    partitions = partitions or DEFAULT_PARTITIONS
+    mc_key = (os.getenv("MARKETCHECK_API_KEY") or "").strip()
+    if partitions is None:
+        partitions = list(DEFAULT_PARTITIONS)
+        if mc_key:
+            partitions = [("marketcheck", m, 0, 20) for m in ("Model Y", "Model 3", "Model S", "Model X", "Cybertruck")] + partitions
     now = _utc_now()
     accepted_total = 0
     partition_results = []
     blocked_hosts = set()
+    carmax_session = None
     for raw_source, model, year, pages in partitions:
         hub_zip = None
         source = raw_source
@@ -109,7 +115,17 @@ def job_discover_vehicles(
                     exhausted = True
                     break
                 try:
-                    resp = requests.get(url, impersonate="chrome120", timeout=15)
+                    if source == "carmax":
+                        if carmax_session is None:
+                            carmax_session = requests.Session(impersonate="chrome120")
+                            carmax_session.get("https://www.carmax.com/cars/tesla", timeout=15)
+                        resp = carmax_session.get(
+                            url,
+                            headers={"Referer": "https://www.carmax.com/cars/tesla", "Accept": "application/json"},
+                            timeout=15,
+                        )
+                    else:
+                        resp = requests.get(url, impersonate="chrome120", timeout=15)
                     if resp.status_code != 200:
                         if resp.status_code in (403, 429):
                             blocked_hosts.add(host)
@@ -156,7 +172,7 @@ def job_discover_vehicles(
                             break
                         if not fresh_rows:
                             break
-                    if source == "truecar" and not fresh_rows:
+                    if source in ("truecar", "carmax", "marketcheck") and not fresh_rows:
                         exhausted = True
                         break
                 except Exception as exc:
@@ -179,6 +195,7 @@ def job_discover_vehicles(
         "accepted_observations": accepted_total,
         "partitions_checked": len(partition_results),
         "partitions_succeeded": sum(1 for p in partition_results if p.get("ok")),
+        "marketcheck_configured": bool(mc_key),
         "details": partition_results,
     }
     _write_job_status(status_file, "1_discover_vehicles", result)
