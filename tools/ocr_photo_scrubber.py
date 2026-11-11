@@ -19,6 +19,7 @@ DEALER_BANNER_RE = re.compile(
     r'\b(?:call\s+now|call\s+today|call\s+us|text\s+us|se\s+habla|we\s+finance|bad\s+credit|no\s+credit|'
     r'buy\s+here\s+pay\s+here|autonation|echopark|carvana|carmax|lithia|penske|sonic\s+automotive|'
     r'hendrick|group\s+1|auto\s+sales|motorsports|auto\s+group|dealership|warranty\s+forever|'
+    r'autoboutique|auto\s+boutique|almcars|carvision|hgreg|offlease|5\s+days\s*/\s*500\s+miles|'
     r'free\s+carfax|carfax\s+1-owner|www\.)\b',
     re.I,
 )
@@ -31,7 +32,7 @@ TESLA_SCREEN_ALLOW_RE = re.compile(
 
 def classify_photo_bytes(body: bytes) -> tuple[bool, str]:
     """Return (exclude, reason). Never exclude Tesla center-screen software/FSD photos."""
-    from PIL import Image, ImageStat
+    from PIL import Image, ImageOps, ImageStat
     import pytesseract
 
     img = Image.open(io.BytesIO(body)).convert('RGB')
@@ -39,30 +40,34 @@ def classify_photo_bytes(body: bytes) -> tuple[bool, str]:
     if w < 160 or h < 120:
         return True, 'tiny_placeholder'
 
-    # Check full text on resized frame for speed, plus top/bottom 18% banner strips.
+    # Check full text on resized frame for speed, plus top/bottom 16% banner strips (both normal and inverted for dark bars).
     scale = min(1.0, 960.0 / max(w, h))
     small = img.resize((max(1, int(w * scale)), max(1, int(h * scale)))) if scale < 1.0 else img
     text_full = pytesseract.image_to_string(small, config='--psm 6') or ''
     if TESLA_SCREEN_ALLOW_RE.search(text_full):
         return False, 'tesla_screen_preserved'
 
-    if PHONE_RE.search(text_full):
+    top_strip = small.crop((0, 0, small.width, max(1, int(small.height * 0.16))))
+    bot_strip = small.crop((0, int(small.height * 0.84), small.width, small.height))
+    inv_top = pytesseract.image_to_string(ImageOps.autocontrast(ImageOps.invert(top_strip.convert('L'))), config='--psm 6') or ''
+    inv_bot = pytesseract.image_to_string(ImageOps.autocontrast(ImageOps.invert(bot_strip.convert('L'))), config='--psm 6') or ''
+    combined_text = f'{text_full}\n{inv_top}\n{inv_bot}'
+
+    if PHONE_RE.search(combined_text):
         return True, 'dealer_phone_detected'
-    url_match = URL_RE.search(text_full)
+    url_match = URL_RE.search(combined_text)
     if url_match and 'tesla.com' not in url_match.group(0).lower():
         return True, 'dealer_url_detected'
-    if DEALER_BANNER_RE.search(text_full):
+    if DEALER_BANNER_RE.search(combined_text):
         return True, 'dealer_banner_text'
 
     # Check solid top/bottom overlay bar with dense text
-    top_strip = small.crop((0, 0, small.width, max(1, int(small.height * 0.14))))
-    bot_strip = small.crop((0, int(small.height * 0.86), small.width, small.height))
-    for label, strip in (('top', top_strip), ('bottom', bot_strip)):
+    for label, strip, inv_txt in (('top', top_strip, inv_top), ('bottom', bot_strip, inv_bot)):
         stat = ImageStat.Stat(strip)
         avg_std = sum(stat.stddev) / 3.0
-        strip_text = (pytesseract.image_to_string(strip, config='--psm 7') or '').strip()
+        strip_text = ((pytesseract.image_to_string(strip, config='--psm 7') or '') + ' ' + inv_txt).strip()
         alpha_chars = sum(c.isalnum() for c in strip_text)
-        if alpha_chars >= 10 and avg_std < 52.0:
+        if alpha_chars >= 12 and avg_std < 52.0:
             return True, f'{label}_dealer_overlay_bar'
 
     return False, 'clean'
@@ -97,27 +102,42 @@ def main() -> None:
 
     priv_path = ROOT / '.data/transaction_inventory.json'
     rows = json.loads(priv_path.read_text()).get('items', []) if priv_path.exists() else []
+    if args.curated_only:
+        rows = [r for r in rows if r.get('curated') is not False]
+    # Sort by storefront visibility rank so top homepage cards are always scrubbed first!
+    rows.sort(
+        key=lambda r: -(
+            min(8000, max(0, int((r.get('reference_price') or 0) - (r.get('display_price') or 0)))) * 1.4
+            + max(0, ((r.get('year') or 2020) - 2018)) * 180
+            + min(int(r.get('photo_count') or 0), 40) * 18
+        )
+    )
     candidates: list[str] = []
     seen: set[str] = set()
+    # Pass 1: ALL primary card photos in rank order.
     for row in rows:
-        if args.curated_only and row.get('curated') is False:
-            continue
-        urls = [row.get('photo')] + [
-            (p.get('url') if isinstance(p, dict) else p) for p in (row.get('photos') or [])[:3]
-        ]
-        # Also inspect the final slide in multi-photo galleries (common dealer promo graphic)
-        photos_list = row.get('photos') or []
-        if len(photos_list) > 3:
-            last = photos_list[-1]
-            urls.append(last.get('url') if isinstance(last, dict) else last)
-        for u in urls:
-            if isinstance(u, str) and u.startswith('https://') and u not in existing and u not in scanned and u not in seen:
-                seen.add(u)
-                candidates.append(u)
-                if len(candidates) >= args.limit:
-                    break
-        if len(candidates) >= args.limit:
-            break
+        u = row.get('photo')
+        if isinstance(u, str) and u.startswith('https://') and u not in existing and u not in scanned and u not in seen:
+            seen.add(u)
+            candidates.append(u)
+            if len(candidates) >= args.limit:
+                break
+    # Pass 2: Secondary gallery slides (slides 1-3 + final promo slide).
+    if len(candidates) < args.limit:
+        for row in rows:
+            photos_list = row.get('photos') or []
+            urls = [(p.get('url') if isinstance(p, dict) else p) for p in photos_list[:3]]
+            if len(photos_list) > 3:
+                last = photos_list[-1]
+                urls.append(last.get('url') if isinstance(last, dict) else last)
+            for u in urls:
+                if isinstance(u, str) and u.startswith('https://') and u not in existing and u not in scanned and u not in seen:
+                    seen.add(u)
+                    candidates.append(u)
+                    if len(candidates) >= args.limit:
+                        break
+            if len(candidates) >= args.limit:
+                break
 
     reasons_count: dict[str, int] = {}
     newly_excluded: list[str] = []
