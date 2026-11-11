@@ -14,12 +14,13 @@ def main():
     threading.Thread(target=server.serve_forever,daemon=True).start()
     base=f'http://127.0.0.1:{server.server_port}/tesla-inventory/'
     source=json.loads((ROOT/'inventory.json').read_text())
-    rows=[dict(x,vin=x['stock_id']) for x in source['items'] if x.get('photo')][:3]
+    curated_src=[x for x in source['items'] if x.get('photo') and x.get('curated')]
+    rows=[dict(x,vin=x['stock_id'],curated=True) for x in curated_src[:3]]
     for index,row in enumerate(rows):
         row.update(photo=f'https://example.test/photo-{index}-0.svg',photo_count=2,display_price=20000,
                    reference_price=[None,19000,20000][index],reference_sample=[0,10,10][index],
-                   hardware=None,reservable=False)
-    empty=dict(source['items'][3],vin=source['items'][3]['stock_id'],photo=None,photo_count=0,hardware=None,reservable=False)
+                   hardware=None,reservable=False,curated=True)
+    empty=dict(curated_src[3],vin=curated_src[3]['stock_id'],photo=None,photo_count=0,hardware=None,reservable=False,curated=True)
     fixture_rows=[*rows,empty]
     galleries={x['vin']:[{'url':f'https://example.test/photo-{i}-{p}.svg','title':f'Fixture angle {p+1}','category':'photos'} for p in range(2)] for i,x in enumerate(rows)}
     results={};errors=[]
@@ -31,6 +32,8 @@ def main():
                 state={'order':None,'cases':[],'case_calls':[],'pending':None,'lost_ack':True}
                 def route(request):
                     url=request.request.url
+                    if request.request.resource_type=='image':
+                        return request.fulfill(content_type='image/svg+xml',body=SVG)
                     if 'inventory.json' in url:return request.fulfill(json={'meta':{'media_version':'fixture'},'items':fixture_rows})
                     if '/media/' in url:return request.fulfill(json=galleries)
                     if '/api/' in url:

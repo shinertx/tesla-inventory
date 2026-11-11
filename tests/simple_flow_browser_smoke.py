@@ -42,6 +42,7 @@ def main():
 
     def route(r):
         url = r.request.url
+        if r.request.resource_type == 'image': return r.fulfill(content_type='image/svg+xml', body=SVG)
         if 'inventory.json' in url:
             state['catalog_reads'] += 1
             return r.fulfill(json={'meta': {'media_version': 'simple-fixture'}, 'items': [row]})

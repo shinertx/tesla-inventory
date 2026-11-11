@@ -51,15 +51,23 @@ def main(out):
                 assert '?' not in page.locator('#dynamic-vehicle-schema').inner_text()
                 result['cross_vin_canonical_document_navigation']=True
                 result['campaign_attribution_preserved']=True
+            known_vp={stock_id_for(v):v for v in json.loads((ROOT/'data/vehicle_photos.json').read_text())}
+            media_counts={sid:len(arr) for mf in (ROOT/'media').glob('*.json') for sid,arr in json.loads(mf.read_text()).items()}
+            inv_items=json.loads((ROOT/'inventory.json').read_text())['items']
+            other_gal=[(known_vp[x['stock_id']],x['stock_id'],media_counts[x['stock_id']]) for x in inv_items if x.get('curated') and x.get('model')!='Model 3' and x['stock_id'] in known_vp and media_counts.get(x['stock_id'],0)>=30]
+            m3_gal=[(known_vp[x['stock_id']],x['stock_id'],media_counts[x['stock_id']]) for x in inv_items if x.get('curated') and x.get('model')=='Model 3' and x['stock_id'] in known_vp and media_counts.get(x['stock_id'],0)>=30]
+            vin1,sid1,cnt1=other_gal[0]
+            vin2,sid2,cnt2=other_gal[1]
+            vin3,sid3,cnt3=m3_gal[0]
             nojs=b.new_context(java_script_enabled=False)
             crawl=nojs.new_page();crawl.goto(base+'browse/index.html',wait_until='domcontentloaded')
             assert crawl.locator('a[href^="../v/"]').count()==100
-            crawl.goto(base+'v/'+stock_id_for('7SAYGDED1RF039277')+'.html',wait_until='domcontentloaded')
-            assert crawl.locator('h1').count()==1 and stock_id_for('7SAYGDED1RF039277') in crawl.locator('h1').inner_text()
+            crawl.goto(base+'v/'+sid2+'.html',wait_until='domcontentloaded')
+            assert crawl.locator('h1').count()==1 and sid2 in crawl.locator('h1').inner_text()
             assert 'Vehicle price' in crawl.locator('.category-intro').inner_text()
             result['discovery_works_without_javascript']=True
             nojs.close()
-            for vin,count in [('5YJ3E1EA8SF921313',30),('7SAYGDED1RF039277',44),('5YJ3E1EA8KF413066',59)]:
+            for vin,count in [(vin1,cnt1),(vin2,cnt2),(vin3,cnt3)]:
                 page.goto(base+'?vin='+vin);page.wait_for_function('(n)=>document.querySelectorAll(".gallery-thumb").length===n',arg=count)
                 page.wait_for_function('()=>document.querySelector("#gallery-stage img")?.naturalWidth>0')
                 assert page.locator('#vehicle-request').is_enabled()
@@ -68,7 +76,7 @@ def main(out):
                 result['named_galleries'][vin]={'count':count,'first_and_last_rendered':True}
             page.locator('#vehicle-request').click();page.locator('#deal-zip').fill('78201');page.locator('#deal-continue').click()
             page.get_by_text('Price saved on this device. No request or reservation has been placed.').wait_for()
-            assert page.evaluate('JSON.parse(localStorage.getItem("marketplace_deal")).vin')=='VV-'+__import__('hashlib').sha256(b'volts-and-vins:5YJ3E1EA8KF413066').hexdigest()[:12].upper()
+            assert page.evaluate('JSON.parse(localStorage.getItem("marketplace_deal")).vin')==sid3
             page.goto(base);page.wait_for_selector('.card');page.locator('#order-button').click();page.locator('#deal-dialog[open]').wait_for()
             assert page.locator('#deal-zip').input_value()=='78201'
             assert 'Model 3' in page.locator('#deal-summary').inner_text()
@@ -101,7 +109,7 @@ def main(out):
             page.locator('#zip-button').click();page.locator('#zip-input').fill('00000');page.locator('#zip-form button').click();page.get_by_text('ZIP not found in our location data. Try a nearby ZIP.').wait_for()
             assert page.locator('#zip-label').inner_text()=='78201';page.locator('[data-close=zip-dialog]').click();result['unknown_zip_does_not_guess']=True
             page.goto(base+'models/model-y.html');page.wait_for_selector('.card');assert page.locator('#model').input_value()=='Model Y';result['category_subpath']=True
-            mobile=b.new_page(viewport={'width':390,'height':844},is_mobile=True);mobile.goto(base+'?vin=5YJ3E1EA8SF921313');mobile.wait_for_function('()=>document.querySelectorAll(".gallery-thumb").length===30');mobile.wait_for_function('()=>document.querySelector("#gallery-stage img")?.naturalWidth>0');result['mobile_gallery']=True
+            mobile=b.new_page(viewport={'width':390,'height':844},is_mobile=True);mobile.goto(base+'?vin='+vin1);mobile.wait_for_function('(n)=>document.querySelectorAll(".gallery-thumb").length===n',arg=cnt1);mobile.wait_for_function('()=>document.querySelector("#gallery-stage img")?.naturalWidth>0');result['mobile_gallery']=True
             mobile.screenshot(path=str(out/'static-customer-gallery.png'))
             mobile.goto(base);mobile.wait_for_selector('.card');mobile.locator('#mobile-filters').click();assert mobile.locator('#drivetrain').is_visible();assert mobile.evaluate('document.documentElement.scrollWidth<=innerWidth');result['mobile_new_filters_and_bounds']=True
             assert not result['javascript_errors'];b.close()

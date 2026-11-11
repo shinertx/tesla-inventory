@@ -11,9 +11,14 @@ def main():
     threading.Thread(target=server.serve_forever,daemon=True).start()
     base=f'http://127.0.0.1:{server.server_port}/tesla-inventory/'
     quote=dict(vehicle_price_cents=2900000,tax_cents=181250,title_registration_cents=15000,documentation_cents=0,delivery_charge_cents=60000,total_cents=3156250,valid_until=4102444800,seller={'legal_name':'FIXTURE SELLING DEALER','license_number':'FIXTURE','address':'TEST ADDRESS'},terms={'deposit_terms_reference':'https://example.test/terms'})
-    order={'id':'fixture-order','vin':'5YJ3E1EA8SF921313','state':'quoted','quote_version':1,'quote':quote,'online_actions':[]}
+    sys.path.insert(0,str(ROOT))
+    from app.catalog import stock_id_for
+    known_vp={stock_id_for(v):v for v in json.loads((ROOT/'data/vehicle_photos.json').read_text())}
+    fixture_vin=next(known_vp[x['stock_id']] for x in json.loads((ROOT/'inventory.json').read_text())['items'] if x.get('curated') and x['stock_id'] in known_vp)
+    order={'id':'fixture-order','vin':fixture_vin,'state':'quoted','quote_version':1,'quote':quote,'online_actions':[]}
     calls=[]
     def api(route):
+        if route.request.resource_type=='image':return route.fulfill(status=200,content_type='image/svg+xml',body='<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800"><rect width="1200" height="800" fill="#dce5eb"/></svg>')
         path=route.request.url.split('/api/')[1]
         if path=='config':return route.fulfill(json={'requests_enabled':True,'payments_enabled':True})
         if path=='orders/fixture-order/checkout':

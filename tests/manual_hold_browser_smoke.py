@@ -62,6 +62,7 @@ def main():
                     context=browser.new_context(viewport={'width':width,'height':900},accept_downloads=True)
                     def route(r):
                         url=r.request.url
+                        if r.request.resource_type=='image':return r.fulfill(content_type='image/svg+xml',body=SVG)
                         if '/api/' in url:
                             path='/api/'+urlsplit(url).path.split('/api/',1)[1]
                             response=client.request(r.request.method,path,content=r.request.post_data_buffer,

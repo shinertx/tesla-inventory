@@ -87,22 +87,29 @@ def main():
                 page.locator('.save').nth(1).click();page.locator('#saved-button').click();assert page.locator('.shortlist-car').count()==2
                 page.locator('[data-compare-select]').nth(0).check();page.locator('[data-compare-select]').nth(1).check();page.locator('#compare-saved').click();assert page.locator('.comparison-grid article').count()==2;results['shortlist_comparison']=True
                 page.locator('[data-close=compare-dialog]').click()
+                from app.catalog import stock_id_for
+                known_vp={stock_id_for(v):v for v in json.loads((ROOT/'data/vehicle_photos.json').read_text())}
+                media_counts={sid:len(arr) for mf in (ROOT/'media').glob('*.json') for sid,arr in json.loads(mf.read_text()).items()}
+                live_gal=[(known_vp[x['stock_id']],x['stock_id'],media_counts[x['stock_id']]) for x in json.loads((ROOT/'inventory.json').read_text())['items'] if x.get('curated') and x['stock_id'] in known_vp and media_counts.get(x['stock_id'],0)>=30]
+                vin_a,sid_a,cnt_a=live_gal[0]
+                vin_b,sid_b,cnt_b=live_gal[1]
+                vin_c,sid_c,cnt_c=live_gal[2]
                 # A failed config request previously suppressed photo discovery entirely.
                 race=context.new_page();race.route('**/api/config',lambda r:r.abort())
                 attempts=[]
                 def photo_response(route):
                     attempts.append(1)
                     if len(attempts)==1:route.fulfill(status=503,content_type='application/json',body='{}')
-                    else:route.fulfill(status=200,content_type='application/json',body=json.dumps({__import__('app.catalog',fromlist=['stock_id_for']).stock_id_for('7SAYGDED1RF039277'):[{'url':f'https://example.test/angle-{i}.jpg','title':f'Angle {i}','category':'photos'} for i in range(3)]}))
+                    else:route.fulfill(status=200,content_type='application/json',body=json.dumps({sid_a:[{'url':f'https://example.test/angle-{i}.jpg','title':f'Angle {i}','category':'photos'} for i in range(3)]}))
                 race.route('**/media/*.json*',photo_response)
-                race.goto(base+'/?vin=7SAYGDED1RF039277');race.locator('#gallery-retry').wait_for(state='visible');race.locator('#gallery-retry').click()
+                race.goto(base+'/?vin='+vin_a);race.locator('#gallery-retry').wait_for(state='visible');race.locator('#gallery-retry').click()
                 race.wait_for_function('()=>document.querySelectorAll(".gallery-thumb").length===3')
                 assert len(attempts)==2;results['gallery_independent_of_checkout_config']=True;results['gallery_retry']=True;race.close()
-                gallery=context.new_page();gallery.goto(base+'/?vin=5YJ3E1EA8KF413066');gallery.wait_for_selector('#gallery-thumbs .gallery-thumb')
-                assert gallery.locator('.gallery-thumb').count()>=43
+                gallery=context.new_page();gallery.goto(base+'/?vin='+vin_b);gallery.wait_for_selector('#gallery-thumbs .gallery-thumb')
+                assert gallery.locator('.gallery-thumb').count()>=cnt_b
                 gallery.locator('#gallery-next').click();assert gallery.locator('#gallery-count').inner_text().startswith('2 /')
                 gallery.locator('#photo-expand').click();assert gallery.locator('#photo-dialog').evaluate('(x)=>x.open');results['full_vehicle_gallery']=True;gallery.close()
-                for named_vin,expected_min in [('5YJ3E1EA8SF921313',30),('7SAYGDED1RF039277',44)]:
+                for named_vin,expected_min in [(vin_c,cnt_c),(vin_a,cnt_a)]:
                     vp=context.new_page();vp.goto(base+f'/?vin={named_vin}');vp.wait_for_selector('#gallery-thumbs .gallery-thumb')
                     assert vp.locator('.gallery-thumb').count()>=expected_min
                     vp.close()

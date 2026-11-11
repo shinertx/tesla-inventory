@@ -13,7 +13,7 @@ def main():
     server=ThreadingHTTPServer(('127.0.0.1',0),functools.partial(PagesHandler,directory=str(ROOT)))
     threading.Thread(target=server.serve_forever,daemon=True).start()
     base=f'http://127.0.0.1:{server.server_port}/tesla-inventory/'
-    item=json.loads((ROOT/'inventory.json').read_text())['items'][0]
+    item=next(x for x in json.loads((ROOT/'inventory.json').read_text())['items'] if x.get('curated') and x.get('photo'))
     quote=dict(vehicle_price_cents=2900000,tax_cents=181250,title_registration_cents=15000,
         documentation_cents=0,delivery_charge_cents=60000,total_cents=3156250,valid_until=4102444800,
         seller={'legal_name':'FIXTURE RETAIL SELLER','license_number':'FIXTURE','address':'TEST ADDRESS'},
@@ -31,6 +31,7 @@ def main():
                     context=browser.new_context(viewport={'width':width,'height':1000})
                     def route(r):
                         url=r.request.url
+                        if r.request.resource_type=='image':return r.fulfill(content_type='image/svg+xml',body=SVG)
                         if '/api/' in url:
                             path=url.split('/api/')[1]
                             if path=='config':return r.fulfill(json={'requests_enabled':True,'payments_enabled':True})

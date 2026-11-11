@@ -32,6 +32,7 @@ def fixtures():
             'state':['TX','CA','CO'][index%3],'location_center':[index+1,0],
             'photo':None if index==11 else f'https://fixture.invalid/car-{index}-0.svg',
             'photo_count':0 if index==11 else 2,'hardware':'HW4' if index==0 else None,
+            'infotainment':'AMD Ryzen' if index<4 else None,
             'reservable':index==0})
     for row in rows:
         raw=row['vin'];stock='VV-'+hashlib.sha256(('volts-and-vins:'+raw).encode()).hexdigest()[:12].upper()
@@ -58,6 +59,7 @@ def main():
                 context=browser.new_context(viewport={'width':width,'height':1000},is_mobile=width<500)
                 def route(request):
                     url=request.request.url
+                    if request.request.resource_type=='image':return request.fulfill(content_type='image/svg+xml',body=SVG)
                     if 'inventory.json' in url:
                         return request.fulfill(json={'meta':{'media_version':'controls-fixture','built_at':'2026-11-01T00:00:00Z'},'items':rows})
                     if '/data/us_zip_centers.json' in url:
@@ -100,7 +102,7 @@ def main():
                 def reset():
                     page.locator('#reset').click();expect_rows(photographed)
                 checks={}
-                chips=['all','finds','under25','under30','lowmiles','Model Y','Model 3','Cybertruck']
+                chips=['all','finds','under25','under30','lowmiles','ryzen','Model Y','Model 3','Cybertruck']
                 assert page.locator('[data-discover]').count()==len(chips)
                 for chip in chips:
                     reset();page.locator(f'[data-discover="{chip}"]').click()
@@ -109,6 +111,7 @@ def main():
                     elif chip=='under25':expected=[x for x in expected if x['display_price']<=25000]
                     elif chip=='under30':expected=[x for x in expected if x['display_price']<=30000]
                     elif chip=='lowmiles':expected=[x for x in expected if 0<x['mileage']<=30000]
+                    elif chip=='ryzen':expected=[x for x in expected if x.get('infotainment')=='AMD Ryzen']
                     elif chip in ('Model Y','Model 3','Cybertruck'):expected=[x for x in expected if x['model']==chip]
                     expect_rows(expected)
                     assert page.locator('.discovery-chip.active').get_attribute('data-discover')==chip
