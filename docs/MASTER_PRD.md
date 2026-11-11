@@ -4,7 +4,7 @@
 > **Single Source of Truth (`Volts-and-VINs` Production Stack)**
 > - **Live Storefront:** https://voltsandvins.com/ (`GitHub Pages` CDN, repo [`/Users/benjijmac/Projects/Volts-and-VINs`](file:///Users/benjijmac/Projects/Volts-and-VINs))
 > - **Live Checkout, Search & Image Proxy API:** https://api.voltsandvins.com/ (`meme-snipe-v19-vm` `/opt/volts-api/current`, `systemd` `volts-api.service` + 4-hour `volts-catalog-refresh.timer`)
-> - **Curated Live Catalog (`Option B`):** **`~2,400`** Curated, Negotiable, Clean-Title US Teslas (`5,600+` 7-day fresh VINs indexed; `16,600+` 21-day national peer benchmark; no-haggle retail chains `Carvana`, `CarMax`, `AutoNation`, `EchoPark`, `DriveTime` excluded from curated browse).
+> - **Nationwide Clean-Title Dealer Catalog (`Option 1`):** **`10,514`** Live, 7-Day Fresh, Clean-Title US Dealer Teslas (`19,129` total VINs indexed; `3,454` unbuyable `Carvana` + `CarMax` retail-chain cars excluded from public listings while feeding peer benchmarks; `1,637` Price Finds saving `$500+`).
 > - **Regulatory Architecture:** **43 TAC § 215.85(a) W-2 Acquisition Director + `$25` `"Volts & VINs"` DBA** under Licensed Texas GDN (Day 1) $\rightarrow$ **Dedicated Volts & VINs Texas Independent GDN** (Day 45).
 
 ---
@@ -14,7 +14,7 @@
 Non-Tesla franchise dealerships (Ford, Toyota, Chevy, BMW, Honda) take Teslas on trade-in every day without understanding Tesla motor codes, `AMD Ryzen` vs. `Intel Atom` MCUs, `LFP` battery packs, `HW4` cameras, or paid Full Self-Driving—routinely pricing high-spec Teslas **`$1,500–$8,000` below mileage-adjusted peer value** and dumping them at auction after 45 days.
 
 **Volts & VINs** turns fragmented, mispriced franchise Tesla trade-ins into a **Carvana-grade 100% online Tesla dealership with zero balance-sheet inventory risk**:
-1. **Curated Partner Network Discovery (`$0` Lock Publicly):** Shoppers browse **`2,400+` clean-title Teslas** with proxied, OCR-scrubbed, `3%` border-cropped photography, Cash vs. Est. Monthly (`$XXX/mo`) pricing, `AMD Ryzen` / `LFP (100% Daily)` / `$4k` EV Tax Credit filters, instant 50-state shipping + tax estimates, and a **`$0` 24-Hour Price Lock + Printable Out-the-Door Buyer's Order**.
+1. **Nationwide Clean-Title Dealer Discovery (`$0` Lock Publicly):** Shoppers browse **`10,500+` clean-title dealer Teslas** (excluding Carvana and CarMax) with proxied, OCR-scrubbed, `3%` border-cropped photography, Cash vs. Est. Monthly (`$XXX/mo`) pricing, `AMD Ryzen` / `LFP (100% Daily)` / `$4k` EV Tax Credit filters, instant 50-state shipping + tax estimates, and a **`$0` 24-Hour Price Lock + Printable Out-the-Door Buyer's Order**.
 2. **1-on-1 Licensed GDN Fulfillment (`$250` Hold Into Dealer Stripe):** Upon a `$0` lock, our Deal Desk verifies physical availability, clean in-house title, and B2B wholesale net (`$500–$1,000` below retail ask + `$0` retail doc fee using TX Resale Certificate `Form 01-339`), issues a **1-on-1 written Buyer's Order (`43 TAC § 215.244(1)(B)`)**, collects the refundable `$250` hold into the licensed TX GDN's Stripe account, closes financing/wire, and ships insured direct from source lot to the buyer's driveway.
 
 ---

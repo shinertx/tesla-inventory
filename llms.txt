@@ -1,39 +1,39 @@
 # Volts & VINs (https://voltsandvins.com)
 
-> Volts & VINs is a direct-to-consumer online used-Tesla retailer where buyers purchase and reserve from 5,601 clean-title Teslas 100% online (859 priced $500+ below mileage-adjusted peer benchmarks) with upfront out-the-door pricing, $0 price lock, online financing or cash checkout, and insured home delivery across all 50 states.
+> Volts & VINs is a direct-to-consumer online used-Tesla retailer where buyers purchase and reserve from 10,514 clean-title Teslas 100% online (1,637 priced $500+ below mileage-adjusted peer benchmarks) with upfront out-the-door pricing, $0 price lock, online financing or cash checkout, and insured home delivery across all 50 states.
 
 ## Key Online Dealership Facts
-- **Published VIN-Decoded Catalog**: 5,601 used Tesla vehicles (Model Y, Model 3, Model S, Model X, Cybertruck)
-- **Peer-Benchmarked Price Finds**: 859 listings priced `$500+` below mileage-adjusted peer asking prices (minimum 5 comparable peers in the same model, year, trim, drivetrain, and mileage band)
+- **Published VIN-Decoded Catalog**: 10,514 used Tesla vehicles (Model Y, Model 3, Model S, Model X, Cybertruck)
+- **Peer-Benchmarked Price Finds**: 1,637 listings priced `$500+` below mileage-adjusted peer asking prices (minimum 5 comparable peers in the same model, year, trim, drivetrain, and mileage band)
 - **VIN-Decoded Specifications**: Listings include VIN-derived build factory and drivetrain where decoded, with recorded mileage and vehicle location. Build factory is not the current vehicle location
 - **Purchase & Reservation Model**: Direct online purchase and reservation through Volts & VINs. Start with a $0 price lock, verify clean title and inspection details, then place a refundable $250 deposit to complete your order and arrange delivery.
 
 ## Used Tesla Inventory & Benchmark Summary by Model
-- **Tesla Cybertruck**: 141 listings | Low: `$70,995` | Median: `$85,774` | Price Finds (`$500+` below peer benchmark): 43 | Browse: https://voltsandvins.com/models/cybertruck.html
-- **Tesla Model 3**: 2,125 listings | Low: `$10,167` | Median: `$22,546` | Price Finds (`$500+` below peer benchmark): 238 | Browse: https://voltsandvins.com/models/model-3.html
-- **Tesla Model S**: 601 listings | Low: `$13,933` | Median: `$39,857` | Price Finds (`$500+` below peer benchmark): 103 | Browse: https://voltsandvins.com/models/model-s.html
-- **Tesla Model X**: 706 listings | Low: `$19,432` | Median: `$39,986` | Price Finds (`$500+` below peer benchmark): 152 | Browse: https://voltsandvins.com/models/model-x.html
-- **Tesla Model Y**: 2,028 listings | Low: `$11,777` | Median: `$31,164` | Price Finds (`$500+` below peer benchmark): 323 | Browse: https://voltsandvins.com/models/model-y.html
+- **Tesla Cybertruck**: 155 listings | Low: `$70,995` | Median: `$85,900` | Price Finds (`$500+` below peer benchmark): 50 | Browse: https://voltsandvins.com/models/cybertruck.html
+- **Tesla Model 3**: 4,363 listings | Low: `$10,167` | Median: `$25,491` | Price Finds (`$500+` below peer benchmark): 557 | Browse: https://voltsandvins.com/models/model-3.html
+- **Tesla Model S**: 1,129 listings | Low: `$10,000` | Median: `$28,980` | Price Finds (`$500+` below peer benchmark): 162 | Browse: https://voltsandvins.com/models/model-s.html
+- **Tesla Model X**: 1,058 listings | Low: `$13,800` | Median: `$37,450` | Price Finds (`$500+` below peer benchmark): 207 | Browse: https://voltsandvins.com/models/model-x.html
+- **Tesla Model Y**: 3,809 listings | Low: `$11,777` | Median: `$33,645` | Price Finds (`$500+` below peer benchmark): 661 | Browse: https://voltsandvins.com/models/model-y.html
 
 ## High-Intent Deal & Configuration Hubs
-- [Used Tesla Price Finds Below Market Benchmark (859 listings)](https://voltsandvins.com/deals/price-finds.html)
-- [Used Teslas Under $25,000 (1,847 listings)](https://voltsandvins.com/deals/under-25000.html)
-- [Used Teslas Under $30,000 (2,793 listings)](https://voltsandvins.com/deals/under-30000.html)
-- [Used Teslas Under $35,000 (3,204 listings)](https://voltsandvins.com/deals/under-35000.html)
-- [Low-Mileage Used Teslas Under 30,000 Miles (1,156 listings)](https://voltsandvins.com/deals/low-mileage.html)
-- [Used All-Wheel Drive (AWD) Teslas (3,742 listings)](https://voltsandvins.com/deals/awd.html)
-- [Used Rear-Wheel Drive (RWD) Teslas (1,828 listings)](https://voltsandvins.com/deals/rwd.html)
-- [Used Tesla Long Range (2,682 listings)](https://voltsandvins.com/deals/long-range.html)
-- [Used Tesla Performance (563 listings)](https://voltsandvins.com/deals/performance.html)
-- [Used Tesla Plaid (175 listings)](https://voltsandvins.com/deals/plaid.html)
-- [Used Tesla Standard Range (460 listings)](https://voltsandvins.com/deals/standard-range.html)
-- [Austin Gigafactory Built Used Teslas (690 listings)](https://voltsandvins.com/deals/austin-build.html)
-- [Fremont Factory Built Used Teslas (4,911 listings)](https://voltsandvins.com/deals/fremont-build.html)
+- [Used Tesla Price Finds Below Market Benchmark (1,637 listings)](https://voltsandvins.com/deals/price-finds.html)
+- [Used Teslas Under $25,000 (3,111 listings)](https://voltsandvins.com/deals/under-25000.html)
+- [Used Teslas Under $30,000 (5,540 listings)](https://voltsandvins.com/deals/under-30000.html)
+- [Used Teslas Under $35,000 (7,103 listings)](https://voltsandvins.com/deals/under-35000.html)
+- [Low-Mileage Used Teslas Under 30,000 Miles (2,040 listings)](https://voltsandvins.com/deals/low-mileage.html)
+- [Used All-Wheel Drive (AWD) Teslas (7,429 listings)](https://voltsandvins.com/deals/awd.html)
+- [Used Rear-Wheel Drive (RWD) Teslas (3,031 listings)](https://voltsandvins.com/deals/rwd.html)
+- [Used Tesla Long Range (4,786 listings)](https://voltsandvins.com/deals/long-range.html)
+- [Used Tesla Performance (1,528 listings)](https://voltsandvins.com/deals/performance.html)
+- [Used Tesla Plaid (291 listings)](https://voltsandvins.com/deals/plaid.html)
+- [Used Tesla Standard Range (623 listings)](https://voltsandvins.com/deals/standard-range.html)
+- [Austin Gigafactory Built Used Teslas (1,085 listings)](https://voltsandvins.com/deals/austin-build.html)
+- [Fremont Factory Built Used Teslas (9,429 listings)](https://voltsandvins.com/deals/fremont-build.html)
 
 ## Machine-Readable Feeds & Indexes
 - AI Agent Filter & Search API (Filtered JSON): https://api.voltsandvins.com/api/search?model=Model+Y&max_price=36000&only_price_finds=true&limit=10
 - OpenAPI 3.1 Action Specification (ChatGPT / Claude / Gemini Tools): https://voltsandvins.com/openapi.json
 - Full Top-100 Price-Find Stock Digest: https://voltsandvins.com/llms-full.txt
-- XML Sitemap (5797 URLs): https://voltsandvins.com/sitemap.xml
+- XML Sitemap (10808 URLs): https://voltsandvins.com/sitemap.xml
 - Complete crawlable vehicle and category directory: https://voltsandvins.com/browse/index.html
 - Live Public JSON Catalog: https://voltsandvins.com/inventory.json

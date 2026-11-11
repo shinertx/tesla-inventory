@@ -1,281 +1,330 @@
 # Volts & VINs (https://voltsandvins.com)
 
-> Volts & VINs is a direct-to-consumer online used-Tesla retailer where buyers purchase and reserve from 5,601 clean-title Teslas 100% online (859 priced $500+ below mileage-adjusted peer benchmarks) with upfront out-the-door pricing, $0 price lock, online financing or cash checkout, and insured home delivery across all 50 states.
+> Volts & VINs is a direct-to-consumer online used-Tesla retailer where buyers purchase and reserve from 10,514 clean-title Teslas 100% online (1,637 priced $500+ below mileage-adjusted peer benchmarks) with upfront out-the-door pricing, $0 price lock, online financing or cash checkout, and insured home delivery across all 50 states.
 
 ## Key Online Dealership Facts
-- **Published VIN-Decoded Catalog**: 5,601 used Tesla vehicles (Model Y, Model 3, Model S, Model X, Cybertruck)
-- **Peer-Benchmarked Price Finds**: 859 listings priced `$500+` below mileage-adjusted peer asking prices (minimum 5 comparable peers in the same model, year, trim, drivetrain, and mileage band)
+- **Published VIN-Decoded Catalog**: 10,514 used Tesla vehicles (Model Y, Model 3, Model S, Model X, Cybertruck)
+- **Peer-Benchmarked Price Finds**: 1,637 listings priced `$500+` below mileage-adjusted peer asking prices (minimum 5 comparable peers in the same model, year, trim, drivetrain, and mileage band)
 - **VIN-Decoded Specifications**: Listings include VIN-derived build factory and drivetrain where decoded, with recorded mileage and vehicle location. Build factory is not the current vehicle location
 - **Purchase & Reservation Model**: Direct online purchase and reservation through Volts & VINs. Start with a $0 price lock, verify clean title and inspection details, then place a refundable $250 deposit to complete your order and arrange delivery.
 
 ## Used Tesla Inventory & Benchmark Summary by Model
-- **Tesla Cybertruck**: 141 listings | Low: `$70,995` | Median: `$85,774` | Price Finds (`$500+` below peer benchmark): 43 | Browse: https://voltsandvins.com/models/cybertruck.html
-- **Tesla Model 3**: 2,125 listings | Low: `$10,167` | Median: `$22,546` | Price Finds (`$500+` below peer benchmark): 238 | Browse: https://voltsandvins.com/models/model-3.html
-- **Tesla Model S**: 601 listings | Low: `$13,933` | Median: `$39,857` | Price Finds (`$500+` below peer benchmark): 103 | Browse: https://voltsandvins.com/models/model-s.html
-- **Tesla Model X**: 706 listings | Low: `$19,432` | Median: `$39,986` | Price Finds (`$500+` below peer benchmark): 152 | Browse: https://voltsandvins.com/models/model-x.html
-- **Tesla Model Y**: 2,028 listings | Low: `$11,777` | Median: `$31,164` | Price Finds (`$500+` below peer benchmark): 323 | Browse: https://voltsandvins.com/models/model-y.html
+- **Tesla Cybertruck**: 155 listings | Low: `$70,995` | Median: `$85,900` | Price Finds (`$500+` below peer benchmark): 50 | Browse: https://voltsandvins.com/models/cybertruck.html
+- **Tesla Model 3**: 4,363 listings | Low: `$10,167` | Median: `$25,491` | Price Finds (`$500+` below peer benchmark): 557 | Browse: https://voltsandvins.com/models/model-3.html
+- **Tesla Model S**: 1,129 listings | Low: `$10,000` | Median: `$28,980` | Price Finds (`$500+` below peer benchmark): 162 | Browse: https://voltsandvins.com/models/model-s.html
+- **Tesla Model X**: 1,058 listings | Low: `$13,800` | Median: `$37,450` | Price Finds (`$500+` below peer benchmark): 207 | Browse: https://voltsandvins.com/models/model-x.html
+- **Tesla Model Y**: 3,809 listings | Low: `$11,777` | Median: `$33,645` | Price Finds (`$500+` below peer benchmark): 661 | Browse: https://voltsandvins.com/models/model-y.html
 
 ## High-Intent Deal & Configuration Hubs
-- [Used Tesla Price Finds Below Market Benchmark (859 listings)](https://voltsandvins.com/deals/price-finds.html)
-- [Used Teslas Under $25,000 (1,847 listings)](https://voltsandvins.com/deals/under-25000.html)
-- [Used Teslas Under $30,000 (2,793 listings)](https://voltsandvins.com/deals/under-30000.html)
-- [Used Teslas Under $35,000 (3,204 listings)](https://voltsandvins.com/deals/under-35000.html)
-- [Low-Mileage Used Teslas Under 30,000 Miles (1,156 listings)](https://voltsandvins.com/deals/low-mileage.html)
-- [Used All-Wheel Drive (AWD) Teslas (3,742 listings)](https://voltsandvins.com/deals/awd.html)
-- [Used Rear-Wheel Drive (RWD) Teslas (1,828 listings)](https://voltsandvins.com/deals/rwd.html)
-- [Used Tesla Long Range (2,682 listings)](https://voltsandvins.com/deals/long-range.html)
-- [Used Tesla Performance (563 listings)](https://voltsandvins.com/deals/performance.html)
-- [Used Tesla Plaid (175 listings)](https://voltsandvins.com/deals/plaid.html)
-- [Used Tesla Standard Range (460 listings)](https://voltsandvins.com/deals/standard-range.html)
-- [Austin Gigafactory Built Used Teslas (690 listings)](https://voltsandvins.com/deals/austin-build.html)
-- [Fremont Factory Built Used Teslas (4,911 listings)](https://voltsandvins.com/deals/fremont-build.html)
+- [Used Tesla Price Finds Below Market Benchmark (1,637 listings)](https://voltsandvins.com/deals/price-finds.html)
+- [Used Teslas Under $25,000 (3,111 listings)](https://voltsandvins.com/deals/under-25000.html)
+- [Used Teslas Under $30,000 (5,540 listings)](https://voltsandvins.com/deals/under-30000.html)
+- [Used Teslas Under $35,000 (7,103 listings)](https://voltsandvins.com/deals/under-35000.html)
+- [Low-Mileage Used Teslas Under 30,000 Miles (2,040 listings)](https://voltsandvins.com/deals/low-mileage.html)
+- [Used All-Wheel Drive (AWD) Teslas (7,429 listings)](https://voltsandvins.com/deals/awd.html)
+- [Used Rear-Wheel Drive (RWD) Teslas (3,031 listings)](https://voltsandvins.com/deals/rwd.html)
+- [Used Tesla Long Range (4,786 listings)](https://voltsandvins.com/deals/long-range.html)
+- [Used Tesla Performance (1,528 listings)](https://voltsandvins.com/deals/performance.html)
+- [Used Tesla Plaid (291 listings)](https://voltsandvins.com/deals/plaid.html)
+- [Used Tesla Standard Range (623 listings)](https://voltsandvins.com/deals/standard-range.html)
+- [Austin Gigafactory Built Used Teslas (1,085 listings)](https://voltsandvins.com/deals/austin-build.html)
+- [Fremont Factory Built Used Teslas (9,429 listings)](https://voltsandvins.com/deals/fremont-build.html)
 
 ## Machine-Readable Feeds & Indexes
 - AI Agent Filter & Search API (Filtered JSON): https://api.voltsandvins.com/api/search?model=Model+Y&max_price=36000&only_price_finds=true&limit=10
 - OpenAPI 3.1 Action Specification (ChatGPT / Claude / Gemini Tools): https://voltsandvins.com/openapi.json
 - Full Top-100 Price-Find Stock Digest: https://voltsandvins.com/llms-full.txt
-- XML Sitemap (5797 URLs): https://voltsandvins.com/sitemap.xml
+- XML Sitemap (10808 URLs): https://voltsandvins.com/sitemap.xml
 - Complete crawlable vehicle and category directory: https://voltsandvins.com/browse/index.html
 - Live Public JSON Catalog: https://voltsandvins.com/inventory.json
 
 ## Top 100 Peer-Benchmarked Used Tesla Price Finds (Live Stock Index)
-- **2024 Tesla Cybertruck Crew Cab AWD** (Stock `VV-6FCD08A41446`) — Est. Price: `$84,226` | Peer Benchmark: `$91,452` (18 peers) | **Save `$7,226`** | 2,157 mi | AWD | West Sacramento, CA | https://voltsandvins.com/v/VV-6FCD08A41446.html
-- **2024 Tesla Model X AWD** (Stock `VV-8955A94B6F14`) — Est. Price: `$70,430` | Peer Benchmark: `$76,900` (9 peers) | **Save `$6,470`** | 23,915 mi | AWD | Roswell, GA | https://voltsandvins.com/v/VV-8955A94B6F14.html
-- **2024 Tesla Cybertruck Crew Cab AWD** (Stock `VV-612C99F76518`) — Est. Price: `$82,459` | Peer Benchmark: `$88,922` (18 peers) | **Save `$6,463`** | 9,120 mi | AWD | Houston, TX | https://voltsandvins.com/v/VV-612C99F76518.html
-- **2024 Tesla Cybertruck Cyberbeast Crew Cab AWD** (Stock `VV-B6EC443CC9A1`) — Est. Price: `$98,345` | Peer Benchmark: `$104,123` (12 peers) | **Save `$5,778`** | 7,603 mi | AWD | Manassas Park, VA | https://voltsandvins.com/v/VV-B6EC443CC9A1.html
-- **2023 Tesla Model X Standard Range AWD** (Stock `VV-51B1E2DFB2AE`) — Est. Price: `$56,050` | Peer Benchmark: `$61,501` (21 peers) | **Save `$5,451`** | 42,866 mi | AWD | Marietta, GA | https://voltsandvins.com/v/VV-51B1E2DFB2AE.html
+- **2026 Tesla Model X AWD** (Stock `VV-BB50F9E840BE`) — Est. Price: `$111,929` | Peer Benchmark: `$122,869` (5 peers) | **Save `$10,940`** | 17,176 mi | AWD | Plano, TX | https://voltsandvins.com/v/VV-BB50F9E840BE.html
+- **2026 Tesla Model S Plaid AWD** (Stock `VV-227C940FCD27`) — Est. Price: `$144,552` | Peer Benchmark: `$153,180` (12 peers) | **Save `$8,628`** | 7,111 mi | AWD | Delray Beach, FL | https://voltsandvins.com/v/VV-227C940FCD27.html
+- **2024 Tesla Cybertruck Crew Cab AWD** (Stock `VV-6FCD08A41446`) — Est. Price: `$84,434` | Peer Benchmark: `$91,869` (18 peers) | **Save `$7,435`** | 2,157 mi | AWD | West Sacramento, CA | https://voltsandvins.com/v/VV-6FCD08A41446.html
+- **2024 Tesla Model X AWD** (Stock `VV-8955A94B6F14`) — Est. Price: `$71,200` | Peer Benchmark: `$78,440` (10 peers) | **Save `$7,240`** | 23,915 mi | AWD | Roswell, GA | https://voltsandvins.com/v/VV-8955A94B6F14.html
+- **2024 Tesla Cybertruck Crew Cab AWD** (Stock `VV-612C99F76518`) — Est. Price: `$82,667` | Peer Benchmark: `$89,339` (18 peers) | **Save `$6,672`** | 9,120 mi | AWD | Houston, TX | https://voltsandvins.com/v/VV-612C99F76518.html
+- **2026 Tesla Model S AWD** (Stock `VV-380FBBF9CCC4`) — Est. Price: `$114,551` | Peer Benchmark: `$121,189` (7 peers) | **Save `$6,638`** | 9,683 mi | AWD | Puyallup, WA | https://voltsandvins.com/v/VV-380FBBF9CCC4.html
+- **2026 Tesla Model S AWD** (Stock `VV-50438D189979`) — Est. Price: `$116,564` | Peer Benchmark: `$123,129` (7 peers) | **Save `$6,565`** | 3,279 mi | AWD | Roswell, GA | https://voltsandvins.com/v/VV-50438D189979.html
+- **2026 Tesla Model X AWD** (Stock `VV-E524D0286C8F`) — Est. Price: `$126,523` | Peer Benchmark: `$132,847` (20 peers) | **Save `$6,324`** | 13,438 mi | AWD | Brooklyn, NY | https://voltsandvins.com/v/VV-E524D0286C8F.html
+- **2024 Tesla Cybertruck Cyberbeast Crew Cab AWD** (Stock `VV-B6EC443CC9A1`) — Est. Price: `$98,058` | Peer Benchmark: `$104,126` (12 peers) | **Save `$6,068`** | 7,603 mi | AWD | Manassas Park, VA | https://voltsandvins.com/v/VV-B6EC443CC9A1.html
+- **2026 Tesla Model X AWD** (Stock `VV-F0D228597E81`) — Est. Price: `$126,859` | Peer Benchmark: `$132,867` (20 peers) | **Save `$6,008`** | 13,371 mi | AWD | Troutdale, OR | https://voltsandvins.com/v/VV-F0D228597E81.html
+- **2026 Tesla Model S Plaid AWD** (Stock `VV-1A562DE17668`) — Est. Price: `$145,678` | Peer Benchmark: `$151,456` (12 peers) | **Save `$5,778`** | 12,735 mi | AWD | Costa Mesa, CA | https://voltsandvins.com/v/VV-1A562DE17668.html
+- **2026 Tesla Model X AWD** (Stock `VV-25B73437CFE8`) — Est. Price: `$129,629` | Peer Benchmark: `$135,263` (20 peers) | **Save `$5,634`** | 8,059 mi | AWD | Costa Mesa, CA | https://voltsandvins.com/v/VV-25B73437CFE8.html
+- **2023 Tesla Model X Standard Range AWD** (Stock `VV-51B1E2DFB2AE`) — Est. Price: `$56,170` | Peer Benchmark: `$61,741` (21 peers) | **Save `$5,571`** | 42,866 mi | AWD | Marietta, GA | https://voltsandvins.com/v/VV-51B1E2DFB2AE.html
+- **2024 Tesla Model X AWD** (Stock `VV-5F8F77A2902B`) — Est. Price: `$73,261` | Peer Benchmark: `$78,527` (10 peers) | **Save `$5,266`** | 20,788 mi | AWD | New York, NY | https://voltsandvins.com/v/VV-5F8F77A2902B.html
 - **2025 Tesla Cybertruck Crew Cab AWD** (Stock `VV-E3A23D0E5737`) — Est. Price: `$82,927` | Peer Benchmark: `$87,865` (9 peers) | **Save `$4,938`** | 18,928 mi | AWD | Plano, TX | https://voltsandvins.com/v/VV-E3A23D0E5737.html
-- **2024 Tesla Cybertruck Crew Cab AWD** (Stock `VV-FDD18B4FDC3D`) — Est. Price: `$75,831` | Peer Benchmark: `$80,666` (7 peers) | **Save `$4,835`** | 56,803 mi | AWD | Ewing, NJ | https://voltsandvins.com/v/VV-FDD18B4FDC3D.html
+- **2024 Tesla Cybertruck Cyberbeast Crew Cab AWD** (Stock `VV-54D9C4E4B92E`) — Est. Price: `$90,842` | Peer Benchmark: `$95,756` (15 peers) | **Save `$4,914`** | 20,549 mi | AWD | Southborough, MA | https://voltsandvins.com/v/VV-54D9C4E4B92E.html
+- **2022 Tesla Model X AWD** (Stock `VV-8DE9FE190437`) — Est. Price: `$52,824` | Peer Benchmark: `$57,668` (10 peers) | **Save `$4,844`** | 26,868 mi | AWD | Manassas Park, VA | https://voltsandvins.com/v/VV-8DE9FE190437.html
+- **2024 Tesla Cybertruck Crew Cab AWD** (Stock `VV-97EAC4F10A11`) — Est. Price: `$79,769` | Peer Benchmark: `$84,542` (21 peers) | **Save `$4,773`** | 18,908 mi | AWD | Willowbrook, IL | https://voltsandvins.com/v/VV-97EAC4F10A11.html
+- **2021 Tesla Model S Plaid AWD** (Stock `VV-78BD631896EE`) — Est. Price: `$50,761` | Peer Benchmark: `$55,527` (21 peers) | **Save `$4,766`** | 46,091 mi | AWD | Willowbrook, IL | https://voltsandvins.com/v/VV-78BD631896EE.html
+- **2026 Tesla Model Y Long Range RWD** (Stock `VV-5354C73C3794`) — Est. Price: `$47,243` | Peer Benchmark: `$51,998` (21 peers) | **Save `$4,755`** | 8,541 mi | RWD | Modesto, CA | https://voltsandvins.com/v/VV-5354C73C3794.html
 - **2024 Tesla Cybertruck All-Wheel Drive** (Stock `VV-5194CED2CD63`) — Est. Price: `$72,053` | Peer Benchmark: `$76,749` (21 peers) | **Save `$4,696`** | 31,563 mi | AWD | Oak Forest, IL | https://voltsandvins.com/v/VV-5194CED2CD63.html
-- **2022 Tesla Model X AWD** (Stock `VV-8DE9FE190437`) — Est. Price: `$52,664` | Peer Benchmark: `$57,347` (9 peers) | **Save `$4,683`** | 26,868 mi | AWD | Manassas Park, VA | https://voltsandvins.com/v/VV-8DE9FE190437.html
-- **2024 Tesla Model X AWD** (Stock `VV-5F8F77A2902B`) — Est. Price: `$72,471` | Peer Benchmark: `$76,946` (9 peers) | **Save `$4,475`** | 20,788 mi | AWD | New York, NY | https://voltsandvins.com/v/VV-5F8F77A2902B.html
+- **2024 Tesla Cybertruck Crew Cab AWD** (Stock `VV-6282005BA9EC`) — Est. Price: `$78,487` | Peer Benchmark: `$82,984` (21 peers) | **Save `$4,497`** | 29,558 mi | AWD | Ewing, NJ | https://voltsandvins.com/v/VV-6282005BA9EC.html
+- **2026 Tesla Model Y Long Range RWD** (Stock `VV-3C20D7E2C90F`) — Est. Price: `$46,791` | Peer Benchmark: `$51,286` (21 peers) | **Save `$4,495`** | 11,395 mi | RWD | Sewell, NJ | https://voltsandvins.com/v/VV-3C20D7E2C90F.html
 - **2026 Tesla Model Y Premium** (Stock `VV-0F12452D0C75`) — Est. Price: `$44,903` | Peer Benchmark: `$49,331` (18 peers) | **Save `$4,428`** | 12,575 mi | RWD | Horsham, PA | https://voltsandvins.com/v/VV-0F12452D0C75.html
-- **2026 Tesla Model Y Long Range RWD** (Stock `VV-3C20D7E2C90F`) — Est. Price: `$46,647` | Peer Benchmark: `$50,998` (21 peers) | **Save `$4,351`** | 11,395 mi | RWD | Sewell, NJ | https://voltsandvins.com/v/VV-3C20D7E2C90F.html
-- **2026 Tesla Model Y Long Range RWD** (Stock `VV-0C195071CDF3`) — Est. Price: `$46,392` | Peer Benchmark: `$50,683` (21 peers) | **Save `$4,291`** | 13,648 mi | RWD | Lexington, NC | https://voltsandvins.com/v/VV-0C195071CDF3.html
-- **2023 Tesla Model S Standard Range AWD** (Stock `VV-6C605457708B`) — Est. Price: `$53,263` | Peer Benchmark: `$57,527` (14 peers) | **Save `$4,264`** | 38,884 mi | AWD | Hollywood, FL | https://voltsandvins.com/v/VV-6C605457708B.html
+- **2022 Tesla Model X Plaid AWD** (Stock `VV-3730DCE0C252`) — Est. Price: `$62,898` | Peer Benchmark: `$67,295` (6 peers) | **Save `$4,397`** | 23,607 mi | AWD | West Palm Beach, FL | https://voltsandvins.com/v/VV-3730DCE0C252.html
+- **2024 Tesla Cybertruck Cyberbeast Crew Cab AWD** (Stock `VV-A385902E2389`) — Est. Price: `$90,602` | Peer Benchmark: `$94,985` (15 peers) | **Save `$4,383`** | 26,560 mi | AWD | Nederland, TX | https://voltsandvins.com/v/VV-A385902E2389.html
+- **2023 Tesla Model X Plaid AWD** (Stock `VV-6950E0ABA01E`) — Est. Price: `$68,837` | Peer Benchmark: `$73,169` (16 peers) | **Save `$4,332`** | 44,274 mi | AWD | Yonkers, NY | https://voltsandvins.com/v/VV-6950E0ABA01E.html
 - **2026 Tesla Model Y Long Range RWD** (Stock `VV-DB8718A418EC`) — Est. Price: `$47,747` | Peer Benchmark: `$51,998` (21 peers) | **Save `$4,251`** | 5,939 mi | RWD | Pittsburg, CA | https://voltsandvins.com/v/VV-DB8718A418EC.html
-- **2024 Tesla Cybertruck Cyberbeast Crew Cab AWD** (Stock `VV-54D9C4E4B92E`) — Est. Price: `$90,175` | Peer Benchmark: `$94,422` (14 peers) | **Save `$4,247`** | 20,549 mi | AWD | Southborough, MA | https://voltsandvins.com/v/VV-54D9C4E4B92E.html
 - **2025 Tesla Cybertruck Crew Cab AWD** (Stock `VV-3E639F7568F0`) — Est. Price: `$84,206` | Peer Benchmark: `$88,412` (9 peers) | **Save `$4,206`** | 17,104 mi | AWD | Mocksville, NC | https://voltsandvins.com/v/VV-3E639F7568F0.html
+- **2024 Tesla Cybertruck Crew Cab AWD** (Stock `VV-FDD18B4FDC3D`) — Est. Price: `$75,192` | Peer Benchmark: `$79,388` (7 peers) | **Save `$4,196`** | 56,803 mi | AWD | Ewing, NJ | https://voltsandvins.com/v/VV-FDD18B4FDC3D.html
+- **2026 Tesla Model Y Long Range RWD** (Stock `VV-19F98129F776`) — Est. Price: `$47,405` | Peer Benchmark: `$51,587` (21 peers) | **Save `$4,182`** | 54 mi | RWD | Lexington, NC | https://voltsandvins.com/v/VV-19F98129F776.html
+- **2023 Tesla Model S Standard Range AWD** (Stock `VV-6C605457708B`) — Est. Price: `$53,180` | Peer Benchmark: `$57,360` (14 peers) | **Save `$4,180`** | 38,884 mi | AWD | Hollywood, FL | https://voltsandvins.com/v/VV-6C605457708B.html
 - **2023 Tesla Model S Plaid AWD** (Stock `VV-DC9BBA2DF010`) — Est. Price: `$77,773` | Peer Benchmark: `$81,928` (8 peers) | **Save `$4,155`** | 19,863 mi | AWD | Willowbrook, IL | https://voltsandvins.com/v/VV-DC9BBA2DF010.html
-- **2024 Tesla Cybertruck Cyberbeast Crew Cab AWD** (Stock `VV-A385902E2389`) — Est. Price: `$90,321` | Peer Benchmark: `$94,422` (14 peers) | **Save `$4,101`** | 26,560 mi | AWD | Nederland, TX | https://voltsandvins.com/v/VV-A385902E2389.html
+- **2026 Tesla Model Y Long Range RWD** (Stock `VV-1F88950795FF`) — Est. Price: `$47,899` | Peer Benchmark: `$51,998` (21 peers) | **Save `$4,099`** | 6,072 mi | RWD | Marietta, GA | https://voltsandvins.com/v/VV-1F88950795FF.html
+- **2026 Tesla Model Y Long Range AWD** (Stock `VV-82BEA4EDF64E`) — Est. Price: `$50,845` | Peer Benchmark: `$54,900` (21 peers) | **Save `$4,055`** | 3,295 mi | AWD | Bountiful, UT | https://voltsandvins.com/v/VV-82BEA4EDF64E.html
+- **2025 Tesla Model 3 Long Range RWD** (Stock `VV-09D57DD181ED`) — Est. Price: `$38,530` | Peer Benchmark: `$42,559` (21 peers) | **Save `$4,029`** | 6,401 mi | RWD | Jacksonville, FL | https://voltsandvins.com/v/VV-09D57DD181ED.html
+- **2026 Tesla Model S AWD** (Stock `VV-20D93ADFA04E`) — Est. Price: `$117,927` | Peer Benchmark: `$121,942` (7 peers) | **Save `$4,015`** | 6,922 mi | AWD | Thousand Oaks, CA | https://voltsandvins.com/v/VV-20D93ADFA04E.html
 - **2023 Tesla Model S Plaid AWD** (Stock `VV-2BDA5306252F`) — Est. Price: `$76,993` | Peer Benchmark: `$80,990` (8 peers) | **Save `$3,997`** | 23,737 mi | AWD | Albuquerque, NM | https://voltsandvins.com/v/VV-2BDA5306252F.html
-- **2024 Tesla Cybertruck Crew Cab AWD** (Stock `VV-6282005BA9EC`) — Est. Price: `$77,983` | Peer Benchmark: `$81,976` (21 peers) | **Save `$3,993`** | 29,558 mi | AWD | Ewing, NJ | https://voltsandvins.com/v/VV-6282005BA9EC.html
-- **2026 Tesla Model Y Long Range AWD** (Stock `VV-B9829F2FF3B9`) — Est. Price: `$45,362` | Peer Benchmark: `$49,224` (21 peers) | **Save `$3,862`** | 35,082 mi | AWD | Framingham, MA | https://voltsandvins.com/v/VV-B9829F2FF3B9.html
-- **2024 Tesla Model 3 Long Range RWD** (Stock `VV-19BEBCFF837F`) — Est. Price: `$35,270` | Peer Benchmark: `$39,090` (9 peers) | **Save `$3,820`** | 24,938 mi | RWD | Dumfries, VA | https://voltsandvins.com/v/VV-19BEBCFF837F.html
-- **2023 Tesla Model X AWD** (Stock `VV-3964148384F4`) — Est. Price: `$57,113` | Peer Benchmark: `$60,931` (21 peers) | **Save `$3,818`** | 41,226 mi | AWD | Lexington, KY | https://voltsandvins.com/v/VV-3964148384F4.html
-- **2024 Tesla Model Y Long Range AWD** (Stock `VV-27F8F2FC072B`) — Est. Price: `$35,697` | Peer Benchmark: `$39,494` (21 peers) | **Save `$3,797`** | 23,000 mi | AWD | Wallingford, CT | https://voltsandvins.com/v/VV-27F8F2FC072B.html
-- **2024 Tesla Cybertruck Crew Cab AWD** (Stock `VV-995364FD40C4`) — Est. Price: `$80,037` | Peer Benchmark: `$83,824` (21 peers) | **Save `$3,787`** | 22,983 mi | AWD | Honolulu, HI | https://voltsandvins.com/v/VV-995364FD40C4.html
-- **2026 Tesla Model Y Long Range RWD** (Stock `VV-349123249EC5`) — Est. Price: `$46,784` | Peer Benchmark: `$50,484` (21 peers) | **Save `$3,700`** | 2,410 mi | RWD | Maysville, KY | https://voltsandvins.com/v/VV-349123249EC5.html
-- **2023 Tesla Model X AWD** (Stock `VV-640F2A6B6C7F`) — Est. Price: `$57,140` | Peer Benchmark: `$60,780` (21 peers) | **Save `$3,640`** | 42,741 mi | AWD | Buford, GA | https://voltsandvins.com/v/VV-640F2A6B6C7F.html
-- **2026 Tesla Model Y Long Range RWD** (Stock `VV-19F98129F776`) — Est. Price: `$46,853` | Peer Benchmark: `$50,484` (21 peers) | **Save `$3,631`** | 54 mi | RWD | Lexington, NC | https://voltsandvins.com/v/VV-19F98129F776.html
-- **2023 Tesla Model X AWD** (Stock `VV-CA5751F8B727`) — Est. Price: `$40,786` | Peer Benchmark: `$44,403` (5 peers) | **Save `$3,617`** | 122,675 mi | AWD | Calabasas, CA | https://voltsandvins.com/v/VV-CA5751F8B727.html
-- **2026 Tesla Model Y Long Range RWD** (Stock `VV-07ECC6C874BE`) — Est. Price: `$43,588` | Peer Benchmark: `$47,188` (21 peers) | **Save `$3,600`** | 7,000 mi | RWD | North Attleboro, MA | https://voltsandvins.com/v/VV-07ECC6C874BE.html
-- **2026 Tesla Model Y Long Range RWD** (Stock `VV-9FAD7D74E2FB`) — Est. Price: `$43,594` | Peer Benchmark: `$47,188` (21 peers) | **Save `$3,594`** | 8,481 mi | RWD | North Canton, OH | https://voltsandvins.com/v/VV-9FAD7D74E2FB.html
-- **2023 Tesla Model X AWD** (Stock `VV-B6AEDCD22732`) — Est. Price: `$44,500` | Peer Benchmark: `$47,999` (5 peers) | **Save `$3,499`** | 83,940 mi | AWD | Fredericksburg, VA | https://voltsandvins.com/v/VV-B6AEDCD22732.html
-- **2021 Tesla Model S Plaid AWD** (Stock `VV-8B3EDA34CC02`) — Est. Price: `$46,467` | Peer Benchmark: `$49,944` (12 peers) | **Save `$3,477`** | 121,524 mi | AWD | Troutdale, OR | https://voltsandvins.com/v/VV-8B3EDA34CC02.html
-- **2023 Tesla Model Y Long Range AWD** (Stock `VV-7E3692317B15`) — Est. Price: `$33,466` | Peer Benchmark: `$36,932` (21 peers) | **Save `$3,466`** | 33,458 mi | AWD | Dumfries, VA | https://voltsandvins.com/v/VV-7E3692317B15.html
-- **2026 Tesla Model Y Premium AWD** (Stock `VV-47B00AB8D387`) — Est. Price: `$51,249` | Peer Benchmark: `$54,698` (21 peers) | **Save `$3,449`** | 6,632 mi | AWD | Franklin, TN | https://voltsandvins.com/v/VV-47B00AB8D387.html
-- **2023 Tesla Model Y Long Range AWD** (Stock `VV-322DD38FBF22`) — Est. Price: `$33,508` | Peer Benchmark: `$36,932` (21 peers) | **Save `$3,424`** | 35,133 mi | AWD | Norco, CA | https://voltsandvins.com/v/VV-322DD38FBF22.html
-- **2023 Tesla Model S Standard Range AWD** (Stock `VV-45E297CFE8C4`) — Est. Price: `$53,117` | Peer Benchmark: `$56,539` (14 peers) | **Save `$3,422`** | 44,621 mi | AWD | Fort Worth, TX | https://voltsandvins.com/v/VV-45E297CFE8C4.html
-- **2019 Tesla Model X Performance AWD** (Stock `VV-5AA2C6AEA989`) — Est. Price: `$32,402` | Peer Benchmark: `$35,803` (8 peers) | **Save `$3,401`** | 87,951 mi | AWD | Warren, MI | https://voltsandvins.com/v/VV-5AA2C6AEA989.html
-- **2023 Tesla Model X AWD** (Stock `VV-6286B37E79C0`) — Est. Price: `$57,885` | Peer Benchmark: `$61,280` (21 peers) | **Save `$3,395`** | 38,519 mi | AWD | Quakertown, PA | https://voltsandvins.com/v/VV-6286B37E79C0.html
+- **2026 Tesla Model Y Long Range RWD** (Stock `VV-0C195071CDF3`) — Est. Price: `$46,049` | Peer Benchmark: `$49,998` (21 peers) | **Save `$3,949`** | 13,648 mi | RWD | Lexington, NC | https://voltsandvins.com/v/VV-0C195071CDF3.html
+- **2026 Tesla Model X AWD** (Stock `VV-0F90C6A9623E`) — Est. Price: `$118,960` | Peer Benchmark: `$122,869` (5 peers) | **Save `$3,909`** | 17,021 mi | AWD | Hinesville, GA | https://voltsandvins.com/v/VV-0F90C6A9623E.html
+- **2024 Tesla Cybertruck Crew Cab AWD** (Stock `VV-0906D777E1E9`) — Est. Price: `$84,887` | Peer Benchmark: `$88,775` (18 peers) | **Save `$3,888`** | 10,890 mi | AWD | San Francisco, CA | https://voltsandvins.com/v/VV-0906D777E1E9.html
+- **2026 Tesla Model 3 Trim unverified** (Stock `VV-7EBFDBEFABB1`) — Est. Price: `$42,877` | Peer Benchmark: `$46,754` (5 peers) | **Save `$3,877`** | 493 mi | RWD | Hollywood, FL | https://voltsandvins.com/v/VV-7EBFDBEFABB1.html
+- **2026 Tesla Model Y Long Range RWD** (Stock `VV-349123249EC5`) — Est. Price: `$46,920` | Peer Benchmark: `$50,757` (21 peers) | **Save `$3,837`** | 2,410 mi | RWD | Maysville, KY | https://voltsandvins.com/v/VV-349123249EC5.html
+- **2024 Tesla Model 3 Long Range RWD** (Stock `VV-19BEBCFF837F`) — Est. Price: `$35,224` | Peer Benchmark: `$38,998` (10 peers) | **Save `$3,774`** | 24,938 mi | RWD | Dumfries, VA | https://voltsandvins.com/v/VV-19BEBCFF837F.html
+- **2023 Tesla Model X Plaid AWD** (Stock `VV-89CD6D273406`) — Est. Price: `$69,612` | Peer Benchmark: `$73,364` (16 peers) | **Save `$3,752`** | 43,841 mi | AWD | Sanford, FL | https://voltsandvins.com/v/VV-89CD6D273406.html
+- **2023 Tesla Model Y AWD** (Stock `VV-F5F0FDD4358C`) — Est. Price: `$33,645` | Peer Benchmark: `$37,290` (18 peers) | **Save `$3,645`** | 32,738 mi | AWD | Fredericksburg, VA | https://voltsandvins.com/v/VV-F5F0FDD4358C.html
+- **2026 Tesla Model 3 Performance AWD** (Stock `VV-0E6910CD7DEF`) — Est. Price: `$54,449` | Peer Benchmark: `$57,997` (14 peers) | **Save `$3,548`** | 301 mi | AWD | Azusa, CA | https://voltsandvins.com/v/VV-0E6910CD7DEF.html
+- **2026 Tesla Model Y Long Range AWD** (Stock `VV-B9829F2FF3B9`) — Est. Price: `$45,018` | Peer Benchmark: `$48,535` (21 peers) | **Save `$3,517`** | 35,082 mi | AWD | Framingham, MA | https://voltsandvins.com/v/VV-B9829F2FF3B9.html
+- **2024 Tesla Model X AWD** (Stock `VV-16BAE0B2ED60`) — Est. Price: `$75,826` | Peer Benchmark: `$79,343` (10 peers) | **Save `$3,517`** | 17,308 mi | AWD | Torrance, CA | https://voltsandvins.com/v/VV-16BAE0B2ED60.html
+- **2022 Tesla Model Y Performance AWD** (Stock `VV-EBB49A5840FA`) — Est. Price: `$36,005` | Peer Benchmark: `$39,515` (21 peers) | **Save `$3,510`** | 15,189 mi | AWD | Orange, NJ | https://voltsandvins.com/v/VV-EBB49A5840FA.html
+- **2023 Tesla Model 3 Performance AWD** (Stock `VV-7947E9F8D0B6`) — Est. Price: `$35,489` | Peer Benchmark: `$38,998` (11 peers) | **Save `$3,509`** | 10,428 mi | AWD | Norco, CA | https://voltsandvins.com/v/VV-7947E9F8D0B6.html
+- **2025 Tesla Model S Plaid AWD** (Stock `VV-7DCBE64E091D`) — Est. Price: `$113,497` | Peer Benchmark: `$116,999` (5 peers) | **Save `$3,502`** | 14,332 mi | AWD | Joliet, IL | https://voltsandvins.com/v/VV-7DCBE64E091D.html
+- **2023 Tesla Model Y Long Range AWD** (Stock `VV-7E3692317B15`) — Est. Price: `$33,499` | Peer Benchmark: `$36,998` (21 peers) | **Save `$3,499`** | 33,458 mi | AWD | Dumfries, VA | https://voltsandvins.com/v/VV-7E3692317B15.html
+- **2021 Tesla Model S Plaid AWD** (Stock `VV-8B3EDA34CC02`) — Est. Price: `$46,469` | Peer Benchmark: `$49,947` (12 peers) | **Save `$3,478`** | 121,524 mi | AWD | Troutdale, OR | https://voltsandvins.com/v/VV-8B3EDA34CC02.html
+- **2024 Tesla Cybertruck Crew Cab AWD** (Stock `VV-995364FD40C4`) — Est. Price: `$79,725` | Peer Benchmark: `$83,200` (21 peers) | **Save `$3,475`** | 22,983 mi | AWD | Honolulu, HI | https://voltsandvins.com/v/VV-995364FD40C4.html
+- **2025 Tesla Model Y Long Range AWD** (Stock `VV-F9279016F7A6`) — Est. Price: `$38,460` | Peer Benchmark: `$41,923` (21 peers) | **Save `$3,463`** | 32,231 mi | AWD | Garland, TX | https://voltsandvins.com/v/VV-F9279016F7A6.html
+- **2019 Tesla Model X Performance AWD** (Stock `VV-6E2A7436598E`) — Est. Price: `$31,454` | Peer Benchmark: `$34,912` (9 peers) | **Save `$3,458`** | 90,391 mi | AWD | Willowbrook, IL | https://voltsandvins.com/v/VV-6E2A7436598E.html
+- **2023 Tesla Model Y Long Range AWD** (Stock `VV-322DD38FBF22`) — Est. Price: `$33,521` | Peer Benchmark: `$36,958` (21 peers) | **Save `$3,437`** | 35,133 mi | AWD | Norco, CA | https://voltsandvins.com/v/VV-322DD38FBF22.html
+- **2026 Tesla Model X Plaid AWD** (Stock `VV-202D3DFCC702`) — Est. Price: `$149,522` | Peer Benchmark: `$152,945` (16 peers) | **Save `$3,423`** | 4,789 mi | AWD | Roswell, GA | https://voltsandvins.com/v/VV-202D3DFCC702.html
 - **2019 Tesla Model X Long Range AWD** (Stock `VV-D2C9B3920C69`) — Est. Price: `$33,873` | Peer Benchmark: `$37,251` (14 peers) | **Save `$3,378`** | 59,727 mi | AWD | Hillside, NJ | https://voltsandvins.com/v/VV-D2C9B3920C69.html
-- **2026 Tesla Model Y Long Range RWD** (Stock `VV-1F88950795FF`) — Est. Price: `$48,626` | Peer Benchmark: `$51,998` (21 peers) | **Save `$3,372`** | 6,072 mi | RWD | Marietta, GA | https://voltsandvins.com/v/VV-1F88950795FF.html
-- **2024 Tesla Cybertruck Cyberbeast Crew Cab AWD** (Stock `VV-361BDCB5D19A`) — Est. Price: `$102,996` | Peer Benchmark: `$106,356` (12 peers) | **Save `$3,360`** | 1,383 mi | AWD | La Puente, CA | https://voltsandvins.com/v/VV-361BDCB5D19A.html
+- **2024 Tesla Cybertruck Cyberbeast Crew Cab AWD** (Stock `VV-361BDCB5D19A`) — Est. Price: `$102,997` | Peer Benchmark: `$106,358` (12 peers) | **Save `$3,361`** | 1,383 mi | AWD | La Puente, CA | https://voltsandvins.com/v/VV-361BDCB5D19A.html
+- **2024 Tesla Cybertruck Crew Cab AWD** (Stock `VV-3EBC27D83EA5`) — Est. Price: `$78,649` | Peer Benchmark: `$81,999` (21 peers) | **Save `$3,350`** | 45,683 mi | AWD | Dallas, TX | https://voltsandvins.com/v/VV-3EBC27D83EA5.html
 - **2025 Tesla Cybertruck Crew Cab AWD** (Stock `VV-296BE0F5A272`) — Est. Price: `$83,337` | Peer Benchmark: `$86,682` (9 peers) | **Save `$3,345`** | 22,560 mi | AWD | Lakeland, FL | https://voltsandvins.com/v/VV-296BE0F5A272.html
 - **2025 Tesla Model Y Long Range RWD** (Stock `VV-33026F86B7A3`) — Est. Price: `$41,342` | Peer Benchmark: `$44,684` (11 peers) | **Save `$3,342`** | 8,434 mi | RWD | Marietta, GA | https://voltsandvins.com/v/VV-33026F86B7A3.html
+- **2023 Tesla Model S Standard Range AWD** (Stock `VV-A2BFE277743F`) — Est. Price: `$41,416` | Peer Benchmark: `$44,751` (5 peers) | **Save `$3,335`** | 109,302 mi | AWD | Norco, CA | https://voltsandvins.com/v/VV-A2BFE277743F.html
+- **2023 Tesla Model S Standard Range AWD** (Stock `VV-45E297CFE8C4`) — Est. Price: `$53,028` | Peer Benchmark: `$56,361` (14 peers) | **Save `$3,333`** | 44,621 mi | AWD | Fort Worth, TX | https://voltsandvins.com/v/VV-45E297CFE8C4.html
 - **2023 Tesla Model X Standard Range AWD** (Stock `VV-9838BF127EFE`) — Est. Price: `$57,667` | Peer Benchmark: `$61,000` (15 peers) | **Save `$3,333`** | 28,093 mi | AWD | Cape Coral, FL | https://voltsandvins.com/v/VV-9838BF127EFE.html
-- **2024 Tesla Cybertruck Crew Cab AWD** (Stock `VV-0A6E049EA4F9`) — Est. Price: `$79,287` | Peer Benchmark: `$82,577` (21 peers) | **Save `$3,290`** | 34,237 mi | AWD | Lawrenceville, GA | https://voltsandvins.com/v/VV-0A6E049EA4F9.html
+- **2023 Tesla Model X AWD** (Stock `VV-3964148384F4`) — Est. Price: `$56,622` | Peer Benchmark: `$59,949` (21 peers) | **Save `$3,327`** | 41,226 mi | AWD | Lexington, KY | https://voltsandvins.com/v/VV-3964148384F4.html
+- **2023 Tesla Model X AWD** (Stock `VV-CA5751F8B727`) — Est. Price: `$40,488` | Peer Benchmark: `$43,807` (6 peers) | **Save `$3,319`** | 122,675 mi | AWD | Calabasas, CA | https://voltsandvins.com/v/VV-CA5751F8B727.html
+- **2023 Tesla Model 3 RWD** (Stock `VV-AD7E4B3D277D`) — Est. Price: `$29,810` | Peer Benchmark: `$33,119` (21 peers) | **Save `$3,309`** | 8,847 mi | RWD | Fredericksburg, VA | https://voltsandvins.com/v/VV-AD7E4B3D277D.html
 - **2024 Tesla Model X AWD** (Stock `VV-5BB9E558811E`) — Est. Price: `$63,644` | Peer Benchmark: `$66,930` (13 peers) | **Save `$3,286`** | 48,188 mi | AWD | Las Vegas, NV | https://voltsandvins.com/v/VV-5BB9E558811E.html
-- **2024 Tesla Cybertruck Cyberbeast Crew Cab AWD** (Stock `VV-4CF92B15E9DF`) — Est. Price: `$100,868` | Peer Benchmark: `$104,153` (12 peers) | **Save `$3,285`** | 7,505 mi | AWD | South Jordan, UT | https://voltsandvins.com/v/VV-4CF92B15E9DF.html
-- **2025 Tesla Model Y Long Range AWD** (Stock `VV-F9279016F7A6`) — Est. Price: `$38,254` | Peer Benchmark: `$41,510` (21 peers) | **Save `$3,256`** | 32,231 mi | AWD | Garland, TX | https://voltsandvins.com/v/VV-F9279016F7A6.html
-- **2023 Tesla Model S Standard Range AWD** (Stock `VV-A2BFE277743F`) — Est. Price: `$41,328` | Peer Benchmark: `$44,576` (5 peers) | **Save `$3,248`** | 109,302 mi | AWD | Norco, CA | https://voltsandvins.com/v/VV-A2BFE277743F.html
+- **2026 Tesla Model Y Long Range RWD** (Stock `VV-63EFA7B67BF7`) — Est. Price: `$47,539` | Peer Benchmark: `$50,817` (21 peers) | **Save `$3,278`** | 1,287 mi | RWD | Newnan, GA | https://voltsandvins.com/v/VV-63EFA7B67BF7.html
+- **2023 Tesla Model Y Long Range AWD** (Stock `VV-F7F64AF84C09`) — Est. Price: `$34,173` | Peer Benchmark: `$37,445` (21 peers) | **Save `$3,272`** | 30,000 mi | AWD | Wallingford, CT | https://voltsandvins.com/v/VV-F7F64AF84C09.html
+- **2020 Tesla Model X Long Range Plus AWD** (Stock `VV-0EFD5B04F1BD`) — Est. Price: `$35,258` | Peer Benchmark: `$38,517` (19 peers) | **Save `$3,259`** | 61,389 mi | AWD | Las Vegas, NV | https://voltsandvins.com/v/VV-0EFD5B04F1BD.html
+- **2024 Tesla Cybertruck Crew Cab AWD** (Stock `VV-0A6E049EA4F9`) — Est. Price: `$79,254` | Peer Benchmark: `$82,511` (21 peers) | **Save `$3,257`** | 34,237 mi | AWD | Lawrenceville, GA | https://voltsandvins.com/v/VV-0A6E049EA4F9.html
+- **2023 Tesla Model X AWD** (Stock `VV-B6AEDCD22732`) — Est. Price: `$44,250` | Peer Benchmark: `$47,499` (6 peers) | **Save `$3,249`** | 83,940 mi | AWD | Fredericksburg, VA | https://voltsandvins.com/v/VV-B6AEDCD22732.html
+- **2021 Tesla Model Y Long Range AWD** (Stock `VV-D49D557AC922`) — Est. Price: `$33,235` | Peer Benchmark: `$36,480` (21 peers) | **Save `$3,245`** | 15,606 mi | AWD | Hialeah, FL | https://voltsandvins.com/v/VV-D49D557AC922.html
+- **2026 Tesla Model X AWD** (Stock `VV-0FE5BDEA4053`) — Est. Price: `$132,038` | Peer Benchmark: `$135,275` (20 peers) | **Save `$3,237`** | 7,323 mi | AWD | Costa Mesa, CA | https://voltsandvins.com/v/VV-0FE5BDEA4053.html
+- **2023 Tesla Model X Plaid AWD** (Stock `VV-CE80AA5083C3`) — Est. Price: `$76,733` | Peer Benchmark: `$79,966` (6 peers) | **Save `$3,233`** | 22,535 mi | AWD | Honolulu, HI | https://voltsandvins.com/v/VV-CE80AA5083C3.html
 - **2026 Tesla Model Y Long Range Launch Series AWD** (Stock `VV-4CD07372F5D5`) — Est. Price: `$50,778` | Peer Benchmark: `$53,995` (13 peers) | **Save `$3,217`** | 9,256 mi | AWD | Boston, MA | https://voltsandvins.com/v/VV-4CD07372F5D5.html
+- **2024 Tesla Model X AWD** (Stock `VV-F22DFD622ACC`) — Est. Price: `$75,190` | Peer Benchmark: `$78,402` (10 peers) | **Save `$3,212`** | 22,063 mi | AWD | Carrollton, TX | https://voltsandvins.com/v/VV-F22DFD622ACC.html
 - **2020 Tesla Model X Performance AWD** (Stock `VV-0F5C6062CAFD`) — Est. Price: `$35,208` | Peer Benchmark: `$38,414` (7 peers) | **Save `$3,206`** | 92,319 mi | AWD | Vienna, VA | https://voltsandvins.com/v/VV-0F5C6062CAFD.html
-- **2023 Tesla Model S Plaid AWD** (Stock `VV-3487F3B15654`) — Est. Price: `$74,363` | Peer Benchmark: `$77,545` (8 peers) | **Save `$3,182`** | 30,950 mi | AWD | Norwalk, CA | https://voltsandvins.com/v/VV-3487F3B15654.html
-- **2026 Tesla Model Y Long Range AWD** (Stock `VV-82BEA4EDF64E`) — Est. Price: `$49,945` | Peer Benchmark: `$53,099` (21 peers) | **Save `$3,154`** | 3,295 mi | AWD | Bountiful, UT | https://voltsandvins.com/v/VV-82BEA4EDF64E.html
-- **2023 Tesla Model X AWD** (Stock `VV-5A1CDC623F56`) — Est. Price: `$57,557` | Peer Benchmark: `$60,698` (21 peers) | **Save `$3,141`** | 48,227 mi | AWD | Fort Worth, TX | https://voltsandvins.com/v/VV-5A1CDC623F56.html
-- **2023 Tesla Model X AWD** (Stock `VV-C6BB7E676C6F`) — Est. Price: `$58,136` | Peer Benchmark: `$61,277` (21 peers) | **Save `$3,141`** | 38,486 mi | AWD | Wall Township, NJ | https://voltsandvins.com/v/VV-C6BB7E676C6F.html
-- **2026 Tesla Model Y Premium RWD** (Stock `VV-0A8F54082F1E`) — Est. Price: `$45,054` | Peer Benchmark: `$48,190` (9 peers) | **Save `$3,136`** | 32,308 mi | RWD | Bridgeview, IL | https://voltsandvins.com/v/VV-0A8F54082F1E.html
-- **2026 Tesla Model Y Long Range RWD** (Stock `VV-59450105B6D7`) — Est. Price: `$48,006` | Peer Benchmark: `$51,140` (21 peers) | **Save `$3,134`** | 12,491 mi | RWD | Tempe, AZ | https://voltsandvins.com/v/VV-59450105B6D7.html
-- **2026 Tesla Model Y Long Range RWD** (Stock `VV-63EFA7B67BF7`) — Est. Price: `$47,372` | Peer Benchmark: `$50,484` (21 peers) | **Save `$3,112`** | 1,287 mi | RWD | Newnan, GA | https://voltsandvins.com/v/VV-63EFA7B67BF7.html
-- **2025 Tesla Model 3 Long Range RWD** (Stock `VV-09D57DD181ED`) — Est. Price: `$37,606` | Peer Benchmark: `$40,712` (21 peers) | **Save `$3,106`** | 6,401 mi | RWD | Jacksonville, FL | https://voltsandvins.com/v/VV-09D57DD181ED.html
-- **2020 Tesla Model X Long Range Plus AWD** (Stock `VV-A7D4785F3D9E`) — Est. Price: `$35,088` | Peer Benchmark: `$38,182` (18 peers) | **Save `$3,094`** | 69,507 mi | AWD | Norco, CA | https://voltsandvins.com/v/VV-A7D4785F3D9E.html
-- **2024 Tesla Cybertruck Crew Cab AWD** (Stock `VV-2031C1A85099`) — Est. Price: `$77,583` | Peer Benchmark: `$80,666` (7 peers) | **Save `$3,083`** | 60,625 mi | AWD | Alpharetta, GA | https://voltsandvins.com/v/VV-2031C1A85099.html
-- **2024 Tesla Cybertruck Crew Cab AWD** (Stock `VV-A6EB0CC31F21`) — Est. Price: `$77,629` | Peer Benchmark: `$80,666` (7 peers) | **Save `$3,037`** | 59,386 mi | AWD | Cape Coral, FL | https://voltsandvins.com/v/VV-A6EB0CC31F21.html
-- **2022 Tesla Model X AWD** (Stock `VV-E14048E405A2`) — Est. Price: `$52,614` | Peer Benchmark: `$55,635` (21 peers) | **Save `$3,021`** | 35,606 mi | AWD | Heber Springs, AR | https://voltsandvins.com/v/VV-E14048E405A2.html
-- **2024 Tesla Model Y Long Range AWD** (Stock `VV-2EE8E09A22B5`) — Est. Price: `$42,788` | Peer Benchmark: `$45,792` (6 peers) | **Save `$3,004`** | 12,176 mi | AWD | Raleigh, NC | https://voltsandvins.com/v/VV-2EE8E09A22B5.html
+- **2026 Tesla Model Y Long Range AWD** (Stock `VV-56124A9B7444`) — Est. Price: `$51,700` | Peer Benchmark: `$54,900` (21 peers) | **Save `$3,200`** | 2,770 mi | AWD | Honolulu, HI | https://voltsandvins.com/v/VV-56124A9B7444.html
+- **2023 Tesla Model X AWD** (Stock `VV-640F2A6B6C7F`) — Est. Price: `$56,662` | Peer Benchmark: `$59,824` (21 peers) | **Save `$3,162`** | 42,741 mi | AWD | Buford, GA | https://voltsandvins.com/v/VV-640F2A6B6C7F.html
+- **2026 Tesla Model Y Premium RWD** (Stock `VV-0A8F54082F1E`) — Est. Price: `$45,073` | Peer Benchmark: `$48,229` (9 peers) | **Save `$3,156`** | 32,308 mi | RWD | Bridgeview, IL | https://voltsandvins.com/v/VV-0A8F54082F1E.html
+- **2023 Tesla Model Y AWD** (Stock `VV-8872168C6B86`) — Est. Price: `$33,132` | Peer Benchmark: `$36,268` (18 peers) | **Save `$3,136`** | 37,019 mi | AWD | Houston, TX | https://voltsandvins.com/v/VV-8872168C6B86.html
+- **2019 Tesla Model X Long Range AWD** (Stock `VV-5EF8C2003477`) — Est. Price: `$28,102` | Peer Benchmark: `$31,208` (10 peers) | **Save `$3,106`** | 133,729 mi | AWD | Tampa, FL | https://voltsandvins.com/v/VV-5EF8C2003477.html
+- **2023 Tesla Model Y Long Range AWD** (Stock `VV-6E98532DB745`) — Est. Price: `$31,888` | Peer Benchmark: `$34,994` (21 peers) | **Save `$3,106`** | 38,032 mi | AWD | Norco, CA | https://voltsandvins.com/v/VV-6E98532DB745.html
+- **2023 Tesla Model X AWD** (Stock `VV-C022F544DC03`) — Est. Price: `$51,888` | Peer Benchmark: `$54,980` (21 peers) | **Save `$3,092`** | 50,428 mi | AWD | Wall Township, NJ | https://voltsandvins.com/v/VV-C022F544DC03.html
+- **2019 Tesla Model X Performance AWD** (Stock `VV-5AA2C6AEA989`) — Est. Price: `$32,078` | Peer Benchmark: `$35,156` (9 peers) | **Save `$3,078`** | 87,951 mi | AWD | Warren, MI | https://voltsandvins.com/v/VV-5AA2C6AEA989.html
+- **2026 Tesla Model Y Long Range RWD** (Stock `VV-7018F9D1D72B`) — Est. Price: `$47,929` | Peer Benchmark: `$50,998` (21 peers) | **Save `$3,069`** | 4,169 mi | RWD | Novato, CA | https://voltsandvins.com/v/VV-7018F9D1D72B.html
+- **2026 Tesla Model Y Long Range RWD** (Stock `VV-95217CB97BE8`) — Est. Price: `$48,054` | Peer Benchmark: `$51,120` (21 peers) | **Save `$3,066`** | 11,188 mi | RWD | San Diego, CA | https://voltsandvins.com/v/VV-95217CB97BE8.html
+- **2024 Tesla Cybertruck Crew Cab AWD** (Stock `VV-9D9D6AC59CA7`) — Est. Price: `$81,256` | Peer Benchmark: `$84,312` (21 peers) | **Save `$3,056`** | 19,427 mi | AWD | Delray Beach, FL | https://voltsandvins.com/v/VV-9D9D6AC59CA7.html
+- **2022 Tesla Model X AWD** (Stock `VV-79AB49821107`) — Est. Price: `$52,947` | Peer Benchmark: `$55,986` (21 peers) | **Save `$3,039`** | 30,601 mi | AWD | Champaign, IL | https://voltsandvins.com/v/VV-79AB49821107.html
+- **2023 Tesla Model S Plaid AWD** (Stock `VV-3487F3B15654`) — Est. Price: `$74,206` | Peer Benchmark: `$77,231` (10 peers) | **Save `$3,025`** | 30,950 mi | AWD | Norwalk, CA | https://voltsandvins.com/v/VV-3487F3B15654.html
+- **2024 Tesla Model Y Performance AWD** (Stock `VV-05D3C9379BF1`) — Est. Price: `$31,337` | Peer Benchmark: `$34,358` (9 peers) | **Save `$3,021`** | 112,733 mi | AWD | Norco, CA | https://voltsandvins.com/v/VV-05D3C9379BF1.html
+- **2023 Tesla Model X Plaid AWD** (Stock `VV-17AD3FB48D52`) — Est. Price: `$72,768` | Peer Benchmark: `$75,785` (16 peers) | **Save `$3,017`** | 36,433 mi | AWD | Laguna Niguel, CA | https://voltsandvins.com/v/VV-17AD3FB48D52.html
+- **2023 Tesla Model 3 RWD** (Stock `VV-895481227FB5`) — Est. Price: `$28,997` | Peer Benchmark: `$31,999` (21 peers) | **Save `$3,002`** | 15,315 mi | RWD | Wall Township, NJ | https://voltsandvins.com/v/VV-895481227FB5.html
 - **2026 Tesla Model Y Long Range RWD** (Stock `VV-9F13121742B7`) — Est. Price: `$47,997` | Peer Benchmark: `$50,998` (21 peers) | **Save `$3,001`** | 4,725 mi | RWD | Norco, CA | https://voltsandvins.com/v/VV-9F13121742B7.html
-- **2026 Tesla Model Y Long Range RWD** (Stock `VV-E08CB55F1F2F`) — Est. Price: `$44,990` | Peer Benchmark: `$47,980` (19 peers) | **Save `$2,990`** | 28,979 mi | RWD | Fort Lauderdale, FL | https://voltsandvins.com/v/VV-E08CB55F1F2F.html
-- **2023 Tesla Model Y Long Range AWD** (Stock `VV-F7F64AF84C09`) — Est. Price: `$33,888` | Peer Benchmark: `$36,875` (13 peers) | **Save `$2,987`** | 30,000 mi | AWD | Wallingford, CT | https://voltsandvins.com/v/VV-F7F64AF84C09.html
-- **2022 Tesla Model S AWD** (Stock `VV-7115EAD2F4F2`) — Est. Price: `$41,955` | Peer Benchmark: `$44,930` (20 peers) | **Save `$2,975`** | 54,798 mi | AWD | Birmingham, AL | https://voltsandvins.com/v/VV-7115EAD2F4F2.html
-- **2020 Tesla Model X Long Range Plus AWD** (Stock `VV-8F60C1EEE069`) — Est. Price: `$30,934` | Peer Benchmark: `$33,869` (21 peers) | **Save `$2,935`** | 95,301 mi | AWD | Fredericksburg, VA | https://voltsandvins.com/v/VV-8F60C1EEE069.html
-- **2024 Tesla Cybertruck Crew Cab AWD** (Stock `VV-DC5029A5F7DB`) — Est. Price: `$80,322` | Peer Benchmark: `$83,251` (21 peers) | **Save `$2,929`** | 30,004 mi | AWD | Grove City, OH | https://voltsandvins.com/v/VV-DC5029A5F7DB.html
-- **2024 Tesla Model S AWD** (Stock `VV-1D6ADFF3A6F1`) — Est. Price: `$73,980` | Peer Benchmark: `$76,894` (10 peers) | **Save `$2,914`** | 26,824 mi | AWD | Plano, TX | https://voltsandvins.com/v/VV-1D6ADFF3A6F1.html
-- **2019 Tesla Model X Long Range AWD** (Stock `VV-C39055E158A3`) — Est. Price: `$29,899` | Peer Benchmark: `$32,803` (10 peers) | **Save `$2,904`** | 90,430 mi | AWD | Westport, MA | https://voltsandvins.com/v/VV-C39055E158A3.html
-- **2020 Tesla Model X Long Range AWD** (Stock `VV-7FF1C980633F`) — Est. Price: `$27,869` | Peer Benchmark: `$30,743` (21 peers) | **Save `$2,874`** | 105,373 mi | AWD | Tampa, FL | https://voltsandvins.com/v/VV-7FF1C980633F.html
-- **2026 Tesla Model Y Long Range AWD** (Stock `VV-E962A4E894BE`) — Est. Price: `$49,363` | Peer Benchmark: `$52,230` (21 peers) | **Save `$2,867`** | 7,886 mi | AWD | Wall Township, NJ | https://voltsandvins.com/v/VV-E962A4E894BE.html
-- **2024 Tesla Cybertruck Crew Cab AWD** (Stock `VV-0906D777E1E9`) — Est. Price: `$85,508` | Peer Benchmark: `$88,367` (18 peers) | **Save `$2,859`** | 10,860 mi | AWD | San Francisco, CA | https://voltsandvins.com/v/VV-0906D777E1E9.html
-- **2024 Tesla Model 3 Performance AWD** (Stock `VV-738A2AE3C330`) — Est. Price: `$47,837` | Peer Benchmark: `$50,678` (21 peers) | **Save `$2,841`** | 15,255 mi | AWD | West Chester, PA | https://voltsandvins.com/v/VV-738A2AE3C330.html
-- **2026 Tesla Model Y Long Range AWD** (Stock `VV-FCDDD331758F`) — Est. Price: `$49,815` | Peer Benchmark: `$52,634` (21 peers) | **Save `$2,819`** | 12,740 mi | AWD | Centerville, OH | https://voltsandvins.com/v/VV-FCDDD331758F.html
-- **2026 Tesla Model Y Long Range RWD** (Stock `VV-7018F9D1D72B`) — Est. Price: `$47,672` | Peer Benchmark: `$50,484` (21 peers) | **Save `$2,812`** | 4,169 mi | RWD | Novato, CA | https://voltsandvins.com/v/VV-7018F9D1D72B.html
-- **2021 Tesla Model S Long Range AWD** (Stock `VV-86EE58069C2C`) — Est. Price: `$32,788` | Peer Benchmark: `$35,588` (8 peers) | **Save `$2,800`** | 155,754 mi | AWD | Plano, TX | https://voltsandvins.com/v/VV-86EE58069C2C.html
-- **2021 Tesla Model Y Long Range AWD** (Stock `VV-A7B47852FFB9`) — Est. Price: `$27,299` | Peer Benchmark: `$30,097` (21 peers) | **Save `$2,798`** | 52,585 mi | AWD | Fredericksburg, VA | https://voltsandvins.com/v/VV-A7B47852FFB9.html
-- **2022 Tesla Model X Plaid AWD** (Stock `VV-6015C6D06171`) — Est. Price: `$52,793` | Peer Benchmark: `$55,591` (21 peers) | **Save `$2,798`** | 69,572 mi | AWD | West Chicago, IL | https://voltsandvins.com/v/VV-6015C6D06171.html
-- **2024 Tesla Cybertruck Crew Cab AWD** (Stock `VV-33BC5B2748F3`) — Est. Price: `$81,015` | Peer Benchmark: `$83,813` (21 peers) | **Save `$2,798`** | 40,046 mi | AWD | Manvel, TX | https://voltsandvins.com/v/VV-33BC5B2748F3.html
-- **2024 Tesla Cybertruck Crew Cab AWD** (Stock `VV-9C2EFECA778A`) — Est. Price: `$79,777` | Peer Benchmark: `$82,553` (21 peers) | **Save `$2,776`** | 42,137 mi | AWD | Louisburg, KS | https://voltsandvins.com/v/VV-9C2EFECA778A.html
-- **2026 Tesla Model Y Long Range RWD** (Stock `VV-E6C8B88ED0D2`) — Est. Price: `$49,241` | Peer Benchmark: `$51,998` (21 peers) | **Save `$2,757`** | 6,169 mi | RWD | Huntington Beach, CA | https://voltsandvins.com/v/VV-E6C8B88ED0D2.html
-- **2020 Tesla Model X Long Range Plus AWD** (Stock `VV-69B71389B9D0`) — Est. Price: `$32,387` | Peer Benchmark: `$35,094` (21 peers) | **Save `$2,707`** | 89,632 mi | AWD | Norco, CA | https://voltsandvins.com/v/VV-69B71389B9D0.html
-- **2024 Tesla Cybertruck Crew Cab AWD** (Stock `VV-9D9D6AC59CA7`) — Est. Price: `$82,031` | Peer Benchmark: `$84,728` (21 peers) | **Save `$2,697`** | 19,427 mi | AWD | Delray Beach, FL | https://voltsandvins.com/v/VV-9D9D6AC59CA7.html
-- **2018 Tesla Model S P100D AWD** (Stock `VV-D96BDB74F2C7`) — Est. Price: `$28,184` | Peer Benchmark: `$30,878` (8 peers) | **Save `$2,694`** | 70,185 mi | AWD | Orlando, FL | https://voltsandvins.com/v/VV-D96BDB74F2C7.html
-- **2020 Tesla Model X Long Range AWD** (Stock `VV-0CCB4AD58764`) — Est. Price: `$30,135` | Peer Benchmark: `$32,819` (21 peers) | **Save `$2,684`** | 86,923 mi | AWD | Dumfries, VA | https://voltsandvins.com/v/VV-0CCB4AD58764.html
-- **2023 Tesla Model Y Long Range AWD** (Stock `VV-64DE6BB70F21`) — Est. Price: `$34,258` | Peer Benchmark: `$36,932` (21 peers) | **Save `$2,674`** | 31,242 mi | AWD | Norco, CA | https://voltsandvins.com/v/VV-64DE6BB70F21.html
-- **2024 Tesla Model X AWD** (Stock `VV-16BAE0B2ED60`) — Est. Price: `$74,962` | Peer Benchmark: `$77,614` (9 peers) | **Save `$2,652`** | 17,308 mi | AWD | Torrance, CA | https://voltsandvins.com/v/VV-16BAE0B2ED60.html
-- **2026 Tesla Model Y Long Range Launch Series AWD** (Stock `VV-55A541CFCB55`) — Est. Price: `$51,639` | Peer Benchmark: `$54,284` (13 peers) | **Save `$2,645`** | 886 mi | AWD | Scottsdale, AZ | https://voltsandvins.com/v/VV-55A541CFCB55.html
-- **2023 Tesla Model Y Long Range AWD** (Stock `VV-8B35206E5F98`) — Est. Price: `$33,138` | Peer Benchmark: `$35,775` (20 peers) | **Save `$2,637`** | 42,821 mi | AWD | Union City, GA | https://voltsandvins.com/v/VV-8B35206E5F98.html
-- **2024 Tesla Model 3 Long Range AWD** (Stock `VV-3EE9A0EB0C5E`) — Est. Price: `$36,427` | Peer Benchmark: `$39,059` (21 peers) | **Save `$2,632`** | 27,213 mi | AWD | Wall Township, NJ | https://voltsandvins.com/v/VV-3EE9A0EB0C5E.html
-- **2023 Tesla Model X AWD** (Stock `VV-6686645D6B08`) — Est. Price: `$62,616` | Peer Benchmark: `$65,241` (8 peers) | **Save `$2,625`** | 21,460 mi | AWD | Puyallup, WA | https://voltsandvins.com/v/VV-6686645D6B08.html
-- **2024 Tesla Cybertruck Crew Cab AWD** (Stock `VV-732F075F0E20`) — Est. Price: `$80,096` | Peer Benchmark: `$82,692` (21 peers) | **Save `$2,596`** | 41,674 mi | AWD | Amityville, NY | https://voltsandvins.com/v/VV-732F075F0E20.html
-- **2026 Tesla Model Y Premium RWD** (Stock `VV-BDCFAD48D56A`) — Est. Price: `$47,819` | Peer Benchmark: `$50,413` (21 peers) | **Save `$2,594`** | 3,933 mi | RWD | Houston, TX | https://voltsandvins.com/v/VV-BDCFAD48D56A.html
-- **2022 Tesla Model X AWD** (Stock `VV-474BBB2DA851`) — Est. Price: `$41,672` | Peer Benchmark: `$44,263` (12 peers) | **Save `$2,591`** | 82,590 mi | AWD | Norco, CA | https://voltsandvins.com/v/VV-474BBB2DA851.html
-- **2023 Tesla Model X Standard Range AWD** (Stock `VV-EBD0D9ABEA61`) — Est. Price: `$59,563` | Peer Benchmark: `$62,138` (21 peers) | **Save `$2,575`** | 41,572 mi | AWD | Orlando, FL | https://voltsandvins.com/v/VV-EBD0D9ABEA61.html
+- **2026 Tesla Model Y Long Range AWD** (Stock `VV-FCDDD331758F`) — Est. Price: `$49,997` | Peer Benchmark: `$52,998` (21 peers) | **Save `$3,001`** | 12,740 mi | AWD | Centerville, OH | https://voltsandvins.com/v/VV-FCDDD331758F.html
 
 ## All Indexed Category, Model-Year & State Pages
-- [Used Tesla Cybertruck (141)](https://voltsandvins.com/models/cybertruck.html)
-- [Used Tesla Model 3 (2,125)](https://voltsandvins.com/models/model-3.html)
-- [Used Tesla Model S (601)](https://voltsandvins.com/models/model-s.html)
-- [Used Tesla Model X (706)](https://voltsandvins.com/models/model-x.html)
-- [Used Tesla Model Y (2,028)](https://voltsandvins.com/models/model-y.html)
-- [2018 Tesla (520)](https://voltsandvins.com/years/2018.html)
-- [2019 Tesla (413)](https://voltsandvins.com/years/2019.html)
-- [2020 Tesla (711)](https://voltsandvins.com/years/2020.html)
-- [2021 Tesla (688)](https://voltsandvins.com/years/2021.html)
-- [2022 Tesla (795)](https://voltsandvins.com/years/2022.html)
-- [2023 Tesla (750)](https://voltsandvins.com/years/2023.html)
-- [2024 Tesla (813)](https://voltsandvins.com/years/2024.html)
-- [2025 Tesla (477)](https://voltsandvins.com/years/2025.html)
-- [2026 Tesla (434)](https://voltsandvins.com/years/2026.html)
+- [Used Tesla Cybertruck (155)](https://voltsandvins.com/models/cybertruck.html)
+- [Used Tesla Model 3 (4,363)](https://voltsandvins.com/models/model-3.html)
+- [Used Tesla Model S (1,129)](https://voltsandvins.com/models/model-s.html)
+- [Used Tesla Model X (1,058)](https://voltsandvins.com/models/model-x.html)
+- [Used Tesla Model Y (3,809)](https://voltsandvins.com/models/model-y.html)
+- [2013 Tesla (64)](https://voltsandvins.com/years/2013.html)
+- [2014 Tesla (70)](https://voltsandvins.com/years/2014.html)
+- [2015 Tesla (81)](https://voltsandvins.com/years/2015.html)
+- [2016 Tesla (237)](https://voltsandvins.com/years/2016.html)
+- [2017 Tesla (218)](https://voltsandvins.com/years/2017.html)
+- [2018 Tesla (967)](https://voltsandvins.com/years/2018.html)
+- [2019 Tesla (705)](https://voltsandvins.com/years/2019.html)
+- [2020 Tesla (939)](https://voltsandvins.com/years/2020.html)
+- [2021 Tesla (1,418)](https://voltsandvins.com/years/2021.html)
+- [2022 Tesla (1,499)](https://voltsandvins.com/years/2022.html)
+- [2023 Tesla (2,364)](https://voltsandvins.com/years/2023.html)
+- [2024 Tesla (942)](https://voltsandvins.com/years/2024.html)
+- [2025 Tesla (489)](https://voltsandvins.com/years/2025.html)
+- [2026 Tesla (521)](https://voltsandvins.com/years/2026.html)
 - [Used Tesla AK (1)](https://voltsandvins.com/states/ak.html)
-- [Used Tesla AL (44)](https://voltsandvins.com/states/al.html)
-- [Used Tesla AR (24)](https://voltsandvins.com/states/ar.html)
-- [Used Tesla AZ (202)](https://voltsandvins.com/states/az.html)
-- [Used Tesla CA (1,485)](https://voltsandvins.com/states/ca.html)
-- [Used Tesla CO (60)](https://voltsandvins.com/states/co.html)
-- [Used Tesla CT (24)](https://voltsandvins.com/states/ct.html)
-- [Used Tesla DE (1)](https://voltsandvins.com/states/de.html)
-- [Used Tesla FL (573)](https://voltsandvins.com/states/fl.html)
-- [Used Tesla GA (287)](https://voltsandvins.com/states/ga.html)
-- [Used Tesla HI (38)](https://voltsandvins.com/states/hi.html)
-- [Used Tesla IA (11)](https://voltsandvins.com/states/ia.html)
-- [Used Tesla ID (10)](https://voltsandvins.com/states/id.html)
-- [Used Tesla IL (185)](https://voltsandvins.com/states/il.html)
-- [Used Tesla IN (67)](https://voltsandvins.com/states/in.html)
-- [Used Tesla KS (31)](https://voltsandvins.com/states/ks.html)
-- [Used Tesla KY (33)](https://voltsandvins.com/states/ky.html)
-- [Used Tesla LA (12)](https://voltsandvins.com/states/la.html)
-- [Used Tesla MA (70)](https://voltsandvins.com/states/ma.html)
-- [Used Tesla MD (88)](https://voltsandvins.com/states/md.html)
-- [Used Tesla MI (35)](https://voltsandvins.com/states/mi.html)
-- [Used Tesla MN (48)](https://voltsandvins.com/states/mn.html)
-- [Used Tesla MO (61)](https://voltsandvins.com/states/mo.html)
-- [Used Tesla MS (2)](https://voltsandvins.com/states/ms.html)
-- [Used Tesla NC (215)](https://voltsandvins.com/states/nc.html)
-- [Used Tesla ND (1)](https://voltsandvins.com/states/nd.html)
-- [Used Tesla NE (16)](https://voltsandvins.com/states/ne.html)
-- [Used Tesla NH (8)](https://voltsandvins.com/states/nh.html)
-- [Used Tesla NJ (209)](https://voltsandvins.com/states/nj.html)
-- [Used Tesla NM (26)](https://voltsandvins.com/states/nm.html)
-- [Used Tesla NV (81)](https://voltsandvins.com/states/nv.html)
-- [Used Tesla NY (76)](https://voltsandvins.com/states/ny.html)
-- [Used Tesla OH (88)](https://voltsandvins.com/states/oh.html)
-- [Used Tesla OK (24)](https://voltsandvins.com/states/ok.html)
-- [Used Tesla OR (109)](https://voltsandvins.com/states/or.html)
-- [Used Tesla PA (73)](https://voltsandvins.com/states/pa.html)
-- [Used Tesla RI (3)](https://voltsandvins.com/states/ri.html)
-- [Used Tesla SC (33)](https://voltsandvins.com/states/sc.html)
-- [Used Tesla SD (3)](https://voltsandvins.com/states/sd.html)
-- [Used Tesla TN (56)](https://voltsandvins.com/states/tn.html)
-- [Used Tesla TX (467)](https://voltsandvins.com/states/tx.html)
-- [Used Tesla UT (147)](https://voltsandvins.com/states/ut.html)
-- [Used Tesla VA (332)](https://voltsandvins.com/states/va.html)
-- [Used Tesla VT (3)](https://voltsandvins.com/states/vt.html)
-- [Used Tesla WA (201)](https://voltsandvins.com/states/wa.html)
-- [Used Tesla WI (34)](https://voltsandvins.com/states/wi.html)
-- [Used Tesla WV (3)](https://voltsandvins.com/states/wv.html)
-- [Used Tesla Price Finds Below Market Benchmark (859)](https://voltsandvins.com/deals/price-finds.html)
-- [Used Teslas Under $25,000 (1,847)](https://voltsandvins.com/deals/under-25000.html)
-- [Used Teslas Under $30,000 (2,793)](https://voltsandvins.com/deals/under-30000.html)
-- [Used Teslas Under $35,000 (3,204)](https://voltsandvins.com/deals/under-35000.html)
-- [Low-Mileage Used Teslas Under 30,000 Miles (1,156)](https://voltsandvins.com/deals/low-mileage.html)
-- [Used All-Wheel Drive (AWD) Teslas (3,742)](https://voltsandvins.com/deals/awd.html)
-- [Used Rear-Wheel Drive (RWD) Teslas (1,828)](https://voltsandvins.com/deals/rwd.html)
-- [Used Tesla Long Range (2,682)](https://voltsandvins.com/deals/long-range.html)
-- [Used Tesla Performance (563)](https://voltsandvins.com/deals/performance.html)
-- [Used Tesla Plaid (175)](https://voltsandvins.com/deals/plaid.html)
-- [Used Tesla Standard Range (460)](https://voltsandvins.com/deals/standard-range.html)
-- [Austin Gigafactory Built Used Teslas (690)](https://voltsandvins.com/deals/austin-build.html)
-- [Fremont Factory Built Used Teslas (4,911)](https://voltsandvins.com/deals/fremont-build.html)
-- [2026 Tesla Model Y (434)](https://voltsandvins.com/models/2026-model-y.html)
-- [2025 Tesla Cybertruck (20)](https://voltsandvins.com/models/2025-cybertruck.html)
-- [2025 Tesla Model 3 (277)](https://voltsandvins.com/models/2025-model-3.html)
-- [2025 Tesla Model Y (180)](https://voltsandvins.com/models/2025-model-y.html)
-- [2024 Tesla Cybertruck (121)](https://voltsandvins.com/models/2024-cybertruck.html)
-- [2024 Tesla Model 3 (277)](https://voltsandvins.com/models/2024-model-3.html)
-- [2024 Tesla Model S (24)](https://voltsandvins.com/models/2024-model-s.html)
-- [2024 Tesla Model X (31)](https://voltsandvins.com/models/2024-model-x.html)
-- [2024 Tesla Model Y (360)](https://voltsandvins.com/models/2024-model-y.html)
-- [2023 Tesla Model 3 (264)](https://voltsandvins.com/models/2023-model-3.html)
-- [2023 Tesla Model S (81)](https://voltsandvins.com/models/2023-model-s.html)
-- [2023 Tesla Model X (136)](https://voltsandvins.com/models/2023-model-x.html)
-- [2023 Tesla Model Y (269)](https://voltsandvins.com/models/2023-model-y.html)
-- [2022 Tesla Model 3 (269)](https://voltsandvins.com/models/2022-model-3.html)
-- [2022 Tesla Model S (109)](https://voltsandvins.com/models/2022-model-s.html)
-- [2022 Tesla Model X (135)](https://voltsandvins.com/models/2022-model-x.html)
-- [2022 Tesla Model Y (282)](https://voltsandvins.com/models/2022-model-y.html)
-- [2021 Tesla Model 3 (254)](https://voltsandvins.com/models/2021-model-3.html)
-- [2021 Tesla Model S (134)](https://voltsandvins.com/models/2021-model-s.html)
-- [2021 Tesla Model X (34)](https://voltsandvins.com/models/2021-model-x.html)
-- [2021 Tesla Model Y (266)](https://voltsandvins.com/models/2021-model-y.html)
-- [2020 Tesla Model 3 (262)](https://voltsandvins.com/models/2020-model-3.html)
-- [2020 Tesla Model S (78)](https://voltsandvins.com/models/2020-model-s.html)
-- [2020 Tesla Model X (134)](https://voltsandvins.com/models/2020-model-x.html)
-- [2020 Tesla Model Y (237)](https://voltsandvins.com/models/2020-model-y.html)
-- [2019 Tesla Model 3 (258)](https://voltsandvins.com/models/2019-model-3.html)
+- [Used Tesla AL (82)](https://voltsandvins.com/states/al.html)
+- [Used Tesla AR (45)](https://voltsandvins.com/states/ar.html)
+- [Used Tesla AZ (305)](https://voltsandvins.com/states/az.html)
+- [Used Tesla CA (2,669)](https://voltsandvins.com/states/ca.html)
+- [Used Tesla CO (146)](https://voltsandvins.com/states/co.html)
+- [Used Tesla CT (43)](https://voltsandvins.com/states/ct.html)
+- [Used Tesla DE (3)](https://voltsandvins.com/states/de.html)
+- [Used Tesla FL (1,008)](https://voltsandvins.com/states/fl.html)
+- [Used Tesla GA (572)](https://voltsandvins.com/states/ga.html)
+- [Used Tesla HI (93)](https://voltsandvins.com/states/hi.html)
+- [Used Tesla IA (27)](https://voltsandvins.com/states/ia.html)
+- [Used Tesla ID (24)](https://voltsandvins.com/states/id.html)
+- [Used Tesla IL (331)](https://voltsandvins.com/states/il.html)
+- [Used Tesla IN (119)](https://voltsandvins.com/states/in.html)
+- [Used Tesla KS (52)](https://voltsandvins.com/states/ks.html)
+- [Used Tesla KY (74)](https://voltsandvins.com/states/ky.html)
+- [Used Tesla LA (27)](https://voltsandvins.com/states/la.html)
+- [Used Tesla MA (149)](https://voltsandvins.com/states/ma.html)
+- [Used Tesla MD (170)](https://voltsandvins.com/states/md.html)
+- [Used Tesla ME (1)](https://voltsandvins.com/states/me.html)
+- [Used Tesla MI (61)](https://voltsandvins.com/states/mi.html)
+- [Used Tesla MN (84)](https://voltsandvins.com/states/mn.html)
+- [Used Tesla MO (120)](https://voltsandvins.com/states/mo.html)
+- [Used Tesla MS (6)](https://voltsandvins.com/states/ms.html)
+- [Used Tesla MT (1)](https://voltsandvins.com/states/mt.html)
+- [Used Tesla NC (392)](https://voltsandvins.com/states/nc.html)
+- [Used Tesla ND (2)](https://voltsandvins.com/states/nd.html)
+- [Used Tesla NE (34)](https://voltsandvins.com/states/ne.html)
+- [Used Tesla NH (17)](https://voltsandvins.com/states/nh.html)
+- [Used Tesla NJ (339)](https://voltsandvins.com/states/nj.html)
+- [Used Tesla NM (51)](https://voltsandvins.com/states/nm.html)
+- [Used Tesla NV (184)](https://voltsandvins.com/states/nv.html)
+- [Used Tesla NY (128)](https://voltsandvins.com/states/ny.html)
+- [Used Tesla OH (183)](https://voltsandvins.com/states/oh.html)
+- [Used Tesla OK (57)](https://voltsandvins.com/states/ok.html)
+- [Used Tesla OR (230)](https://voltsandvins.com/states/or.html)
+- [Used Tesla PA (109)](https://voltsandvins.com/states/pa.html)
+- [Used Tesla RI (7)](https://voltsandvins.com/states/ri.html)
+- [Used Tesla SC (57)](https://voltsandvins.com/states/sc.html)
+- [Used Tesla SD (7)](https://voltsandvins.com/states/sd.html)
+- [Used Tesla TN (127)](https://voltsandvins.com/states/tn.html)
+- [Used Tesla TX (843)](https://voltsandvins.com/states/tx.html)
+- [Used Tesla UT (348)](https://voltsandvins.com/states/ut.html)
+- [Used Tesla VA (639)](https://voltsandvins.com/states/va.html)
+- [Used Tesla VT (8)](https://voltsandvins.com/states/vt.html)
+- [Used Tesla WA (448)](https://voltsandvins.com/states/wa.html)
+- [Used Tesla WI (83)](https://voltsandvins.com/states/wi.html)
+- [Used Tesla WV (6)](https://voltsandvins.com/states/wv.html)
+- [Used Tesla Price Finds Below Market Benchmark (1,637)](https://voltsandvins.com/deals/price-finds.html)
+- [Used Teslas Under $25,000 (3,111)](https://voltsandvins.com/deals/under-25000.html)
+- [Used Teslas Under $30,000 (5,540)](https://voltsandvins.com/deals/under-30000.html)
+- [Used Teslas Under $35,000 (7,103)](https://voltsandvins.com/deals/under-35000.html)
+- [Low-Mileage Used Teslas Under 30,000 Miles (2,040)](https://voltsandvins.com/deals/low-mileage.html)
+- [Used All-Wheel Drive (AWD) Teslas (7,429)](https://voltsandvins.com/deals/awd.html)
+- [Used Rear-Wheel Drive (RWD) Teslas (3,031)](https://voltsandvins.com/deals/rwd.html)
+- [Used Tesla Long Range (4,786)](https://voltsandvins.com/deals/long-range.html)
+- [Used Tesla Performance (1,528)](https://voltsandvins.com/deals/performance.html)
+- [Used Tesla Plaid (291)](https://voltsandvins.com/deals/plaid.html)
+- [Used Tesla Standard Range (623)](https://voltsandvins.com/deals/standard-range.html)
+- [Austin Gigafactory Built Used Teslas (1,085)](https://voltsandvins.com/deals/austin-build.html)
+- [Fremont Factory Built Used Teslas (9,429)](https://voltsandvins.com/deals/fremont-build.html)
+- [2026 Tesla Model 3 (53)](https://voltsandvins.com/models/2026-model-3.html)
+- [2026 Tesla Model S (22)](https://voltsandvins.com/models/2026-model-s.html)
+- [2026 Tesla Model X (55)](https://voltsandvins.com/models/2026-model-x.html)
+- [2026 Tesla Model Y (386)](https://voltsandvins.com/models/2026-model-y.html)
+- [2025 Tesla Cybertruck (22)](https://voltsandvins.com/models/2025-cybertruck.html)
+- [2025 Tesla Model 3 (299)](https://voltsandvins.com/models/2025-model-3.html)
+- [2025 Tesla Model X (15)](https://voltsandvins.com/models/2025-model-x.html)
+- [2025 Tesla Model Y (140)](https://voltsandvins.com/models/2025-model-y.html)
+- [2024 Tesla Cybertruck (128)](https://voltsandvins.com/models/2024-cybertruck.html)
+- [2024 Tesla Model 3 (257)](https://voltsandvins.com/models/2024-model-3.html)
+- [2024 Tesla Model S (32)](https://voltsandvins.com/models/2024-model-s.html)
+- [2024 Tesla Model X (32)](https://voltsandvins.com/models/2024-model-x.html)
+- [2024 Tesla Model Y (493)](https://voltsandvins.com/models/2024-model-y.html)
+- [2023 Tesla Model 3 (990)](https://voltsandvins.com/models/2023-model-3.html)
+- [2023 Tesla Model S (80)](https://voltsandvins.com/models/2023-model-s.html)
+- [2023 Tesla Model X (156)](https://voltsandvins.com/models/2023-model-x.html)
+- [2023 Tesla Model Y (1,138)](https://voltsandvins.com/models/2023-model-y.html)
+- [2022 Tesla Model 3 (538)](https://voltsandvins.com/models/2022-model-3.html)
+- [2022 Tesla Model S (112)](https://voltsandvins.com/models/2022-model-s.html)
+- [2022 Tesla Model X (163)](https://voltsandvins.com/models/2022-model-x.html)
+- [2022 Tesla Model Y (686)](https://voltsandvins.com/models/2022-model-y.html)
+- [2021 Tesla Model 3 (507)](https://voltsandvins.com/models/2021-model-3.html)
+- [2021 Tesla Model S (157)](https://voltsandvins.com/models/2021-model-s.html)
+- [2021 Tesla Model X (33)](https://voltsandvins.com/models/2021-model-x.html)
+- [2021 Tesla Model Y (721)](https://voltsandvins.com/models/2021-model-y.html)
+- [2020 Tesla Model 3 (475)](https://voltsandvins.com/models/2020-model-3.html)
+- [2020 Tesla Model S (79)](https://voltsandvins.com/models/2020-model-s.html)
+- [2020 Tesla Model X (140)](https://voltsandvins.com/models/2020-model-x.html)
+- [2020 Tesla Model Y (245)](https://voltsandvins.com/models/2020-model-y.html)
+- [2019 Tesla Model 3 (550)](https://voltsandvins.com/models/2019-model-3.html)
 - [2019 Tesla Model S (57)](https://voltsandvins.com/models/2019-model-s.html)
 - [2019 Tesla Model X (98)](https://voltsandvins.com/models/2019-model-x.html)
-- [2018 Tesla Model 3 (264)](https://voltsandvins.com/models/2018-model-3.html)
-- [2018 Tesla Model S (118)](https://voltsandvins.com/models/2018-model-s.html)
-- [2018 Tesla Model X (138)](https://voltsandvins.com/models/2018-model-x.html)
-- [Used Tesla Model 3 in AZ (87)](https://voltsandvins.com/states/az-model-3.html)
-- [Used Tesla Model Y in AZ (83)](https://voltsandvins.com/states/az-model-y.html)
-- [Used Tesla Model 3 in CA (596)](https://voltsandvins.com/states/ca-model-3.html)
-- [Used Tesla Model S in CA (129)](https://voltsandvins.com/states/ca-model-s.html)
-- [Used Tesla Model X in CA (222)](https://voltsandvins.com/states/ca-model-x.html)
-- [Used Tesla Model Y in CA (515)](https://voltsandvins.com/states/ca-model-y.html)
-- [Used Tesla Model 3 in FL (214)](https://voltsandvins.com/states/fl-model-3.html)
-- [Used Tesla Model S in FL (56)](https://voltsandvins.com/states/fl-model-s.html)
-- [Used Tesla Model X in FL (57)](https://voltsandvins.com/states/fl-model-x.html)
-- [Used Tesla Model Y in FL (220)](https://voltsandvins.com/states/fl-model-y.html)
-- [Used Tesla Model 3 in GA (98)](https://voltsandvins.com/states/ga-model-3.html)
-- [Used Tesla Model S in GA (37)](https://voltsandvins.com/states/ga-model-s.html)
-- [Used Tesla Model X in GA (37)](https://voltsandvins.com/states/ga-model-x.html)
-- [Used Tesla Model Y in GA (96)](https://voltsandvins.com/states/ga-model-y.html)
-- [Used Tesla Model 3 in IL (49)](https://voltsandvins.com/states/il-model-3.html)
-- [Used Tesla Model Y in IL (66)](https://voltsandvins.com/states/il-model-y.html)
-- [Used Tesla Model 3 in NC (87)](https://voltsandvins.com/states/nc-model-3.html)
-- [Used Tesla Model Y in NC (98)](https://voltsandvins.com/states/nc-model-y.html)
-- [Used Tesla Model 3 in NJ (82)](https://voltsandvins.com/states/nj-model-3.html)
-- [Used Tesla Model Y in NJ (65)](https://voltsandvins.com/states/nj-model-y.html)
-- [Used Tesla Model 3 in OH (39)](https://voltsandvins.com/states/oh-model-3.html)
-- [Used Tesla Model Y in OR (37)](https://voltsandvins.com/states/or-model-y.html)
-- [Used Tesla Model 3 in TX (164)](https://voltsandvins.com/states/tx-model-3.html)
-- [Used Tesla Model S in TX (76)](https://voltsandvins.com/states/tx-model-s.html)
-- [Used Tesla Model X in TX (53)](https://voltsandvins.com/states/tx-model-x.html)
-- [Used Tesla Model Y in TX (155)](https://voltsandvins.com/states/tx-model-y.html)
-- [Used Tesla Model 3 in UT (52)](https://voltsandvins.com/states/ut-model-3.html)
-- [Used Tesla Model Y in UT (59)](https://voltsandvins.com/states/ut-model-y.html)
-- [Used Tesla Model 3 in VA (153)](https://voltsandvins.com/states/va-model-3.html)
-- [Used Tesla Model X in VA (37)](https://voltsandvins.com/states/va-model-x.html)
-- [Used Tesla Model Y in VA (113)](https://voltsandvins.com/states/va-model-y.html)
-- [Used Tesla Model 3 in WA (88)](https://voltsandvins.com/states/wa-model-3.html)
-- [Used Tesla Model Y in WA (70)](https://voltsandvins.com/states/wa-model-y.html)
+- [2018 Tesla Model 3 (687)](https://voltsandvins.com/models/2018-model-3.html)
+- [2018 Tesla Model S (123)](https://voltsandvins.com/models/2018-model-s.html)
+- [2018 Tesla Model X (157)](https://voltsandvins.com/models/2018-model-x.html)
+- [2017 Tesla Model S (104)](https://voltsandvins.com/models/2017-model-s.html)
+- [2017 Tesla Model X (107)](https://voltsandvins.com/models/2017-model-x.html)
+- [2016 Tesla Model S (135)](https://voltsandvins.com/models/2016-model-s.html)
+- [2016 Tesla Model X (102)](https://voltsandvins.com/models/2016-model-x.html)
+- [2015 Tesla Model S (81)](https://voltsandvins.com/models/2015-model-s.html)
+- [2014 Tesla Model S (70)](https://voltsandvins.com/models/2014-model-s.html)
+- [2013 Tesla Model S (64)](https://voltsandvins.com/models/2013-model-s.html)
+- [Used Tesla Model Y in AL (38)](https://voltsandvins.com/states/al-model-y.html)
+- [Used Tesla Model 3 in AZ (138)](https://voltsandvins.com/states/az-model-3.html)
+- [Used Tesla Model Y in AZ (113)](https://voltsandvins.com/states/az-model-y.html)
+- [Used Tesla Model 3 in CA (1,084)](https://voltsandvins.com/states/ca-model-3.html)
+- [Used Tesla Model S in CA (278)](https://voltsandvins.com/states/ca-model-s.html)
+- [Used Tesla Model X in CA (329)](https://voltsandvins.com/states/ca-model-x.html)
+- [Used Tesla Model Y in CA (954)](https://voltsandvins.com/states/ca-model-y.html)
+- [Used Tesla Model 3 in CO (56)](https://voltsandvins.com/states/co-model-3.html)
+- [Used Tesla Model Y in CO (59)](https://voltsandvins.com/states/co-model-y.html)
+- [Used Tesla Model 3 in FL (418)](https://voltsandvins.com/states/fl-model-3.html)
+- [Used Tesla Model S in FL (97)](https://voltsandvins.com/states/fl-model-s.html)
+- [Used Tesla Model X in FL (83)](https://voltsandvins.com/states/fl-model-x.html)
+- [Used Tesla Model Y in FL (384)](https://voltsandvins.com/states/fl-model-y.html)
+- [Used Tesla Model 3 in GA (240)](https://voltsandvins.com/states/ga-model-3.html)
+- [Used Tesla Model S in GA (73)](https://voltsandvins.com/states/ga-model-s.html)
+- [Used Tesla Model X in GA (57)](https://voltsandvins.com/states/ga-model-x.html)
+- [Used Tesla Model Y in GA (181)](https://voltsandvins.com/states/ga-model-y.html)
+- [Used Tesla Model Y in HI (42)](https://voltsandvins.com/states/hi-model-y.html)
+- [Used Tesla Model 3 in IL (107)](https://voltsandvins.com/states/il-model-3.html)
+- [Used Tesla Model S in IL (60)](https://voltsandvins.com/states/il-model-s.html)
+- [Used Tesla Model X in IL (48)](https://voltsandvins.com/states/il-model-x.html)
+- [Used Tesla Model Y in IL (110)](https://voltsandvins.com/states/il-model-y.html)
+- [Used Tesla Model 3 in IN (47)](https://voltsandvins.com/states/in-model-3.html)
+- [Used Tesla Model Y in IN (42)](https://voltsandvins.com/states/in-model-y.html)
+- [Used Tesla Model 3 in MA (53)](https://voltsandvins.com/states/ma-model-3.html)
+- [Used Tesla Model Y in MA (65)](https://voltsandvins.com/states/ma-model-y.html)
+- [Used Tesla Model 3 in MD (77)](https://voltsandvins.com/states/md-model-3.html)
+- [Used Tesla Model Y in MD (57)](https://voltsandvins.com/states/md-model-y.html)
+- [Used Tesla Model 3 in MO (54)](https://voltsandvins.com/states/mo-model-3.html)
+- [Used Tesla Model Y in MO (52)](https://voltsandvins.com/states/mo-model-y.html)
+- [Used Tesla Model 3 in NC (186)](https://voltsandvins.com/states/nc-model-3.html)
+- [Used Tesla Model Y in NC (157)](https://voltsandvins.com/states/nc-model-y.html)
+- [Used Tesla Model 3 in NJ (120)](https://voltsandvins.com/states/nj-model-3.html)
+- [Used Tesla Model S in NJ (35)](https://voltsandvins.com/states/nj-model-s.html)
+- [Used Tesla Model X in NJ (47)](https://voltsandvins.com/states/nj-model-x.html)
+- [Used Tesla Model Y in NJ (123)](https://voltsandvins.com/states/nj-model-y.html)
+- [Used Tesla Model 3 in NV (84)](https://voltsandvins.com/states/nv-model-3.html)
+- [Used Tesla Model Y in NV (72)](https://voltsandvins.com/states/nv-model-y.html)
+- [Used Tesla Model 3 in NY (48)](https://voltsandvins.com/states/ny-model-3.html)
+- [Used Tesla Model Y in NY (62)](https://voltsandvins.com/states/ny-model-y.html)
+- [Used Tesla Model 3 in OH (81)](https://voltsandvins.com/states/oh-model-3.html)
+- [Used Tesla Model Y in OH (53)](https://voltsandvins.com/states/oh-model-y.html)
+- [Used Tesla Model 3 in OR (73)](https://voltsandvins.com/states/or-model-3.html)
+- [Used Tesla Model S in OR (36)](https://voltsandvins.com/states/or-model-s.html)
+- [Used Tesla Model X in OR (49)](https://voltsandvins.com/states/or-model-x.html)
+- [Used Tesla Model Y in OR (71)](https://voltsandvins.com/states/or-model-y.html)
+- [Used Tesla Model 3 in PA (39)](https://voltsandvins.com/states/pa-model-3.html)
+- [Used Tesla Model Y in PA (47)](https://voltsandvins.com/states/pa-model-y.html)
+- [Used Tesla Model 3 in TN (64)](https://voltsandvins.com/states/tn-model-3.html)
+- [Used Tesla Model Y in TN (47)](https://voltsandvins.com/states/tn-model-y.html)
+- [Used Tesla Model 3 in TX (360)](https://voltsandvins.com/states/tx-model-3.html)
+- [Used Tesla Model S in TX (109)](https://voltsandvins.com/states/tx-model-s.html)
+- [Used Tesla Model X in TX (68)](https://voltsandvins.com/states/tx-model-x.html)
+- [Used Tesla Model Y in TX (285)](https://voltsandvins.com/states/tx-model-y.html)
+- [Used Tesla Model 3 in UT (126)](https://voltsandvins.com/states/ut-model-3.html)
+- [Used Tesla Model Y in UT (169)](https://voltsandvins.com/states/ut-model-y.html)
+- [Used Tesla Model 3 in VA (313)](https://voltsandvins.com/states/va-model-3.html)
+- [Used Tesla Model S in VA (44)](https://voltsandvins.com/states/va-model-s.html)
+- [Used Tesla Model X in VA (66)](https://voltsandvins.com/states/va-model-x.html)
+- [Used Tesla Model Y in VA (211)](https://voltsandvins.com/states/va-model-y.html)
+- [Used Tesla Model 3 in WA (231)](https://voltsandvins.com/states/wa-model-3.html)
+- [Used Tesla Model X in WA (40)](https://voltsandvins.com/states/wa-model-x.html)
+- [Used Tesla Model Y in WA (142)](https://voltsandvins.com/states/wa-model-y.html)
+- [Used Tesla Model 3 in WI (44)](https://voltsandvins.com/states/wi-model-3.html)

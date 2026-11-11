@@ -52,6 +52,7 @@ def parse_source(source,response,model=None,year=None):
             rows.append(normalized(vin,x.get('model') or x.get('model_name'),x.get('year'),x.get('trim'),x.get('price_unformatted') if x.get('price_unformatted') is not None else x.get('price'),x.get('mileage_unformatted') if x.get('mileage_unformatted') is not None else x.get('mileage'),x.get('dealer_name'),x.get('city'),x.get('state'),photos,urljoin('https://www.autolist.com',link),title_evidence=x))
     elif source=='cargurus':
         data=response.json()
+        if data is None:return []
         if not isinstance(data,list):raise SourceError('CarGurus response shape changed')
         for x in data:
             city=x.get('sellerCity') or '';state=x.get('sellerRegion')
@@ -78,12 +79,14 @@ def parse_source(source,response,model=None,year=None):
         if not vehicles:raise SourceError(f'{source}: no vehicle records; inspect source before treating this as empty inventory')
     return [x for x in rows if x]
 
-def source_url(source,model,year,page):
+def source_url(source,model,year,page,min_price=None):
     if source=='autolist':
         return 'https://www.autolist.com/api/v2/search?'+urlencode(dict(make='Tesla',model=model,year_min=year,year_max=year,latitude=39.8283,longitude=-98.5795,radius='all',page=page,limit=100,sort_filter='price:asc'))
     if source=='cargurus':
         entities={'Model 3':'d2475','Model Y':'d3044','Model S':'d2039','Model X':'d2132','Cybertruck':'d3353'}
-        return 'https://www.cargurus.com/Cars/searchResults.action?'+urlencode({'zip':'78201','distance':50000,'entitySelectingHelper.selectedEntity':entities[model],'startYear':year,'endYear':year,'offset':(page-1)*48,'maxResults':48,'sortType':'PRICE','sortDir':'ASC','hideFrameDamage':'true','hideSalvage':'true','hideLemon':'true','hideTheft':'true','sellerType':'DEALER'})
+        params={'zip':'78201','distance':50000,'entitySelectingHelper.selectedEntity':entities[model],'startYear':year,'endYear':year,'offset':(page-1)*48,'maxResults':48,'sortType':'PRICE','sortDir':'ASC','hideFrameDamage':'true','hideSalvage':'true','hideLemon':'true','hideTheft':'true','sellerType':'DEALER'}
+        if min_price is not None:params['minPrice']=int(min_price)
+        return 'https://www.cargurus.com/Cars/searchResults.action?'+urlencode(params)
     if source=='carvana':return f'https://www.carvana.com/cars/tesla-{model.lower().replace(" ","-")}?page={page}'
     return 'https://www.truecar.com/used-cars-for-sale/listings/tesla/'+model.lower().replace(' ','-')+f'/?year_low={year}&year_high={year}&page={page}'
 

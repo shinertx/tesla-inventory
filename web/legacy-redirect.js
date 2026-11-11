@@ -1,6 +1,16 @@
 'use strict';
 // Keep older saved vehicle links usable without publishing a VIN-to-stock index.
 (async function () {
+  const stockMatch=location.pathname.match(/\/v\/(VV-[0-9A-F]{12})\.html$/i);
+  if(stockMatch){
+    const target=new URL(location.href),params=new URLSearchParams(target.search);
+    target.pathname=target.pathname.replace(/\/v\/VV-[0-9A-F]{12}\.html$/i,'/');target.search='';target.hash='';
+    target.searchParams.set('id',stockMatch[1].toUpperCase());
+    for(const key of ['utm_source','utm_medium','utm_campaign','utm_term','utm_content']){
+      if(params.has(key))target.searchParams.set(key,params.get(key).slice(0,500));
+    }
+    location.replace(target.href);return;
+  }
   const match=location.pathname.match(/\/v\/([A-HJ-NPR-Z0-9]{17})\.html$/i);
   if(!match||!globalThis.crypto?.subtle)return;
   const raw=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('volts-and-vins:'+match[1].toUpperCase()));

@@ -36,32 +36,13 @@ from app.catalog import stock_id_for, VIN_PATTERN
 from tools.public_site import public_files, is_public_artifact, VIN_RE
 
 
-DEFAULT_PARTITIONS = [
-    ("cargurus", "Cybertruck", 2025, 2),
-    ("cargurus", "Cybertruck", 2024, 3),
-    ("cargurus", "Model Y", 2026, 2),
-    ("cargurus", "Model Y", 2025, 3),
-    ("cargurus", "Model Y", 2024, 4),
-    ("cargurus", "Model Y", 2023, 4),
-    ("cargurus", "Model Y", 2022, 3),
-    ("cargurus", "Model Y", 2021, 3),
-    ("cargurus", "Model 3", 2025, 3),
-    ("cargurus", "Model 3", 2024, 4),
-    ("cargurus", "Model 3", 2023, 4),
-    ("cargurus", "Model 3", 2022, 3),
-    ("cargurus", "Model 3", 2021, 3),
-    ("cargurus", "Model X", 2024, 2),
-    ("cargurus", "Model X", 2023, 2),
-    ("cargurus", "Model X", 2022, 2),
-    ("cargurus", "Model S", 2024, 2),
-    ("cargurus", "Model S", 2023, 2),
-    ("cargurus", "Model S", 2022, 2),
-    ("autolist", "Cybertruck", 2024, 2),
-    ("autolist", "Model Y", 2024, 3),
-    ("autolist", "Model Y", 2023, 3),
-    ("autolist", "Model 3", 2024, 3),
-    ("autolist", "Model 3", 2023, 3),
-]
+DEFAULT_PARTITIONS = (
+    [("cargurus", "Cybertruck", yr, 25) for yr in range(2026, 2023, -1)]
+    + [("cargurus", "Model Y", yr, 25) for yr in range(2026, 2019, -1)]
+    + [("cargurus", "Model 3", yr, 25) for yr in range(2026, 2016, -1)]
+    + [("cargurus", "Model X", yr, 25) for yr in range(2026, 2015, -1)]
+    + [("cargurus", "Model S", yr, 25) for yr in range(2026, 2012, -1)]
+)
 
 
 def _utc_now() -> str:
@@ -100,52 +81,81 @@ def job_discover_vehicles(
     partition_results = []
     blocked_hosts = set()
     for source, model, year, pages in partitions:
-        for page in range(1, pages + 1):
-            url = source_url(source, model, year, page)
-            host = urlsplit(url).hostname
-            if host in blocked_hosts:
-                break
-            try:
-                resp = requests.get(url, impersonate="chrome120", timeout=15)
-                if resp.status_code != 200:
-                    if resp.status_code in (403, 429):
-                        blocked_hosts.add(host)
+        seen_vins: set[str] = set()
+        min_price: int | None = None
+        max_windows = 8 if (source == "cargurus" and pages >= 20) else 1
+        for _window in range(max_windows):
+            window_max_price = 0
+            new_in_window = 0
+            exhausted = False
+            for page in range(1, pages + 1):
+                url = source_url(source, model, year, page, min_price=min_price) if min_price is not None else source_url(source, model, year, page)
+                host = urlsplit(url).hostname
+                if host in blocked_hosts:
+                    exhausted = True
+                    break
+                try:
+                    resp = requests.get(url, impersonate="chrome120", timeout=15)
+                    if resp.status_code != 200:
+                        if resp.status_code in (403, 429):
+                            blocked_hosts.add(host)
+                        partition_results.append({
+                            "source": source,
+                            "model": model,
+                            "year": year,
+                            "page": page,
+                            "ok": False,
+                            "status_code": resp.status_code,
+                        })
+                        exhausted = True
+                        break
+                    raw_json = resp.json() if source == "cargurus" and hasattr(resp, "json") else None
+                    if source == "cargurus" and raw_json is None:
+                        if page == 1:
+                            exhausted = True
+                        break
+                    rows = parse_source(source, resp, model, year)
+                    valid_rows = [
+                        r for r in rows
+                        if r.get("source_url")
+                        and r["source_url"].rstrip("/") not in ("https://www.autolist.com", "https://www.truecar.com")
+                    ]
+                    fresh_rows = [r for r in valid_rows if r.get("vin") not in seen_vins]
+                    for r in valid_rows:
+                        if r.get("vin"):
+                            seen_vins.add(r["vin"])
+                        if isinstance(r.get("asking_price"), int) and r["asking_price"] > window_max_price:
+                            window_max_price = r["asking_price"]
+                    new_in_window += len(fresh_rows)
+                    if fresh_rows:
+                        accepted = ingest(db_path, fresh_rows, source, _utc_now(), complete=False)
+                        accepted_total += accepted
+                        partition_results.append({
+                            "source": source,
+                            "model": model,
+                            "year": year,
+                            "page": page,
+                            "ok": True,
+                            "fetched": len(fresh_rows),
+                            "accepted": accepted,
+                        })
+                    if source == "cargurus" and (isinstance(raw_json, list) and len(raw_json) < 48 or not rows):
+                        exhausted = True
+                        break
+                except Exception as exc:
                     partition_results.append({
                         "source": source,
                         "model": model,
                         "year": year,
                         "page": page,
                         "ok": False,
-                        "status_code": resp.status_code,
+                        "error": f"{type(exc).__name__}: {str(exc)[:160]}",
                     })
-                    continue
-                rows = parse_source(source, resp, model, year)
-                valid_rows = [
-                    r for r in rows
-                    if r.get("source_url")
-                    and r["source_url"].rstrip("/") not in ("https://www.autolist.com", "https://www.truecar.com")
-                ]
-                if valid_rows:
-                    accepted = ingest(db_path, valid_rows, source, _utc_now(), complete=False)
-                    accepted_total += accepted
-                    partition_results.append({
-                        "source": source,
-                        "model": model,
-                        "year": year,
-                        "page": page,
-                        "ok": True,
-                        "fetched": len(valid_rows),
-                        "accepted": accepted,
-                    })
-            except Exception as exc:
-                partition_results.append({
-                    "source": source,
-                    "model": model,
-                    "year": year,
-                    "page": page,
-                    "ok": False,
-                    "error": f"{type(exc).__name__}: {str(exc)[:160]}",
-                })
+                    exhausted = True
+                    break
+            if exhausted or new_in_window == 0 or window_max_price <= 0:
+                break
+            min_price = (window_max_price + 1) if (min_price is not None and window_max_price <= min_price) else window_max_price
     if accepted_total > 0 and db_path.exists():
         export(db_path, snapshot_path)
     result = {
