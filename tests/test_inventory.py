@@ -59,7 +59,7 @@ def test_missing_source_shape_is_a_visible_failure():
     class Response:
         text='<html>captcha</html>'
         def json(self):return {'not':'listings'}
-    for source in ('autolist','cargurus','truecar','carvana','carmax','marketcheck'):
+    for source in ('autolist','cargurus','truecar','carvana','carmax','dealercom','marketcheck'):
         with pytest.raises(SourceError):parse_source(source,Response())
 
 def test_cargurus_query_supplies_model_when_response_omits_it():
@@ -281,5 +281,27 @@ def test_carmax_and_marketcheck_strictly_enforce_tesla_only_and_clean_title():
     assert len(mc_rows) == 2
     assert mc_rows[0]['vin'] == '7SAYGDED1RF039277' and mc_rows[0]['risk_flag'] is False
     assert mc_rows[1]['vin'] == VIN and mc_rows[1]['risk_flag'] is True
+
+
+def test_dealercom_resolves_graph_seller_and_enforces_tesla_only():
+    from tools.collect import source_url
+    ddc_url = source_url('dealercom', 'All', 0, 2, dealer_host='https://www.lithia.com')
+    assert ddc_url == 'https://www.lithia.com/used-inventory/index.htm?make=Tesla&start=24'
+    graph = {'@graph': [{'@id': 'https://www.lithia.com/used-inventory/index.htm#oxnardtoyota', '@type': 'AutoDealer', 'name': 'Lithia Motors', 'address': {'addressLocality': 'Oxnard', 'addressRegion': 'CA'}}]}
+    col = {'@type': 'CollectionPage', 'about': {'offers': {'itemOffered': [
+        {'@type': ['Product', 'Car'], 'name': 'Used 2024 Tesla Model Y Long Range', 'vehicleIdentificationNumber': '7SAYGDED1RF039277', 'vehicleModelDate': 2024, 'brand': {'@type': 'Brand', 'name': 'Tesla'}, 'model': 'Model Y', 'image': 'https://pictures.dealer.com/l/lithia/1.jpg', 'mileageFromOdometer': {'value': 12300}, 'offers': {'price': '37995', 'url': 'https://www.lithia.com/used/Tesla/1.htm', 'seller': {'@id': 'https://www.lithia.com/used-inventory/index.htm#oxnardtoyota'}}},
+        {'@type': ['Product', 'Car'], 'name': 'Used 2024 BMW i4 eDrive40', 'vehicleIdentificationNumber': '7SAYGDED1RF039277', 'vehicleModelDate': 2024, 'brand': {'@type': 'Brand', 'name': 'BMW'}, 'model': 'Model Y', 'mileageFromOdometer': {'value': 9000}, 'offers': {'price': '41000', 'url': 'https://www.lithia.com/used/BMW/2.htm'}},
+    ]}}}
+    class DdcResp:
+        text = f'<script type="application/ld+json">{json.dumps(graph)}</script><script type="application/ld+json">{json.dumps(col)}</script>'
+    rows = parse_source('dealercom', DdcResp(), 'All', 0)
+    assert len(rows) == 1
+    assert rows[0]['vin'] == '7SAYGDED1RF039277'
+    assert rows[0]['dealer_name'] == 'Lithia Motors (oxnardtoyota)'
+    assert rows[0]['city'] == 'Oxnard' and rows[0]['state'] == 'CA'
+    class EmptyDdcResp:
+        text = '<script type="application/ld+json">{"@type":"CollectionPage","about":{"offers":{"itemOffered":[]}}}</script>'
+    assert parse_source('dealercom', EmptyDdcResp(), 'All', 0) == []
+
 
 

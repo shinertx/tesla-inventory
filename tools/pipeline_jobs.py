@@ -42,8 +42,36 @@ CARGURUS_REGIONAL_HUBS = (
     "10001", "02108", "44101", "96813", "99501",
 )
 
+DEALERCOM_GROUPS = (
+    ("https://www.lithia.com", 16),
+    ("https://www.hendrickcars.com", 4),
+    ("https://www.sonicautomotive.com", 4),
+    ("https://www.zeigler.com", 2),
+    ("https://www.corwinauto.com", 2),
+    ("https://www.jimellis.com", 2),
+    ("https://www.mileone.com", 2),
+    ("https://www.cogginauto.com", 2),
+    ("https://www.phillong.com", 2),
+    ("https://www.ganleyauto.com", 2),
+    ("https://www.herbchambers.com", 2),
+    ("https://www.lhmusedcars.com", 2),
+    ("https://www.darcars.com", 2),
+    ("https://www.ourisman.com", 2),
+    ("https://www.parkplace.com", 2),
+    ("https://www.crestcars.com", 2),
+    ("https://www.suburbancollection.com", 2),
+    ("https://www.priorityauto.com", 2),
+    ("https://www.ricart.com", 1),
+    ("https://www.cioccaautomotive.com", 1),
+    ("https://www.campbellautogroup.com", 1),
+    ("https://www.bommarito.com", 1),
+    ("https://www.fitzmall.com", 1),
+    ("https://www.criswellauto.com", 1),
+)
+
 DEFAULT_PARTITIONS = (
-    [("carmax", "All", 0, 22)]
+    [(f"dealercom:{host}", "All", 0, max_p) for host, max_p in DEALERCOM_GROUPS]
+    + [("carmax", "All", 0, 22)]
     + [(f"cargurus_hub:{z}", m, 0, 21) for z in CARGURUS_REGIONAL_HUBS for m in ("Model Y", "Model 3", "Model S", "Model X", "Cybertruck")]
     + [("cargurus", "Cybertruck", yr, 21) for yr in range(2026, 2023, -1)]
     + [("cargurus", "Model Y", yr, 21) for yr in range(2026, 2019, -1)]
@@ -95,10 +123,14 @@ def job_discover_vehicles(
     carmax_session = None
     for raw_source, model, year, pages in partitions:
         hub_zip = None
+        dealer_host = None
         source = raw_source
         if raw_source.startswith("cargurus_hub:"):
             source = "cargurus"
             hub_zip = raw_source.split(":", 1)[1]
+        elif raw_source.startswith("dealercom:"):
+            source = "dealercom"
+            dealer_host = raw_source.split(":", 1)[1]
         seen_vins: set[str] = set()
         sort_passes = [("PRICE", "ASC"), ("PRICE", "DESC"), ("DEAL_SCORE", "ASC")] if (source == "cargurus" and pages >= 20) else [("PRICE", "ASC")]
         for sort_type, sort_dir in sort_passes:
@@ -106,6 +138,8 @@ def job_discover_vehicles(
             for page in range(1, pages + 1):
                 if hub_zip:
                     url = source_url(source, model, year, page, zip_code=hub_zip, distance=500, sort_type=sort_type, sort_dir=sort_dir)
+                elif dealer_host:
+                    url = source_url(source, model, year, page, dealer_host=dealer_host)
                 elif (sort_type, sort_dir) != ("PRICE", "ASC"):
                     url = source_url(source, model, year, page, sort_type=sort_type, sort_dir=sort_dir)
                 else:
@@ -172,7 +206,7 @@ def job_discover_vehicles(
                             break
                         if not fresh_rows:
                             break
-                    if source in ("truecar", "carmax", "marketcheck") and not fresh_rows:
+                    if source in ("truecar", "carmax", "dealercom", "marketcheck") and not fresh_rows:
                         exhausted = True
                         break
                 except Exception as exc:

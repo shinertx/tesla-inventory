@@ -127,26 +127,41 @@ def parse_source(source,response,model=None,year=None):
                 return [x for x in rows if x]
         blocks=LD_RE.findall(response.text)
         if not blocks:raise SourceError(f'{source}: structured listing data missing')
-        vehicles=[]
+        vehicles=[];dealers={};has_collection=False
         def walk(value):
+            nonlocal has_collection
             if isinstance(value,list):
                 for x in value:walk(x)
             elif isinstance(value,dict):
-                if value.get('@type') in ('Vehicle','Car'):vehicles.append(value)
+                t=value.get('@type')
+                types=t if isinstance(t,list) else [t]
+                if 'CollectionPage' in types:has_collection=True
+                if 'AutoDealer' in types and value.get('@id'):dealers[value['@id']]=value
+                if ('Vehicle' in types or 'Car' in types) and value.get('vehicleIdentificationNumber'):vehicles.append(value)
                 for x in value.values():
                     if isinstance(x,(dict,list)):walk(x)
         for raw in blocks:
             try:walk(json.loads(raw))
             except json.JSONDecodeError:raise SourceError(f'{source}: malformed structured listing data')
         for x in vehicles:
+            brand=x.get('brand')
+            brand_name=brand.get('name') if isinstance(brand,dict) else brand
+            if brand_name and str(brand_name).strip().lower()!='tesla':continue
             offer=x.get('offers') or {};offer=offer[0] if isinstance(offer,list) and offer else offer
             seller=offer.get('seller') or {};seller={'name':seller} if isinstance(seller,str) else seller
-            address=seller.get('address') or {}
-            rows.append(normalized(x.get('vehicleIdentificationNumber'),x.get('model'),x.get('vehicleModelDate') or x.get('modelDate'),x.get('vehicleConfiguration') or x.get('description'),offer.get('price'),x.get('mileageFromOdometer'),'Carvana' if source=='carvana' else seller.get('name'),address.get('addressLocality'),address.get('addressRegion'),x.get('image'),offer.get('url') or x.get('url'),title_evidence=x))
-        if not vehicles:raise SourceError(f'{source}: no vehicle records; inspect source before treating this as empty inventory')
+            if isinstance(seller,dict) and seller.get('@id') in dealers and not seller.get('name'):seller=dealers[seller['@id']]
+            address=(seller.get('address') if isinstance(seller,dict) else None) or {}
+            dealer_name='Carvana' if source=='carvana' else (seller.get('name') if isinstance(seller,dict) else None)
+            if source=='dealercom' and isinstance(seller,dict) and '#' in str(seller.get('@id') or ''):
+                rooftop=str(seller['@id']).split('#',1)[1].replace('-',' ').strip()
+                if rooftop and dealer_name and rooftop.lower() not in dealer_name.lower():
+                    dealer_name=f'{dealer_name} ({rooftop})'
+            rows.append(normalized(x.get('vehicleIdentificationNumber'),x.get('model'),x.get('vehicleModelDate') or x.get('modelDate'),x.get('vehicleConfiguration') or x.get('name') or x.get('description'),offer.get('price'),x.get('mileageFromOdometer'),dealer_name,address.get('addressLocality'),address.get('addressRegion'),x.get('image'),offer.get('url') or x.get('url'),title_evidence=x))
+        if not vehicles and not (source=='dealercom' and has_collection):
+            raise SourceError(f'{source}: no vehicle records; inspect source before treating this as empty inventory')
     return [x for x in rows if x]
 
-def source_url(source,model,year,page,min_price=None,zip_code='78201',distance=50000,sort_type='PRICE',sort_dir='ASC'):
+def source_url(source,model,year,page,min_price=None,zip_code='78201',distance=50000,sort_type='PRICE',sort_dir='ASC',dealer_host='https://www.lithia.com'):
     if source=='autolist':
         return 'https://www.autolist.com/api/v2/search?'+urlencode(dict(make='Tesla',model=model,year_min=year,year_max=year,latitude=39.8283,longitude=-98.5795,radius='all',page=page,limit=100,sort_filter='price:asc'))
     if source=='cargurus':
@@ -158,6 +173,11 @@ def source_url(source,model,year,page,min_price=None,zip_code='78201',distance=5
     if source=='carmax':
         uri='/cars/tesla' if model in (None,'All') else f"/cars/tesla/{model.lower().replace(' ','-')}"
         return f'https://www.carmax.com/cars/api/search/run?uri={quote(uri,safe="")}&skip={(page-1)*96}&take=96&zipCode=78701&radius=radius-nationwide&shipping=-1&sort=20'
+    if source=='dealercom':
+        params={'make':'Tesla','start':(page-1)*24}
+        if model and model!='All':params['model']=model
+        if year:params['year']=year
+        return f'{dealer_host.rstrip("/")}/used-inventory/index.htm?'+urlencode(params)
     if source=='marketcheck':
         params={'api_key':(os.getenv('MARKETCHECK_API_KEY') or '').strip(),'make':'Tesla','car_type':'used','seller_type':'dealer','clean_title':'true','rows':50,'start':(page-1)*50}
         if model and model!='All':params['model']=model
@@ -169,7 +189,7 @@ def source_url(source,model,year,page,min_price=None,zip_code='78201',distance=5
     return f'https://www.truecar.com/used-cars-for-sale/listings/tesla/{slug}location-austin-tx/?searchRadius=5000&excludeExpandedDelivery=false&salvage=false&lemon=false&frameDamage=false&theftRecovered=false{yr_q}&page={page}'
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--source',choices=['autolist','cargurus','truecar','carvana','carmax','marketcheck'],required=True)
+    parser=argparse.ArgumentParser();parser.add_argument('--source',choices=['autolist','cargurus','truecar','carvana','carmax','dealercom','marketcheck'],required=True)
     parser.add_argument('--model',choices=['Model 3','Model Y','Model S','Model X','Cybertruck','All'],required=True);parser.add_argument('--year',type=int,default=0)
     parser.add_argument('--pages',type=int,default=1);parser.add_argument('--db',type=Path,default=ROOT/'.data/inventory.db');parser.add_argument('--output',type=Path,default=ROOT/'.data/source_snapshot.json')
     args=parser.parse_args()

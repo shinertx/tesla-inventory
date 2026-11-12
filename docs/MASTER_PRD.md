@@ -4,7 +4,7 @@
 > **Single Source of Truth (`Volts-and-VINs` Production Stack)**
 > - **Live Storefront:** https://voltsandvins.com/ (`GitHub Pages` CDN, repo [`/Users/benjijmac/Projects/Volts-and-VINs`](file:///Users/benjijmac/Projects/Volts-and-VINs))
 > - **Live Checkout, Search & Image Proxy API:** https://api.voltsandvins.com/ (`meme-snipe-v19-vm` `/opt/volts-api/current`, `systemd` `volts-api.service` + 4-hour `volts-catalog-refresh.timer`)
-> - **Nationwide Clean-Title Dealer Catalog (`Option 1`):** **`13,184`** Live, 7-Day Fresh, Clean-Title US Dealer Teslas (`20,072` total VINs indexed across 19 regional `500-mile` CarGurus hubs + CarMax + Carvana + TrueCar, plus native MarketCheck support ready when `MARKETCHECK_API_KEY` is set in `/etc/volts-api.env`; `1,639` Price Finds saving `$500+`; `0` non-Teslas).
+> - **Nationwide Clean-Title Dealer Catalog (`Option 1`):** **`13,437`** Live, 7-Day Fresh, Clean-Title US Dealer Teslas (`20,291` total VINs indexed across 24 upstream `Dealer.com` franchise groups + 19 regional `500-mile` CarGurus hubs + CarMax + Carvana + TrueCar, plus native MarketCheck support ready when `MARKETCHECK_API_KEY` is set in `/etc/volts-api.env`; `1,657` Price Finds saving `$500+`; `0` non-Teslas).
 > - **Regulatory Architecture:** **43 TAC § 215.85(a) W-2 Acquisition Director + `$25` `"Volts & VINs"` DBA** under Licensed Texas GDN (Day 1) $\rightarrow$ **Dedicated Volts & VINs Texas Independent GDN** (Day 45).
 
 ---
@@ -46,7 +46,7 @@ Non-Tesla franchise dealerships (Ford, Toyota, Chevy, BMW, Honda) take Teslas on
    - Optional **4-Year Battery & Drive-Unit Protection + GAP (`+$2,340` or `~$39/mo`)** add-on carried seamlessly from `deal-dialog` into `request-dialog`.
    - Native `<dialog closedby="any">` light-dismiss with Safari coordinate fallback and `enterkeyhint` / step-heading focus transitions.
 4. **Automated 4-Hour VM Refresh Pipeline (`meme-snipe-v19-vm`):**
-   - `volts-catalog-refresh.timer` sweeps live 19-hub CarGurus + CarMax + Autolist/TrueCar partitions (and MarketCheck automatically when `MARKETCHECK_API_KEY` is set in `/etc/volts-api.env`), runs OCR photo scrubbing, rebuilds the clean-title Tesla catalog + static SEO pages, updates `/opt/volts-api/current`, and publishes public artifacts to `voltsandvins.com`.
+   - `volts-catalog-refresh.timer` sweeps 24 upstream `Dealer.com` franchise groups (`Lithia`, `Hendrick`, `Sonic`, `Zeigler`, `Corwin`, `Jim Ellis`, and 18 peers) + 19-hub CarGurus + CarMax + Autolist/TrueCar partitions (and MarketCheck automatically when `MARKETCHECK_API_KEY` is set in `/etc/volts-api.env`), runs OCR photo scrubbing, rebuilds the clean-title Tesla catalog + static SEO pages, updates `/opt/volts-api/current`, and publishes public artifacts to `voltsandvins.com`.
 
 ---
 
