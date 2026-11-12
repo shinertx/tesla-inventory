@@ -266,6 +266,7 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
     now=now or datetime.now(timezone.utc)
     items=[x for x in catalog['items'] if not x.get('expires_at') or (timestamp(x['expires_at']) and timestamp(x['expires_at'])>now)]
     template=(ROOT/'web/index.html').read_text()
+    title_alerts={m[0]:f"{m[1]} — {m[2]}" for m in re.findall(r"'(VV-[0-9A-F]{12})':\{badge:'([^']+)',note:'([^']+)'",(ROOT/'web/app.js').read_text())}
     for asset in ('app.js','pricing.js','legacy-redirect.js','styles.css'):
         version=hashlib.sha256((ROOT/'web'/asset).read_bytes()).hexdigest()[:12]
         template=template.replace('web/'+asset,'web/'+asset+'?v='+version)
@@ -354,7 +355,7 @@ def render_public_pages(catalog,output=ROOT,*,excluded=None,now=None):
         v_desc=f"Buy this {x['year']} Tesla {x['model']} {x['trim']} ({x['mileage']:,} miles in {loc_text}) online for ${x['display_price']:,.0f}. {benchmark_note}Direct Volts & VINs inventory with $0 price lock, online checkout, and home delivery."
         spec_items=[
             f"<li><strong>VIN:</strong> {html.escape(x.get('masked_vin') or 'Verified Volts & VINs inventory')}</li>",
-            f"<li><strong>Title:</strong> Clean title (salvage/branded titles excluded)</li>",
+            f"<li><strong>Title:</strong> {html.escape('⚠ ' + title_alerts[stock] if stock in title_alerts else 'Clean title (prior-damage units flagged)')}</li>",
             f"<li><strong>Vehicle price:</strong> ${x['display_price']:,.0f}</li>",
             f"<li><strong>Odometer:</strong> {x['mileage']:,} mi</li>",
             *([f"<li><strong>Drivetrain:</strong> {html.escape(x['drivetrain'])}</li>"] if x.get('drivetrain') else []),
