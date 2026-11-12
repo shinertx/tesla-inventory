@@ -146,8 +146,7 @@
     return Math.round(3958.8*2*Math.atan2(Math.sqrt(a),Math.sqrt(Math.max(0,1-a))));
   }
   function nearbyLabel(x){const miles=distance(x);return miles===null?'':`About ${miles.toLocaleString()} mi away`;}
-  let browseMode='cash',dealMode='cash',dealDown=3500,dealTerm=60,dealAPR=6.5,dealProtection=false;
-  const PROTECTION_PLAN_CENTS=234000;
+  let browseMode='cash',dealMode='cash',dealDown=3500,dealTerm=60,dealAPR=6.5;
   function cardMonthlyDollars(x){
     if(!x?.display_price||!window.VoltsPricing?.loanPayment)return null;
     const loan=window.VoltsPricing.loanPayment(Math.round(x.display_price*100),350000,6.5,72);
@@ -156,14 +155,13 @@
   function evCreditEligible(x){
     return Boolean(x&&x.display_price>0&&x.display_price<=25000&&x.year<=new Date().getFullYear()-2);
   }
-  function estimateDeal(x,strictZip=false,includeProtection=false){
+  function estimateDeal(x,strictZip=false){
     const hasFallback=!strictZip&&!zipState()&&!!x.location_center&&x.state&&x.state!=='US';
     const zState=zipState()||(hasFallback?x.state:''),miles=zipState()?distance(x):(hasFallback?25:null);
     const result=window.VoltsPricing.preview({vehiclePrice:x.display_price,miles,model:x.model,state:zState,originState:x.state,downPayment:dealDown,apr:dealAPR,term:dealTerm});
-    const protectionCents=includeProtection?PROTECTION_PLAN_CENTS:0;
-    const totalCents=result.totalCents===null?null:result.totalCents+protectionCents;
-    const finance=protectionCents?window.VoltsPricing.loanPayment((totalCents??result.vehicleCents+protectionCents),result.downPaymentCents,dealAPR,dealTerm):result.finance;
-    return {...result,protectionCents,totalCents,finance,zState,miles,ship:result.delivery?result.delivery.budgetCents/100:null,
+    const totalCents=result.totalCents;
+    const finance=result.finance;
+    return {...result,totalCents,finance,zState,miles,ship:result.delivery?result.delivery.budgetCents/100:null,
       tax:result.taxCents===null?null:result.taxCents/100,reg:result.registrationCents===null?null:result.registrationCents/100,
       otd:totalCents===null?null:totalCents/100,monthly:finance?finance.monthlyCents/100:null};
   }
@@ -171,8 +169,7 @@
     const delivery=est.ship!==null?money(est.delivery.budgetCents):(x.model==='Cybertruck'?'Oversize carrier quote needed':zip?'Carrier quote needed':'Enter ZIP above');
     const taxTag=est.zState&&est.taxRate!==null?` (${esc(est.zState)} ${+(est.taxRate*100).toFixed(3)}%)`:'';
     const fallbackText=zip?'Included in written quote':'Enter ZIP above';
-    const protRow=est.protectionCents?`<div class="line-item"><span>4-Year Battery &amp; Drive-Unit Protection + GAP (optional)</span><strong>${money(est.protectionCents)}</strong></div>`:'';
-    return `<div class="line-item"><span>Vehicle price</span><strong>${money(est.vehicleCents)}</strong></div><div class="line-item"><span>Delivery budget${zip?' to '+esc(zip):(est.ship!==null&&est.zState?' ('+esc(est.zState)+' est.)':'')}</span><strong>${delivery}</strong></div><div class="line-item"><span>Estimated sales tax${taxTag}</span><strong>${est.taxCents!==null?money(est.taxCents):fallbackText}</strong></div><div class="line-item"><span>Title &amp; registration fees</span><strong>${est.registrationCents!==null?money(est.registrationCents):fallbackText}</strong></div>${protRow}`;
+    return `<div class="line-item"><span>Vehicle price</span><strong>${money(est.vehicleCents)}</strong></div><div class="line-item"><span>Delivery budget${zip?' to '+esc(zip):(est.ship!==null&&est.zState?' ('+esc(est.zState)+' est.)':'')}</span><strong>${delivery}</strong></div><div class="line-item"><span>Estimated sales tax${taxTag}</span><strong>${est.taxCents!==null?money(est.taxCents):fallbackText}</strong></div><div class="line-item"><span>Title &amp; registration fees</span><strong>${est.registrationCents!==null?money(est.registrationCents):fallbackText}</strong></div>`;
   }
   function estimateNotes(x,est){
     return `<details class="estimate-details"><summary>How shipping &amp; tax are calculated</summary><p>Delivery is insured open-carrier shipping to your door.${est.delivery?` Longer rural routes can be up to ${money(est.delivery.highScenarioCents)}.`:''}</p><p>${est.zState==='TX'?'Includes 6.25% Texas motor-vehicle sales tax plus estimated Texas title, registration, and EV registration fees ($350).':'Exact state sales tax and registration fees are confirmed in your written Buyer’s Order before you pay anything.'}</p></details>`;
@@ -249,12 +246,11 @@
   let requestDraft=null,requestSubmitting=false;
   function paintDeal(){
     const x=byVIN.get(activeVIN);if(!x)return;
-    const est=estimateDeal(x,false,dealProtection);
-    const previewTotal=est.totalCents!==null?money(est.totalCents):est.delivery?money(est.vehicleCents+est.delivery.budgetCents+est.protectionCents)+' + tax & fees':money(est.vehicleCents+est.protectionCents)+' + delivery, tax & fees';
+    const est=estimateDeal(x,false);
+    const previewTotal=est.totalCents!==null?money(est.totalCents):est.delivery?money(est.vehicleCents+est.delivery.budgetCents)+' + tax & fees':money(est.vehicleCents)+' + delivery, tax & fees';
     const monthlyBadge=est.finance?` · ${money(est.finance.monthlyCents)}/mo est. (${dealTerm} mo)`:'';
-    $('deal-summary').innerHTML=`<p class="eyebrow">STEP 1 OF 2 · OUT-THE-DOOR PRICE</p><h2 tabindex="-1">${x.year} Tesla ${esc(x.model)}</h2><p class="flow-car-summary">${esc(x.trim)} · ${odometer(x)} · Stock ${esc(x.stock_id)}</p>${titleAlertBanner(x,'deal')}<div class="deal-total"><span>${est.totalCents!==null?'Estimated total':est.delivery?'Vehicle + delivery subtotal':'Vehicle price'}</span><strong>${previewTotal}</strong><small>${est.totalCents!==null?`Includes vehicle, home delivery, ${est.zState==='TX'?'Texas':esc(est.zState||'state')} sales tax & registration${monthlyBadge}`:`Enter your 5-digit ZIP above to include shipping, sales tax & registration${monthlyBadge}`}</small></div>${saving(x)>0?`<p class="flow-savings">You save ${dollars(saving(x))} compared to similar Tesla listings.</p>`:''}<div class="price-breakdown">${estimateRows(x,est)}</div><label class="check protection-addon"><input type="checkbox" id="deal-protection" ${dealProtection?'checked':''}><span><strong>Add 4-Year Battery &amp; Drive-Unit Protection + GAP</strong> (+$2,340 or ~$39/mo) — optional, decide later</span></label><div class="deal-mode-toggle" role="group" aria-label="Payment option"><button type="button" class="deal-mode-btn ${dealMode==='cash'?'active':''}" aria-pressed="${dealMode==='cash'}" data-deal-mode="cash">Pay in full</button><button type="button" class="deal-mode-btn ${dealMode==='finance'?'active':''}" aria-pressed="${dealMode==='finance'}" data-deal-mode="finance">Estimate monthly payment</button></div>${dealMode==='finance'?`<div class="deal-finance-box"><div class="deal-finance-headline"><strong>${est.finance?money(est.finance.monthlyCents):'—'}<span>/mo estimate</span></strong></div><div class="form-row"><label>Down payment<select id="deal-down">${[1500,3500,5000,10000].map(v=>`<option value="${v}" ${dealDown===v?'selected':''}>${dollars(v)}</option>`).join('')}</select></label><label>Loan term<select id="deal-term">${[60,72].map(t=>`<option value="${t}" ${dealTerm===t?'selected':''}>${t} months</option>`).join('')}</select></label></div><label>Example APR (%)<input id="deal-apr" type="number" min="0" max="36" step="0.1" value="${dealAPR}"></label><p class="price-label">Illustrative estimate at ${dealAPR}% APR over ${dealTerm} months.${est.financeIncludesEstimatedCosts?' Includes estimated delivery, sales tax, and registration.':' Vehicle price only; delivery, taxes, and fees are extra.'} Calculator only — this is not a loan offer or approval.</p></div>`:''}<details class="estimate-details"><summary>How the free 24-hour price lock works ($0 today)</summary><p><strong>1. Pay $0 today:</strong> Hold this price for 24 hours with zero payment and no credit card.</p><p><strong>2. Get your written Buyer’s Order:</strong> Our licensed dealer confirms the car is available with a clean title and confirms exact carrier shipping${est.delivery?` (longer routes up to ${money(est.delivery.highScenarioCents)})`:''} and state tax.</p><p><strong>3. Decide with zero pressure:</strong> Place a refundable $250 card hold only after you approve your written quote, then pay by bank wire or finance with your bank, credit union, or lender.</p></details>`;
+    $('deal-summary').innerHTML=`<p class="eyebrow">STEP 1 OF 2 · OUT-THE-DOOR PRICE</p><h2 tabindex="-1">${x.year} Tesla ${esc(x.model)}</h2><p class="flow-car-summary">${esc(x.trim)} · ${odometer(x)} · Stock ${esc(x.stock_id)}</p>${titleAlertBanner(x,'deal')}<div class="deal-total"><span>${est.totalCents!==null?'Estimated total':est.delivery?'Vehicle + delivery subtotal':'Vehicle price'}</span><strong>${previewTotal}</strong><small>${est.totalCents!==null?`Includes vehicle, home delivery, ${est.zState==='TX'?'Texas':esc(est.zState||'state')} sales tax & registration${monthlyBadge}`:`Enter your 5-digit ZIP above to include shipping, sales tax & registration${monthlyBadge}`}</small></div>${saving(x)>0?`<p class="flow-savings">You save ${dollars(saving(x))} compared to similar Tesla listings.</p>`:''}<div class="price-breakdown">${estimateRows(x,est)}</div><div class="deal-mode-toggle" role="group" aria-label="Payment option"><button type="button" class="deal-mode-btn ${dealMode==='cash'?'active':''}" aria-pressed="${dealMode==='cash'}" data-deal-mode="cash">Pay in full</button><button type="button" class="deal-mode-btn ${dealMode==='finance'?'active':''}" aria-pressed="${dealMode==='finance'}" data-deal-mode="finance">Estimate monthly payment</button></div>${dealMode==='finance'?`<div class="deal-finance-box"><div class="deal-finance-headline"><strong>${est.finance?money(est.finance.monthlyCents):'—'}<span>/mo estimate</span></strong></div><div class="form-row"><label>Down payment<select id="deal-down">${[1500,3500,5000,10000].map(v=>`<option value="${v}" ${dealDown===v?'selected':''}>${dollars(v)}</option>`).join('')}</select></label><label>Loan term<select id="deal-term">${[60,72].map(t=>`<option value="${t}" ${dealTerm===t?'selected':''}>${t} months</option>`).join('')}</select></label></div><label>Example APR (%)<input id="deal-apr" type="number" min="0" max="36" step="0.1" value="${dealAPR}"></label><p class="price-label">Illustrative estimate at ${dealAPR}% APR over ${dealTerm} months.${est.financeIncludesEstimatedCosts?' Includes estimated delivery, sales tax, and registration.':' Vehicle price only; delivery, taxes, and fees are extra.'} Calculator only — this is not a loan offer or approval.</p></div>`:''}<details class="estimate-details"><summary>How the free 24-hour price lock works ($0 today)</summary><p><strong>1. Pay $0 today:</strong> Hold this price for 24 hours with zero payment and no credit card.</p><p><strong>2. Get your written Buyer’s Order:</strong> Our licensed dealer confirms the car is available with a clean title and confirms exact carrier shipping${est.delivery?` (longer routes up to ${money(est.delivery.highScenarioCents)})`:''} and state tax.</p><p><strong>3. Decide with zero pressure:</strong> Place a refundable $250 card hold only after you approve your written quote, then pay by bank wire or finance with your bank, credit union, or lender.</p></details>`;
     $('deal-summary').querySelectorAll('[data-deal-mode]').forEach(b=>b.addEventListener('click',()=>{dealMode=b.dataset.dealMode;paintDeal();}));
-    $('deal-protection')?.addEventListener('change',e=>{dealProtection=e.target.checked;paintDeal();});
     $('deal-down')?.addEventListener('change',e=>{dealDown=Number(e.target.value);paintDeal();});
     $('deal-term')?.addEventListener('change',e=>{dealTerm=Number(e.target.value);paintDeal();});
     $('deal-apr')?.addEventListener('change',e=>{const apr=Number(e.target.value);if(Number.isFinite(apr)&&apr>=0&&apr<=36)dealAPR=apr;paintDeal();});
@@ -288,11 +284,11 @@
   function paintRequestEstimate(){
     const x=byVIN.get(activeVIN);if(!x)return;
     const form=$('request-form'),postal=form.elements.zip.value.trim();
-    const est=estimateDeal(x,true,dealProtection),matches=postal===zip&&!!zipState();
+    const est=estimateDeal(x,true),matches=postal===zip&&!!zipState();
     const hasTotal=matches&&est.totalCents!==null;
     const hasDelivery=matches&&est.delivery;
     const label=hasTotal?'Estimated total':hasDelivery?'Vehicle + delivery subtotal':'Vehicle price';
-    const amount=hasTotal?money(est.totalCents):hasDelivery?money(est.vehicleCents+est.delivery.budgetCents+est.protectionCents)+' + tax & fees':money(est.vehicleCents+est.protectionCents)+' + delivery, tax & fees';
+    const amount=hasTotal?money(est.totalCents):hasDelivery?money(est.vehicleCents+est.delivery.budgetCents)+' + tax & fees':money(est.vehicleCents)+' + delivery, tax & fees';
     const subNote=hasTotal?`Includes vehicle, home delivery to ${esc(postal)}, sales tax & registration. Due today: $0.`:hasDelivery?`Includes vehicle and home delivery to ${esc(postal)}. Sales tax & registration confirmed in your quote. Due today: $0.`:(matches?'Includes home delivery to '+esc(postal)+'. Due today: $0.':'Enter a valid delivery ZIP to see shipping and sales tax.');
     $('request-estimate').innerHTML=`<div class="request-estimate-total"><span>${label}</span><strong>${amount}</strong></div><p>${subNote}</p>${saving(x)>0?`<p class="flow-savings">You save ${dollars(saving(x))} compared to similar Tesla listings.</p>`:''}`;
     $('request-finance-note').hidden=form.elements.payment_preference.value!=='partner_financing';
